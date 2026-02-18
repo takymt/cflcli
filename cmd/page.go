@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -14,10 +15,6 @@ import (
 type pageListOptions struct {
 	spaceID string
 	limit   int
-}
-
-type pageLister interface {
-	ListPages(spaceID string, limit int, cursor string) (*client.PageListResult, error)
 }
 
 func newPageCmd() *cobra.Command {
@@ -49,8 +46,8 @@ func newPageListCmd() *cobra.Command {
 }
 
 func runPageListWithConfig(out io.Writer, opts *pageListOptions, cfg *config.Config) error {
-	if opts.limit <= 0 {
-		return fmt.Errorf("limit must be greater than 0")
+	if err := validatePageListLimit(opts.limit); err != nil {
+		return err
 	}
 
 	profile, err := resolveProfile(cfg)
@@ -58,7 +55,7 @@ func runPageListWithConfig(out io.Writer, opts *pageListOptions, cfg *config.Con
 		return err
 	}
 
-	cli, err := newClient(profile, os.Getenv("CONFLUENCE_API_TOKEN"))
+	cli, err := client.New(context.Background(), profile, os.Getenv("CONFLUENCE_API_TOKEN"))
 	if err != nil {
 		return err
 	}
@@ -68,20 +65,25 @@ func runPageListWithConfig(out io.Writer, opts *pageListOptions, cfg *config.Con
 		return err
 	}
 
-	formatter, err := output.New(outputFlag, out)
-	if err != nil {
-		return err
+	switch outputFlag {
+	case "table":
+		return output.WritePagesTable(out, result.Results)
+	case "json":
+		return output.WritePageListJSON(out, output.PageListOutput{
+			Request: output.PageListRequest{SpaceID: opts.spaceID, Limit: opts.limit},
+			Next:    result.Links.Next,
+			Results: result.Results,
+		})
+	default:
+		return fmt.Errorf("unsupported output format: %s", outputFlag)
 	}
+}
 
-	if outputFlag == "table" {
-		return formatter.Print(result.Results)
+func validatePageListLimit(limit int) error {
+	if limit < 1 || limit > 250 {
+		return fmt.Errorf("limit must be between 1 and 250")
 	}
-
-	return formatter.Print(output.PageListOutput{
-		Request: output.PageListRequest{SpaceID: opts.spaceID, Limit: opts.limit},
-		Next:    result.Links.Next,
-		Results: result.Results,
-	})
+	return nil
 }
 
 func runPageList(out io.Writer, opts *pageListOptions) error {
@@ -90,10 +92,6 @@ func runPageList(out io.Writer, opts *pageListOptions) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 	return runPageListWithConfig(out, opts, cfg)
-}
-
-var newClient = func(profile *config.Profile, token string) (pageLister, error) {
-	return client.New(profile, token)
 }
 
 func resolveProfile(cfg *config.Config) (*config.Profile, error) {

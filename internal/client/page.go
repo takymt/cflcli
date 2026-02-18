@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"net/url"
 	"strconv"
 
@@ -27,7 +28,9 @@ func (c *Client) ListPages(spaceID string, limit int, cursor string) (*PageListR
 	}
 
 	var result PageListResult
-	if err := c.get("/pages", query, &result); err != nil {
+	if err := c.get("/pages", query, func(decoder *json.Decoder) error {
+		return decoder.Decode(&result)
+	}); err != nil {
 		return nil, err
 	}
 	return &result, nil

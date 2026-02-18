@@ -26,17 +26,15 @@
 
 ### ページ操作
 
-- [ ] `cfl page list [--space-id ID] [--limit N]`
+- [x] `cfl page list [--space-id ID] [--limit N]`
+  - [x] `list` `--space-id` `--limit`
+  - [ ] `--cursor` ページング
+  - [ ] `--status` ページ状態フィルタ
+  - [ ] `--sort` 並び順
 - [ ] `cfl page get <page-id>`
 - [ ] `cfl page create --title TITLE --body-file FILE [--parent-id ID]`
 - [ ] `cfl page update <page-id> --title TITLE --body-file FILE --version N`
 - [ ] `cfl page delete <page-id>`
-
-#### page list 追加候補
-
-- [ ] `--cursor` ページング
-- [ ] `--status` ページ状態フィルタ
-- [ ] `--sort` 並び順
 
 ## Phase 2: 拡張機能
 

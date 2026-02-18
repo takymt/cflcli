@@ -8,25 +8,9 @@ import (
 	"github.com/takymt/cflcli/internal/model"
 )
 
-type tableFormatter struct {
-	out io.Writer
-}
-
-func (f *tableFormatter) Print(v any) error {
-	switch data := v.(type) {
-	case []model.Page:
-		return f.printPages(data)
-	case PageListOutput:
-		return f.printPages(data.Results)
-	case *PageListOutput:
-		return f.printPages(data.Results)
-	default:
-		return fmt.Errorf("unsupported table data type: %T", v)
-	}
-}
-
-func (f *tableFormatter) printPages(pages []model.Page) error {
-	w := tabwriter.NewWriter(f.out, 0, 0, 3, ' ', 0)
+// WritePagesTable writes pages as a table.
+func WritePagesTable(out io.Writer, pages []model.Page) error {
+	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
 	if _, err := fmt.Fprintln(w, "ID\tTITLE\tSTATUS\tSPACE"); err != nil {
 		return err
 	}

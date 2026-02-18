@@ -78,19 +78,15 @@ cflcli/
 ├── internal/
 │   ├── client/              # HTTP client
 │   │   ├── client.go
+│   │   ├── page.go
 │   │   └── pagination.go
 │   ├── config/              # Config management (XDG, TOML, profiles)
 │   │   └── config.go
 │   ├── model/               # API response structs
-│   │   ├── page.go
-│   │   └── space.go
+│   │   └── page.go
 │   └── output/              # Output formatters
-│       ├── formatter.go
-│       ├── json.go
+│       ├── output.go
 │       └── table.go
-└── test/
-    └── integration/         # Integration tests (live API)
-        └── page_test.go
 ```
 
 ## Libraries

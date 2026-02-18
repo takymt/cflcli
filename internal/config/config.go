@@ -14,7 +14,6 @@ type Profile struct {
 	Domain   string `toml:"domain"`
 	User     string `toml:"user"`
 	SpaceKey string `toml:"space_key"`
-	Token    string `toml:"token,omitempty"`
 }
 
 // Config represents the top-level configuration file.
