@@ -1,0 +1,307 @@
+package cmd
+
+import (
+	"bufio"
+	"fmt"
+	"io"
+	"strings"
+	"text/tabwriter"
+
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+	"github.com/takymt/cflcli/internal/config"
+)
+
+func newConfigCmd() *cobra.Command {
+	configCmd := &cobra.Command{
+		Use:   "config",
+		Short: "Manage configuration profiles",
+	}
+
+	configCmd.AddCommand(newConfigInitCmd())
+	configCmd.AddCommand(newConfigListCmd())
+	configCmd.AddCommand(newConfigShowCmd())
+	configCmd.AddCommand(newConfigDeleteCmd())
+
+	return configCmd
+}
+
+type configInitOptions struct {
+	name       string
+	domain     string
+	user       string
+	spaceKey   string
+	configPath string
+}
+
+func newConfigInitCmd() *cobra.Command {
+	opts := &configInitOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Create a new profile interactively",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runConfigInit(cmd.InOrStdin(), cmd.OutOrStdout(), opts)
+		},
+	}
+
+	cmd.Flags().StringVar(&opts.name, "name", "", "profile name")
+	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
+	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
+	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
+
+	return cmd
+}
+
+func loadConfig(configPath string) (*config.Config, error) {
+	if configPath != "" {
+		return config.LoadFrom(configPath)
+	}
+	return config.Load()
+}
+
+func saveConfig(cfg *config.Config, configPath string) error {
+	if configPath != "" {
+		return cfg.SaveTo(configPath)
+	}
+	return cfg.Save()
+}
+
+func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
+	reader := bufio.NewReader(in)
+
+	cfg, err := loadConfig(opts.configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	var defaultDomain, defaultUser string
+	if cur := cfg.CurrentProfile(); cur != nil {
+		defaultDomain = cur.Domain
+		defaultUser = cur.User
+	}
+
+	name := opts.name
+	if name == "" {
+		name, err = prompt(reader, out, "Profile name", "")
+		if err != nil {
+			return err
+		}
+	}
+	if name == "" {
+		return fmt.Errorf("profile name is required")
+	}
+
+	domain := opts.domain
+	if domain == "" {
+		domain, err = prompt(reader, out, "Confluence domain", defaultDomain)
+		if err != nil {
+			return err
+		}
+	}
+	if domain == "" {
+		return fmt.Errorf("domain is required")
+	}
+
+	user := opts.user
+	if user == "" {
+		user, err = prompt(reader, out, "Email address", defaultUser)
+		if err != nil {
+			return err
+		}
+	}
+	if user == "" {
+		return fmt.Errorf("email address is required")
+	}
+
+	spaceKey := opts.spaceKey
+	if spaceKey == "" {
+		spaceKey, err = prompt(reader, out, "Default space key", "")
+		if err != nil {
+			return err
+		}
+	}
+	if spaceKey == "" {
+		return fmt.Errorf("space key is required")
+	}
+
+	profile := &config.Profile{
+		Name:     name,
+		Domain:   domain,
+		User:     user,
+		SpaceKey: spaceKey,
+	}
+
+	if err := cfg.AddProfile(profile); err != nil {
+		return err
+	}
+
+	if err := saveConfig(cfg, opts.configPath); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+
+	_, _ = fmt.Fprintf(out, "Profile %q created successfully.\n", name)
+	if cfg.Current == name {
+		_, _ = fmt.Fprintf(out, "Set as current profile.\n")
+	}
+	return nil
+}
+
+type configListOptions struct {
+	configPath string
+}
+
+func newConfigListCmd() *cobra.Command {
+	opts := &configListOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List all profiles",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runConfigList(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	return cmd
+}
+
+func runConfigList(out io.Writer, opts *configListOptions) error {
+	cfg, err := loadConfig(opts.configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	if len(cfg.Profiles) == 0 {
+		_, _ = fmt.Fprintln(out, "No profiles configured. Run 'cfl config init' to create one.")
+		return nil
+	}
+
+	// Pass 1: format with tabwriter using plain text
+	var buf strings.Builder
+	w := tabwriter.NewWriter(&buf, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintln(w, "  NAME\tDOMAIN\tSPACE")
+	for _, p := range cfg.Profiles {
+		marker := " "
+		if p.Name == cfg.Current {
+			marker = "*"
+		}
+		_, _ = fmt.Fprintf(w, "%s %s\t%s\t%s\n", marker, p.Name, p.Domain, p.SpaceKey)
+	}
+	if err := w.Flush(); err != nil {
+		return err
+	}
+
+	// Pass 2: colorize current profile line
+	green := color.New(color.FgGreen)
+	for _, line := range strings.Split(buf.String(), "\n") {
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "*") {
+			_, _ = green.Fprintln(out, line)
+		} else {
+			_, _ = fmt.Fprintln(out, line)
+		}
+	}
+	return nil
+}
+
+type configShowOptions struct {
+	configPath string
+}
+
+func newConfigShowCmd() *cobra.Command {
+	opts := &configShowOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "show",
+		Short: "Show current profile details",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runConfigShow(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	return cmd
+}
+
+func runConfigShow(out io.Writer, opts *configShowOptions) error {
+	cfg, err := loadConfig(opts.configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	p := cfg.CurrentProfile()
+	if p == nil {
+		_, _ = fmt.Fprintln(out, "No current profile. Run 'cfl config init' to create one.")
+		return nil
+	}
+
+	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	_, _ = fmt.Fprintf(w, "Name:\t%s\n", p.Name)
+	_, _ = fmt.Fprintf(w, "Domain:\t%s\n", p.Domain)
+	_, _ = fmt.Fprintf(w, "User:\t%s\n", p.User)
+	_, _ = fmt.Fprintf(w, "Space Key:\t%s\n", p.SpaceKey)
+	return w.Flush()
+}
+
+type configDeleteOptions struct {
+	configPath string
+}
+
+func newConfigDeleteCmd() *cobra.Command {
+	opts := &configDeleteOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "delete <name>",
+		Short: "Delete a profile",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("profile name is required\nUsage: cfl config delete <name>")
+			}
+			if len(args) > 1 {
+				return fmt.Errorf("too many arguments\nUsage: cfl config delete <name>")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runConfigDelete(cmd.OutOrStdout(), args[0], opts)
+		},
+	}
+
+	return cmd
+}
+
+func runConfigDelete(out io.Writer, name string, opts *configDeleteOptions) error {
+	cfg, err := loadConfig(opts.configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+
+	if err := cfg.DeleteProfile(name); err != nil {
+		return err
+	}
+
+	if err := saveConfig(cfg, opts.configPath); err != nil {
+		return fmt.Errorf("save config: %w", err)
+	}
+
+	_, _ = fmt.Fprintf(out, "Profile %q deleted.\n", name)
+	return nil
+}
+
+func prompt(reader *bufio.Reader, out io.Writer, label string, defaultVal string) (string, error) {
+	if defaultVal != "" {
+		_, _ = fmt.Fprintf(out, "%s [%s]: ", label, defaultVal)
+	} else {
+		_, _ = fmt.Fprintf(out, "%s: ", label)
+	}
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", fmt.Errorf("read input: %w", err)
+	}
+	val := strings.TrimSpace(line)
+	if val == "" {
+		return defaultVal, nil
+	}
+	return val, nil
+}

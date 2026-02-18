@@ -14,10 +14,10 @@
 
 ### 設定管理
 
-- [ ] `cfl config init` — 対話式で新しい profile を作成
-- [ ] `cfl config list` — profile 一覧表示
-- [ ] `cfl config show` — 現在の profile 詳細表示
-- [ ] `cfl config delete <name>` — profile 削除
+- [x] `cfl config init` — 対話式で新しい profile を作成
+- [x] `cfl config list` — profile 一覧表示
+- [x] `cfl config show` — 現在の profile 詳細表示
+- [x] `cfl config delete <name>` — profile 削除
 
 ### プロファイル切り替え
 
