@@ -87,6 +87,8 @@ cflcli/
 │   └── output/              # Output formatters
 │       ├── output.go
 │       └── table.go
+└── test/
+    └── page_cli_test.go
 ```
 
 ## Libraries

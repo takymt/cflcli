@@ -15,11 +15,14 @@ import (
 // Client is a minimal Confluence REST API v2 client.
 type Client struct {
 	ctx        context.Context
-	baseUrl    string
+	baseURL    string
 	httpClient *http.Client
 	user       string
 	token      string
 }
+
+// DefaultHTTPClient is used when no custom client is provided.
+var DefaultHTTPClient = http.DefaultClient
 
 // New creates a client from a profile and API token.
 func New(ctx context.Context, profile *config.Profile, token string) (*Client, error) {
@@ -40,12 +43,22 @@ func New(ctx context.Context, profile *config.Profile, token string) (*Client, e
 	}
 
 	base := strings.TrimSuffix(profile.Domain, "/")
-	baseUrl := fmt.Sprintf("https://%s/wiki/api/v2", base)
+	if strings.HasPrefix(base, "http://") || strings.HasPrefix(base, "https://") {
+		baseURL := fmt.Sprintf("%s/wiki/api/v2", base)
+		return &Client{
+			ctx:        ctx,
+			baseURL:    baseURL,
+			httpClient: DefaultHTTPClient,
+			user:       profile.User,
+			token:      token,
+		}, nil
+	}
+	baseURL := fmt.Sprintf("https://%s/wiki/api/v2", base)
 
 	return &Client{
 		ctx:        ctx,
-		baseUrl:    baseUrl,
-		httpClient: http.DefaultClient,
+		baseURL:    baseURL,
+		httpClient: DefaultHTTPClient,
 		user:       profile.User,
 		token:      token,
 	}, nil
@@ -70,16 +83,15 @@ func (c *Client) do(req *http.Request, decode func(*json.Decoder) error) error {
 }
 
 func (c *Client) get(path string, query url.Values, decode func(*json.Decoder) error) error {
-	u, err := url.Parse(c.baseUrl + path)
+	u, err := url.Parse(c.baseURL + path)
 	if err != nil {
 		return err
 	}
 	u.RawQuery = query.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
 		return err
 	}
-	req = req.WithContext(c.ctx)
 	return c.do(req, decode)
 }

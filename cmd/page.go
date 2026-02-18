@@ -12,9 +12,10 @@ import (
 	"github.com/takymt/cflcli/internal/output"
 )
 
-type pageListOptions struct {
-	spaceID string
-	limit   int
+// PageListOptions holds options for page listing.
+type PageListOptions struct {
+	SpaceID string
+	Limit   int
 }
 
 func newPageCmd() *cobra.Command {
@@ -29,7 +30,7 @@ func newPageCmd() *cobra.Command {
 }
 
 func newPageListCmd() *cobra.Command {
-	opts := &pageListOptions{}
+	opts := &PageListOptions{}
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -39,14 +40,15 @@ func newPageListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.spaceID, "space-id", "", "space id")
-	cmd.Flags().IntVar(&opts.limit, "limit", 25, "number of results per page")
+	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id")
+	cmd.Flags().IntVar(&opts.Limit, "limit", 25, "number of results per page")
 
 	return cmd
 }
 
-func runPageListWithConfig(out io.Writer, opts *pageListOptions, cfg *config.Config) error {
-	if err := validatePageListLimit(opts.limit); err != nil {
+// RunPageListWithConfig runs the page list command with a provided config.
+func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Config) error {
+	if err := validatePageListLimit(opts.Limit); err != nil {
 		return err
 	}
 
@@ -60,7 +62,7 @@ func runPageListWithConfig(out io.Writer, opts *pageListOptions, cfg *config.Con
 		return err
 	}
 
-	result, err := cli.ListPages(opts.spaceID, opts.limit, "")
+	result, err := cli.ListPages(opts.SpaceID, opts.Limit, "")
 	if err != nil {
 		return err
 	}
@@ -70,7 +72,7 @@ func runPageListWithConfig(out io.Writer, opts *pageListOptions, cfg *config.Con
 		return output.WritePagesTable(out, result.Results)
 	case "json":
 		return output.WritePageListJSON(out, output.PageListOutput{
-			Request: output.PageListRequest{SpaceID: opts.spaceID, Limit: opts.limit},
+			Request: output.PageListRequest{SpaceID: opts.SpaceID, Limit: opts.Limit},
 			Next:    result.Links.Next,
 			Results: result.Results,
 		})
@@ -86,12 +88,12 @@ func validatePageListLimit(limit int) error {
 	return nil
 }
 
-func runPageList(out io.Writer, opts *pageListOptions) error {
+func runPageList(out io.Writer, opts *PageListOptions) error {
 	cfg, err := loadConfig("")
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
-	return runPageListWithConfig(out, opts, cfg)
+	return RunPageListWithConfig(out, opts, cfg)
 }
 
 func resolveProfile(cfg *config.Config) (*config.Profile, error) {

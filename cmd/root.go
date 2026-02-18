@@ -12,6 +12,26 @@ var (
 	verboseFlag bool
 )
 
+// ProfileFlag returns the active profile flag.
+func ProfileFlag() string {
+	return profileFlag
+}
+
+// OutputFlag returns the active output flag.
+func OutputFlag() string {
+	return outputFlag
+}
+
+// SetProfileFlag sets the profile flag.
+func SetProfileFlag(value string) {
+	profileFlag = value
+}
+
+// SetOutputFlag sets the output flag.
+func SetOutputFlag(value string) {
+	outputFlag = value
+}
+
 // NewRootCmd creates the root command for cfl CLI.
 func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{

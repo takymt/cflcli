@@ -13,6 +13,7 @@ linters:
     - errorlint
     - govet
     - nilerr
+    - noctx
     - staticcheck
 
     # Code quality
