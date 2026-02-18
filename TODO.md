@@ -32,6 +32,12 @@
 - [ ] `cfl page update <page-id> --title TITLE --body-file FILE --version N`
 - [ ] `cfl page delete <page-id>`
 
+#### page list 追加候補
+
+- [ ] `--cursor` ページング
+- [ ] `--status` ページ状態フィルタ
+- [ ] `--sort` 並び順
+
 ## Phase 2: 拡張機能
 
 ### ページ補助操作
