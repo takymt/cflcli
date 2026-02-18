@@ -134,14 +134,14 @@ func (c *Config) SetCurrent(name string) error {
 }
 
 // DeleteProfile removes the profile with the given name.
-// Returns an error if the profile is not found or if it is the current profile.
+// Returns an error if the profile is not found.
 func (c *Config) DeleteProfile(name string) error {
-	if name == c.Current {
-		return fmt.Errorf("cannot delete current profile %q; switch to another profile first with 'cfl use <name>'", name)
-	}
 	for i := range c.Profiles {
 		if c.Profiles[i].Name == name {
 			c.Profiles = append(c.Profiles[:i], c.Profiles[i+1:]...)
+			if c.Current == name {
+				c.Current = ""
+			}
 			return nil
 		}
 	}

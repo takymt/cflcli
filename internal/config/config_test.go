@@ -192,12 +192,17 @@ func TestDeleteProfile_CurrentProfile(t *testing.T) {
 		},
 	}
 
-	err := cfg.DeleteProfile("active")
-	if err == nil {
-		t.Fatal("expected error when deleting current profile, got nil")
+	if err := cfg.DeleteProfile("active"); err != nil {
+		t.Fatalf("DeleteProfile failed: %v", err)
 	}
-	if len(cfg.Profiles) != 2 {
-		t.Errorf("profiles should not have changed, got %d", len(cfg.Profiles))
+	if len(cfg.Profiles) != 1 {
+		t.Fatalf("expected 1 profile, got %d", len(cfg.Profiles))
+	}
+	if cfg.Profiles[0].Name != "other" {
+		t.Errorf("expected remaining profile %q, got %q", "other", cfg.Profiles[0].Name)
+	}
+	if cfg.Current != "" {
+		t.Errorf("expected current to be cleared, got %q", cfg.Current)
 	}
 }
 

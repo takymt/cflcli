@@ -103,6 +103,53 @@ func TestConfigInit_Interactive(t *testing.T) {
 	}
 }
 
+func TestConfigInit_Interactive_FirstProfileShowsDomainExample(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	opts := &configInitOptions{configPath: configPath}
+
+	input := "first\nnewsite.atlassian.net\nme@example.com\nFIRST\n"
+	out := &bytes.Buffer{}
+	in := strings.NewReader(input)
+
+	if err := runConfigInit(in, out, opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	output := out.String()
+	if !strings.Contains(output, "Confluence domain (e.g. example.atlassian.net)") {
+		t.Errorf("expected domain example prompt, got: %s", output)
+	}
+	if strings.Contains(output, "[example.atlassian.net]") {
+		t.Errorf("did not expect domain default value in prompt, got: %s", output)
+	}
+}
+
+func TestConfigInit_Interactive_FirstProfileDomainIsRequired(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	opts := &configInitOptions{configPath: configPath}
+
+	input := "first\n\nme@example.com\nFIRST\n"
+	out := &bytes.Buffer{}
+	in := strings.NewReader(input)
+
+	err := runConfigInit(in, out, opts)
+	if err == nil {
+		t.Fatal("expected error for missing domain, got nil")
+	}
+	if !strings.Contains(err.Error(), "domain is required") {
+		t.Fatalf("expected domain required error, got: %v", err)
+	}
+
+	output := out.String()
+	if !strings.Contains(output, "Confluence domain (e.g. example.atlassian.net)") {
+		t.Errorf("expected domain example prompt, got: %s", output)
+	}
+}
+
 func TestConfigInit_InteractiveDefaults(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
@@ -396,17 +443,22 @@ func TestConfigDelete_CurrentProfile(t *testing.T) {
 
 	opts := &configDeleteOptions{configPath: configPath}
 	out := &bytes.Buffer{}
-	err := runConfigDelete(out, "work", opts)
-	if err == nil {
-		t.Fatal("expected error when deleting current profile, got nil")
+	if err := runConfigDelete(out, "work", opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 
 	loaded, err := config.LoadFrom(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
-	if len(loaded.Profiles) != 2 {
-		t.Fatalf("expected 2 profiles unchanged, got %d", len(loaded.Profiles))
+	if len(loaded.Profiles) != 1 {
+		t.Fatalf("expected 1 profile remaining, got %d", len(loaded.Profiles))
+	}
+	if loaded.Profiles[0].Name != "personal" {
+		t.Errorf("expected remaining profile %q, got %q", "personal", loaded.Profiles[0].Name)
+	}
+	if loaded.Current != "" {
+		t.Errorf("expected current to be cleared, got %q", loaded.Current)
 	}
 }
 

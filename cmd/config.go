@@ -94,7 +94,11 @@ func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
 
 	domain := opts.domain
 	if domain == "" {
-		domain, err = prompt(reader, out, "Confluence domain", defaultDomain)
+		if len(cfg.Profiles) == 0 {
+			domain, err = prompt(reader, out, "Confluence domain (e.g. example.atlassian.net)", "")
+		} else {
+			domain, err = prompt(reader, out, "Confluence domain", defaultDomain)
+		}
 		if err != nil {
 			return err
 		}
