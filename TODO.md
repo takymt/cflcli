@@ -1,0 +1,82 @@
+# cfl - TODO
+
+## Phase 0: プロジェクト基盤
+
+- [x] go mod init
+- [x] mise.toml（ツールバージョン + タスク定義）
+- [x] .golangci.yml
+- [x] lefthook.yml
+- [x] .gitignore
+- [x] main.go（最小限のエントリーポイント）
+- [x] mise run all が通ることを確認
+
+## Phase 1: コア機能（MVP）
+
+### 設定管理
+
+- [ ] `cfl config init` — 対話式で新しい profile を作成
+- [ ] `cfl config list` — profile 一覧表示
+- [ ] `cfl config show` — 現在の profile 詳細表示
+- [ ] `cfl config delete <name>` — profile 削除
+
+### プロファイル切り替え
+
+- [ ] `cfl use` — インタラクティブに profile 選択
+- [ ] `cfl use <name>` — 指定 profile に切り替え
+
+### ページ操作
+
+- [ ] `cfl page list [--space-id ID] [--limit N]`
+- [ ] `cfl page get <page-id>`
+- [ ] `cfl page create --title TITLE --body-file FILE [--parent-id ID]`
+- [ ] `cfl page update <page-id> --title TITLE --body-file FILE --version N`
+- [ ] `cfl page delete <page-id>`
+
+## Phase 2: 拡張機能
+
+### ページ補助操作
+
+- [ ] `cfl page children <page-id>` — 子ページ一覧
+- [ ] `cfl page label list <page-id>` — ラベル一覧
+- [ ] `cfl page label add <page-id> --name <label>` — ラベル追加
+- [ ] `cfl page label remove <page-id> --name <label>` — ラベル削除
+
+### フォルダ操作
+
+- [ ] `cfl folder list [--space-id ID]`
+- [ ] `cfl folder get <folder-id>`
+- [ ] `cfl folder create --name NAME [--parent-id ID] [--space-id ID]`
+- [ ] `cfl folder update <folder-id> --name NAME`
+- [ ] `cfl folder delete <folder-id>`
+- [ ] `cfl folder children <folder-id>`
+
+### 添付ファイル
+
+- [ ] `cfl attachment list --page-id <page-id>`
+- [ ] `cfl attachment upload --page-id <page-id> --file <path>`
+- [ ] `cfl attachment download <attachment-id> --output <path>`
+- [ ] `cfl attachment delete <attachment-id>`
+
+### ブログ記事
+
+- [ ] `cfl blog list [--space-id ID]`
+- [ ] `cfl blog get <blog-id>`
+- [ ] `cfl blog create --space-id ID --title TITLE --body-file FILE`
+- [ ] `cfl blog update <blog-id> --title TITLE --body-file FILE --version N`
+- [ ] `cfl blog delete <blog-id>`
+
+### コメント
+
+- [ ] `cfl comment list --page-id <page-id>`
+- [ ] `cfl comment create --page-id <page-id> --body "テキスト"`
+- [ ] `cfl comment delete <comment-id>`
+
+### リッチ表記
+
+- [ ] Markdown → Confluence storage format (XHTML) 変換
+- [ ] Markdown → ADF (Atlassian Document Format) 変換
+- [ ] 画像・テーブル等のリッチ表現対応
+
+### git 同期
+
+- [ ] `cfl sync` — git リポジトリ内の Markdown ファイルと Confluence ページの双方向同期
