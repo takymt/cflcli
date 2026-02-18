@@ -21,8 +21,8 @@
 
 ### プロファイル切り替え
 
-- [ ] `cfl use` — インタラクティブに profile 選択
-- [ ] `cfl use <name>` — 指定 profile に切り替え
+- [x] `cfl use` — インタラクティブに profile 選択
+- [x] `cfl use <name>` — 指定 profile に切り替え
 
 ### ページ操作
 
