@@ -35,6 +35,7 @@ func newPageListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List pages",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return runPageList(cmd.OutOrStdout(), opts)
 		},
