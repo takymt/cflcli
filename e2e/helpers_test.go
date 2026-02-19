@@ -51,10 +51,19 @@ func findRepoRoot() string {
 
 func runCLI(t *testing.T, xdgConfigHome string, stdin string, args ...string) (string, error) {
 	t.Helper()
+	return runCLIWithEnv(t, xdgConfigHome, stdin, nil, args...)
+}
+
+func runCLIWithEnv(t *testing.T, xdgConfigHome string, stdin string, extraEnv map[string]string, args ...string) (string, error) {
+	t.Helper()
 
 	cmd := exec.CommandContext(context.Background(), cliBinaryPath, args...)
 	cmd.Dir = cliRepoRoot
-	cmd.Env = withEnv(os.Environ(), "XDG_CONFIG_HOME", xdgConfigHome)
+	env := withEnv(os.Environ(), "XDG_CONFIG_HOME", xdgConfigHome)
+	for key, value := range extraEnv {
+		env = withEnv(env, key, value)
+	}
+	cmd.Env = env
 	cmd.Stdin = strings.NewReader(stdin)
 
 	var out bytes.Buffer
