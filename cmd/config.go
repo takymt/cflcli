@@ -172,6 +172,9 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 	if name == "" {
 		return fmt.Errorf("profile name is required")
 	}
+	if !opts.updateExisting && cfg.FindProfile(name) != nil {
+		return fmt.Errorf("profile %q already exists", name)
+	}
 
 	domain := opts.domain
 	if domain == "" {
@@ -208,7 +211,7 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 
 	profileOutput := opts.output
 	if profileOutput == "" {
-		profileOutput, err = prompt(reader, out, "Output", defaultOutputFormat(defaultProfile.Output))
+		profileOutput, err = prompt(reader, out, "Output (json|table)", defaultOutputFormat(defaultProfile.Output))
 		if err != nil {
 			return err
 		}
@@ -390,6 +393,15 @@ func runConfigDelete(out io.Writer, name string, opts *configDeleteOptions) erro
 
 	if cfg.Current == name && !opts.force {
 		return fmt.Errorf("cannot delete current profile %q without --force", name)
+	}
+	if cfg.Current == name && opts.force {
+		if name == "default" {
+			return fmt.Errorf("cannot delete current profile %q with --force", name)
+		}
+		if cfg.FindProfile("default") == nil {
+			return fmt.Errorf("cannot delete current profile %q with --force: profile %q not found", name, "default")
+		}
+		cfg.Current = "default"
 	}
 
 	if err := cfg.DeleteProfile(name); err != nil {

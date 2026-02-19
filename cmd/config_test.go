@@ -138,7 +138,7 @@ func TestConfigInit_InteractivePromptLabels(t *testing.T) {
 	if !strings.Contains(output, "Space Key: ") {
 		t.Errorf("expected space key prompt, got: %s", output)
 	}
-	if !strings.Contains(output, "Output [table]: ") {
+	if !strings.Contains(output, "Output (json|table) [table]: ") {
 		t.Errorf("expected output prompt, got: %s", output)
 	}
 }
@@ -280,7 +280,7 @@ func TestConfigInit_DefaultsWithoutDefaultProfile(t *testing.T) {
 	if strings.Contains(promptOutput, "[work.atlassian.net]") {
 		t.Fatalf("did not expect current profile domain default: %s", promptOutput)
 	}
-	if !strings.Contains(promptOutput, "Output [table]: ") {
+	if !strings.Contains(promptOutput, "Output (json|table) [table]: ") {
 		t.Fatalf("expected table default output prompt: %s", promptOutput)
 	}
 
@@ -325,6 +325,81 @@ func TestConfigInit_DuplicateProfile(t *testing.T) {
 	err := runConfigInit(strings.NewReader(""), &bytes.Buffer{}, opts2)
 	if err == nil {
 		t.Error("expected error for duplicate profile, got nil")
+	}
+}
+
+func TestConfigInit_DuplicateProfileNameStopsEarly(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	cfg := &config.Config{
+		Current: "default",
+		Profiles: []config.Profile{
+			{Name: "default", Domain: "default.atlassian.net", User: "default@example.com", SpaceKey: "DEF", Output: "table"},
+			{Name: "dup", Domain: "dup.atlassian.net", User: "dup@example.com", SpaceKey: "DUP", Output: "json"},
+		},
+	}
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	opts := &configInitOptions{configPath: configPath}
+	out := &bytes.Buffer{}
+	err := runConfigInit(strings.NewReader("dup\n"), out, opts)
+	if err == nil {
+		t.Fatal("expected duplicate profile error, got nil")
+	}
+	if !strings.Contains(err.Error(), `profile "dup" already exists`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(out.String(), "Domain: ") {
+		t.Fatalf("expected to stop before domain prompt, got: %s", out.String())
+	}
+}
+
+func TestConfigInitPositionalName_DuplicateProfileStopsEarly(t *testing.T) {
+	xdgConfigHome := t.TempDir()
+
+	prevXDG := os.Getenv("XDG_CONFIG_HOME")
+	if err := os.Setenv("XDG_CONFIG_HOME", xdgConfigHome); err != nil {
+		t.Fatalf("set env failed: %v", err)
+	}
+	defer func() {
+		if prevXDG == "" {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+			return
+		}
+		_ = os.Setenv("XDG_CONFIG_HOME", prevXDG)
+	}()
+
+	cfgPath := filepath.Join(xdgConfigHome, "cflcli", "config.toml")
+	cfg := &config.Config{
+		Current: "default",
+		Profiles: []config.Profile{
+			{Name: "default", Domain: "default.atlassian.net", User: "default@example.com", SpaceKey: "DEF", Output: "table"},
+			{Name: "dup", Domain: "dup.atlassian.net", User: "dup@example.com", SpaceKey: "DUP", Output: "json"},
+		},
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	root := NewRootCmd()
+	out := &bytes.Buffer{}
+	root.SetOut(out)
+	root.SetErr(out)
+	root.SetIn(strings.NewReader("will-not-be-used\n"))
+	root.SetArgs([]string{"config", "init", "dup"})
+
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected duplicate profile error, got nil")
+	}
+	if !strings.Contains(err.Error(), `profile "dup" already exists`) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(out.String(), "Domain: ") {
+		t.Fatalf("expected to stop before domain prompt, got: %s", out.String())
 	}
 }
 
@@ -641,6 +716,7 @@ func TestConfigDelete_CurrentProfileWithForce(t *testing.T) {
 	cfg := &config.Config{
 		Current: "work",
 		Profiles: []config.Profile{
+			{Name: "default", Domain: "default.atlassian.net", User: "default@example.com", SpaceKey: "DEF"},
 			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
 			{Name: "personal", Domain: "personal.atlassian.net", User: "me@example.com", SpaceKey: "HOME"},
 		},
@@ -659,14 +735,42 @@ func TestConfigDelete_CurrentProfileWithForce(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
-	if len(loaded.Profiles) != 1 {
-		t.Fatalf("expected 1 profile remaining, got %d", len(loaded.Profiles))
+	if len(loaded.Profiles) != 2 {
+		t.Fatalf("expected 2 profiles remaining, got %d", len(loaded.Profiles))
 	}
-	if loaded.Profiles[0].Name != "personal" {
-		t.Errorf("expected remaining profile %q, got %q", "personal", loaded.Profiles[0].Name)
+	if loaded.FindProfile("default") == nil {
+		t.Fatal("expected default profile to remain")
 	}
-	if loaded.Current != "" {
-		t.Errorf("expected current to be cleared, got %q", loaded.Current)
+	if loaded.FindProfile("personal") == nil {
+		t.Fatal("expected personal profile to remain")
+	}
+	if loaded.Current != "default" {
+		t.Errorf("expected current %q, got %q", "default", loaded.Current)
+	}
+}
+
+func TestConfigDelete_CurrentProfileWithForce_WithoutDefault(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+			{Name: "personal", Domain: "personal.atlassian.net", User: "me@example.com", SpaceKey: "HOME"},
+		},
+	}
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	opts := &configDeleteOptions{configPath: configPath, force: true}
+	err := runConfigDelete(&bytes.Buffer{}, "work", opts)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `profile "default" not found`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
