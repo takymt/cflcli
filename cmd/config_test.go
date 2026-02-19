@@ -24,6 +24,7 @@ func TestConfigInit_WithFlags(t *testing.T) {
 		domain:     "test.atlassian.net",
 		user:       "test@example.com",
 		spaceKey:   "TEST",
+		output:     "json",
 		configPath: configPath,
 	}
 
@@ -64,6 +65,9 @@ func TestConfigInit_WithFlags(t *testing.T) {
 	if p.SpaceKey != "TEST" {
 		t.Errorf("expected space_key %q, got %q", "TEST", p.SpaceKey)
 	}
+	if p.Output != "json" {
+		t.Errorf("expected output %q, got %q", "json", p.Output)
+	}
 }
 
 func TestConfigInit_Interactive(t *testing.T) {
@@ -74,7 +78,7 @@ func TestConfigInit_Interactive(t *testing.T) {
 		configPath: configPath,
 	}
 
-	input := "myprofile\nmysite.atlassian.net\nme@example.com\nMYSPACE\n"
+	input := "myprofile\nmysite.atlassian.net\nme@example.com\nMYSPACE\njson\n"
 	out := &bytes.Buffer{}
 	in := strings.NewReader(input)
 
@@ -101,6 +105,9 @@ func TestConfigInit_Interactive(t *testing.T) {
 	if p.Domain != "mysite.atlassian.net" {
 		t.Errorf("expected domain %q, got %q", "mysite.atlassian.net", p.Domain)
 	}
+	if p.Output != "json" {
+		t.Errorf("expected output %q, got %q", "json", p.Output)
+	}
 }
 
 func TestConfigInit_Interactive_FirstProfileShowsDomainExample(t *testing.T) {
@@ -109,7 +116,7 @@ func TestConfigInit_Interactive_FirstProfileShowsDomainExample(t *testing.T) {
 
 	opts := &configInitOptions{configPath: configPath}
 
-	input := "first\nnewsite.atlassian.net\nme@example.com\nFIRST\n"
+	input := "first\nnewsite.atlassian.net\nme@example.com\nFIRST\ntable\n"
 	out := &bytes.Buffer{}
 	in := strings.NewReader(input)
 
@@ -160,6 +167,7 @@ func TestConfigInit_InteractiveDefaults(t *testing.T) {
 		domain:     "shared.atlassian.net",
 		user:       "user@example.com",
 		spaceKey:   "FIRST",
+		output:     "table",
 		configPath: configPath,
 	}
 	if err := runConfigInit(strings.NewReader(""), &bytes.Buffer{}, opts1); err != nil {
@@ -171,7 +179,7 @@ func TestConfigInit_InteractiveDefaults(t *testing.T) {
 		configPath: configPath,
 	}
 	// name, domain (empty=default), user (empty=default), space_key
-	input := "second\n\n\nSECOND\n"
+	input := "second\n\n\nSECOND\n\n"
 	out := &bytes.Buffer{}
 	if err := runConfigInit(strings.NewReader(input), out, opts2); err != nil {
 		t.Fatalf("second init failed: %v", err)
@@ -184,6 +192,9 @@ func TestConfigInit_InteractiveDefaults(t *testing.T) {
 	}
 	if !strings.Contains(output, "[user@example.com]") {
 		t.Errorf("expected user default in prompt, got: %s", output)
+	}
+	if !strings.Contains(output, "[table]") {
+		t.Errorf("expected output default in prompt, got: %s", output)
 	}
 
 	// Verify second profile inherited defaults
@@ -207,6 +218,9 @@ func TestConfigInit_InteractiveDefaults(t *testing.T) {
 	if p.SpaceKey != "SECOND" {
 		t.Errorf("expected space_key %q, got %q", "SECOND", p.SpaceKey)
 	}
+	if p.Output != "table" {
+		t.Errorf("expected output %q, got %q", "table", p.Output)
+	}
 }
 
 func TestConfigInit_DuplicateProfile(t *testing.T) {
@@ -218,6 +232,7 @@ func TestConfigInit_DuplicateProfile(t *testing.T) {
 		domain:     "a.atlassian.net",
 		user:       "a@a.com",
 		spaceKey:   "A",
+		output:     "table",
 		configPath: configPath,
 	}
 
@@ -230,11 +245,34 @@ func TestConfigInit_DuplicateProfile(t *testing.T) {
 		domain:     "b.atlassian.net",
 		user:       "b@b.com",
 		spaceKey:   "B",
+		output:     "table",
 		configPath: configPath,
 	}
 	err := runConfigInit(strings.NewReader(""), &bytes.Buffer{}, opts2)
 	if err == nil {
 		t.Error("expected error for duplicate profile, got nil")
+	}
+}
+
+func TestConfigInit_InvalidOutput(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	opts := &configInitOptions{
+		name:       "work",
+		domain:     "work.atlassian.net",
+		user:       "work@example.com",
+		spaceKey:   "WORK",
+		output:     "yaml",
+		configPath: configPath,
+	}
+
+	err := runConfigInit(strings.NewReader(""), &bytes.Buffer{}, opts)
+	if err == nil {
+		t.Fatal("expected error for invalid output, got nil")
+	}
+	if !strings.Contains(err.Error(), "output must be one of") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -344,7 +382,7 @@ func TestConfigShow_WithProfile(t *testing.T) {
 	cfg := &config.Config{
 		Current: "work",
 		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK", Output: "json"},
 		},
 	}
 	if err := cfg.SaveTo(configPath); err != nil {
@@ -369,6 +407,9 @@ func TestConfigShow_WithProfile(t *testing.T) {
 	}
 	if !strings.Contains(output, "WORK") {
 		t.Errorf("expected space key in output: %s", output)
+	}
+	if !strings.Contains(output, "json") {
+		t.Errorf("expected output in output: %s", output)
 	}
 }
 
@@ -494,6 +535,7 @@ func TestConfigInit_MultipleProfiles(t *testing.T) {
 		domain:     "a.atlassian.net",
 		user:       "a@a.com",
 		spaceKey:   "A",
+		output:     "table",
 		configPath: configPath,
 	}
 	if err := runConfigInit(strings.NewReader(""), out1, opts1); err != nil {
@@ -509,6 +551,7 @@ func TestConfigInit_MultipleProfiles(t *testing.T) {
 		domain:     "b.atlassian.net",
 		user:       "b@b.com",
 		spaceKey:   "B",
+		output:     "json",
 		configPath: configPath,
 	}
 	if err := runConfigInit(strings.NewReader(""), out2, opts2); err != nil {

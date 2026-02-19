@@ -31,6 +31,7 @@ type configInitOptions struct {
 	domain     string
 	user       string
 	spaceKey   string
+	output     string
 	configPath string
 }
 
@@ -49,6 +50,7 @@ func newConfigInitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
 	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
 	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
+	cmd.Flags().StringVar(&opts.output, "profile-output", "", "default output format for this profile (json | table)")
 
 	return cmd
 }
@@ -129,11 +131,24 @@ func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
 		return fmt.Errorf("space key is required")
 	}
 
+	profileOutput := opts.output
+	if profileOutput == "" {
+		profileOutput, err = prompt(reader, out, "Output format (json|table)", defaultOutputFormat(cfg))
+		if err != nil {
+			return err
+		}
+	}
+	profileOutput, err = normalizeOutputFormat(profileOutput)
+	if err != nil {
+		return err
+	}
+
 	profile := &config.Profile{
 		Name:     name,
 		Domain:   domain,
 		User:     user,
 		SpaceKey: spaceKey,
+		Output:   profileOutput,
 	}
 
 	if err := cfg.AddProfile(profile); err != nil {
@@ -245,6 +260,7 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 	_, _ = fmt.Fprintf(w, "Domain:\t%s\n", p.Domain)
 	_, _ = fmt.Fprintf(w, "User:\t%s\n", p.User)
 	_, _ = fmt.Fprintf(w, "Space Key:\t%s\n", p.SpaceKey)
+	_, _ = fmt.Fprintf(w, "Output:\t%s\n", outputForDisplay(p.Output))
 	return w.Flush()
 }
 
@@ -308,4 +324,33 @@ func prompt(reader *bufio.Reader, out io.Writer, label string, defaultVal string
 		return defaultVal, nil
 	}
 	return val, nil
+}
+
+func defaultOutputFormat(cfg *config.Config) string {
+	cur := cfg.CurrentProfile()
+	if cur == nil {
+		return "table"
+	}
+	output, err := normalizeOutputFormat(cur.Output)
+	if err != nil {
+		return "table"
+	}
+	return output
+}
+
+func normalizeOutputFormat(value string) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	switch value {
+	case "json", "table":
+		return value, nil
+	default:
+		return "", fmt.Errorf("output must be one of: json, table")
+	}
+}
+
+func outputForDisplay(value string) string {
+	if output, err := normalizeOutputFormat(value); err == nil {
+		return output
+	}
+	return "table"
 }

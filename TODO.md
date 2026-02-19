@@ -12,11 +12,20 @@
 
 ## Phase 1: コア機能（MVP）
 
+### 初期化
+
+- [x] `cfl init`
+  - [x] IF 未初期化 THEN 設定ファイル/設定ディレクトリを作成する (`config init`から移譲)
+  - [x] IF 既に初期化済み THEN 何も破壊的変更をしない
+  - [x] IF 作成に成功 THEN 成功メッセージを出して終了する（exit=0）
+  - [x] IF 作成に失敗 THEN エラーメッセージを出して終了する（exit!=0）
+
 ### 設定管理
 
 - [x] `cfl config init` — 対話式で新しい profile を作成
 - [x] `cfl config list` — profile 一覧表示
 - [x] `cfl config show` — 現在の profile 詳細表示
+  - [x] `output` の表示を追加
 - [x] `cfl config delete <name>` — profile 削除
 
 ### プロファイル切り替え
