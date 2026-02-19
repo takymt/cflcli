@@ -20,6 +20,7 @@ func newConfigCmd() *cobra.Command {
 
 	configCmd.AddCommand(newConfigInitCmd())
 	configCmd.AddCommand(newConfigEditCmd())
+	configCmd.AddCommand(newConfigUseCmd())
 	configCmd.AddCommand(newConfigListCmd())
 	configCmd.AddCommand(newConfigShowCmd())
 	configCmd.AddCommand(newConfigDeleteCmd())
@@ -78,6 +79,34 @@ type configEditOptions struct {
 	spaceKey   string
 	output     string
 	configPath string
+}
+
+type configUseOptions struct {
+	configPath string
+}
+
+func newConfigUseCmd() *cobra.Command {
+	opts := &configUseOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "use [name]",
+		Short: "Switch to a profile",
+		Long:  "Switch to a profile by name, or interactively select one.",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) > 1 {
+				return fmt.Errorf("too many arguments\nUsage: cfl config use [name]")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				return runConfigUse(cmd.OutOrStdout(), args[0], opts)
+			}
+			return runConfigUseInteractiveRaw(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	return cmd
 }
 
 func newConfigEditCmd() *cobra.Command {
@@ -151,6 +180,14 @@ func runConfigEdit(in io.Reader, out io.Writer, name string, opts *configEditOpt
 		updateExisting:     true,
 	}
 	return runConfigInitWithConfig(in, out, runOpts, cfg)
+}
+
+func runConfigUse(out io.Writer, name string, opts *configUseOptions) error {
+	return runUse(out, name, &useOptions{configPath: opts.configPath})
+}
+
+func runConfigUseInteractiveRaw(out io.Writer, opts *configUseOptions) error {
+	return runUseInteractiveRaw(out, &useOptions{configPath: opts.configPath})
 }
 
 func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOptions, cfg *config.Config) error {
@@ -391,6 +428,7 @@ func runConfigDelete(out io.Writer, name string, opts *configDeleteOptions) erro
 		return fmt.Errorf("load config: %w", err)
 	}
 
+	switchedToDefault := false
 	if cfg.Current == name && !opts.force {
 		return fmt.Errorf("cannot delete current profile %q without --force", name)
 	}
@@ -402,6 +440,7 @@ func runConfigDelete(out io.Writer, name string, opts *configDeleteOptions) erro
 			return fmt.Errorf("cannot delete current profile %q with --force: profile %q not found", name, "default")
 		}
 		cfg.Current = "default"
+		switchedToDefault = true
 	}
 
 	if err := cfg.DeleteProfile(name); err != nil {
@@ -413,6 +452,9 @@ func runConfigDelete(out io.Writer, name string, opts *configDeleteOptions) erro
 	}
 
 	_, _ = fmt.Fprintf(out, "Profile %q deleted.\n", name)
+	if switchedToDefault {
+		_, _ = fmt.Fprintln(out, `Current profile switched to "default".`)
+	}
 	return nil
 }
 

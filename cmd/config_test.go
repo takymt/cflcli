@@ -730,6 +730,9 @@ func TestConfigDelete_CurrentProfileWithForce(t *testing.T) {
 	if err := runConfigDelete(out, "work", opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	if !strings.Contains(out.String(), `Current profile switched to "default".`) {
+		t.Fatalf("expected current switch message, got: %s", out.String())
+	}
 
 	loaded, err := config.LoadFrom(configPath)
 	if err != nil {
@@ -845,6 +848,90 @@ func TestConfigEdit_ProfileNotFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `profile "work" not found`) {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigUse_WithName(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{Name: "default", Domain: "default.atlassian.net", User: "default@example.com", SpaceKey: "DEF"},
+			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+			{Name: "personal", Domain: "personal.atlassian.net", User: "me@example.com", SpaceKey: "HOME"},
+		},
+	}
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	opts := &configUseOptions{configPath: configPath}
+	out := &bytes.Buffer{}
+	if err := runConfigUse(out, "personal", opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out.String(), `Switched to profile "personal".`) {
+		t.Fatalf("unexpected output: %s", out.String())
+	}
+
+	loaded, err := config.LoadFrom(configPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	if loaded.Current != "personal" {
+		t.Fatalf("expected current %q, got %q", "personal", loaded.Current)
+	}
+}
+
+func TestConfigUse_CommandAlias(t *testing.T) {
+	xdgConfigHome := t.TempDir()
+
+	prevXDG := os.Getenv("XDG_CONFIG_HOME")
+	if err := os.Setenv("XDG_CONFIG_HOME", xdgConfigHome); err != nil {
+		t.Fatalf("set env failed: %v", err)
+	}
+	defer func() {
+		if prevXDG == "" {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+			return
+		}
+		_ = os.Setenv("XDG_CONFIG_HOME", prevXDG)
+	}()
+
+	cfgPath := filepath.Join(xdgConfigHome, "cflcli", "config.toml")
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{Name: "default", Domain: "default.atlassian.net", User: "default@example.com", SpaceKey: "DEF"},
+			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+			{Name: "personal", Domain: "personal.atlassian.net", User: "me@example.com", SpaceKey: "HOME"},
+		},
+	}
+	if err := cfg.SaveTo(cfgPath); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	root := NewRootCmd()
+	out := &bytes.Buffer{}
+	root.SetOut(out)
+	root.SetErr(out)
+	root.SetIn(strings.NewReader(""))
+	root.SetArgs([]string{"config", "use", "personal"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(out.String(), `Switched to profile "personal".`) {
+		t.Fatalf("unexpected output: %s", out.String())
+	}
+
+	loaded, err := config.LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	if loaded.Current != "personal" {
+		t.Fatalf("expected current %q, got %q", "personal", loaded.Current)
 	}
 }
 
