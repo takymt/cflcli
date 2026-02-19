@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -110,7 +111,7 @@ func TestConfigInit_Interactive(t *testing.T) {
 	}
 }
 
-func TestConfigInit_Interactive_FirstProfileShowsDomainExample(t *testing.T) {
+func TestConfigInit_InteractivePromptLabels(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
@@ -125,11 +126,20 @@ func TestConfigInit_Interactive_FirstProfileShowsDomainExample(t *testing.T) {
 	}
 
 	output := out.String()
-	if !strings.Contains(output, "Confluence domain (e.g. example.atlassian.net)") {
-		t.Errorf("expected domain example prompt, got: %s", output)
+	if !strings.Contains(output, "Profile Name: ") {
+		t.Errorf("expected profile name prompt, got: %s", output)
 	}
-	if strings.Contains(output, "[example.atlassian.net]") {
-		t.Errorf("did not expect domain default value in prompt, got: %s", output)
+	if !strings.Contains(output, "Domain: ") {
+		t.Errorf("expected domain prompt, got: %s", output)
+	}
+	if !strings.Contains(output, "Email: ") {
+		t.Errorf("expected email prompt, got: %s", output)
+	}
+	if !strings.Contains(output, "Space Key: ") {
+		t.Errorf("expected space key prompt, got: %s", output)
+	}
+	if !strings.Contains(output, "Output [table]: ") {
+		t.Errorf("expected output prompt, got: %s", output)
 	}
 }
 
@@ -152,8 +162,8 @@ func TestConfigInit_Interactive_FirstProfileDomainIsRequired(t *testing.T) {
 	}
 
 	output := out.String()
-	if !strings.Contains(output, "Confluence domain (e.g. example.atlassian.net)") {
-		t.Errorf("expected domain example prompt, got: %s", output)
+	if !strings.Contains(output, "Domain: ") {
+		t.Errorf("expected domain prompt, got: %s", output)
 	}
 }
 
@@ -161,25 +171,35 @@ func TestConfigInit_InteractiveDefaults(t *testing.T) {
 	dir := t.TempDir()
 	configPath := filepath.Join(dir, "config.toml")
 
-	// Create first profile
-	opts1 := &configInitOptions{
-		name:       "first",
-		domain:     "shared.atlassian.net",
-		user:       "user@example.com",
-		spaceKey:   "FIRST",
-		output:     "table",
-		configPath: configPath,
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{
+				Name:     "default",
+				Domain:   "default.atlassian.net",
+				User:     "default@example.com",
+				SpaceKey: "DEF",
+				Output:   "json",
+			},
+			{
+				Name:     "work",
+				Domain:   "work.atlassian.net",
+				User:     "work@example.com",
+				SpaceKey: "WORK",
+				Output:   "table",
+			},
+		},
 	}
-	if err := runConfigInit(strings.NewReader(""), &bytes.Buffer{}, opts1); err != nil {
-		t.Fatalf("first init failed: %v", err)
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("save config failed: %v", err)
 	}
 
-	// Create second profile interactively, accepting defaults for domain and user
+	// Create second profile interactively, accepting all defaults from default profile.
 	opts2 := &configInitOptions{
 		configPath: configPath,
 	}
-	// name, domain (empty=default), user (empty=default), space_key
-	input := "second\n\n\nSECOND\n\n"
+	// name, domain, user, space_key, output
+	input := "second\n\n\n\n\n"
 	out := &bytes.Buffer{}
 	if err := runConfigInit(strings.NewReader(input), out, opts2); err != nil {
 		t.Fatalf("second init failed: %v", err)
@@ -187,39 +207,93 @@ func TestConfigInit_InteractiveDefaults(t *testing.T) {
 
 	// Verify prompts show defaults
 	output := out.String()
-	if !strings.Contains(output, "[shared.atlassian.net]") {
+	if !strings.Contains(output, "[default.atlassian.net]") {
 		t.Errorf("expected domain default in prompt, got: %s", output)
 	}
-	if !strings.Contains(output, "[user@example.com]") {
+	if !strings.Contains(output, "[default@example.com]") {
 		t.Errorf("expected user default in prompt, got: %s", output)
 	}
-	if !strings.Contains(output, "[table]") {
+	if !strings.Contains(output, "[DEF]") {
+		t.Errorf("expected space key default in prompt, got: %s", output)
+	}
+	if !strings.Contains(output, "[json]") {
 		t.Errorf("expected output default in prompt, got: %s", output)
 	}
 
-	// Verify second profile inherited defaults
-	cfg, err := config.LoadFrom(configPath)
+	// Verify second profile inherited defaults from "default" profile.
+	loaded, err := config.LoadFrom(configPath)
 	if err != nil {
 		t.Fatalf("failed to load config: %v", err)
 	}
-	if len(cfg.Profiles) != 2 {
-		t.Fatalf("expected 2 profiles, got %d", len(cfg.Profiles))
+	if len(loaded.Profiles) != 3 {
+		t.Fatalf("expected 3 profiles, got %d", len(loaded.Profiles))
 	}
-	p := cfg.Profiles[1]
+	p := loaded.Profiles[2]
 	if p.Name != "second" {
 		t.Errorf("expected name %q, got %q", "second", p.Name)
 	}
-	if p.Domain != "shared.atlassian.net" {
-		t.Errorf("expected domain %q, got %q", "shared.atlassian.net", p.Domain)
+	if p.Domain != "default.atlassian.net" {
+		t.Errorf("expected domain %q, got %q", "default.atlassian.net", p.Domain)
 	}
-	if p.User != "user@example.com" {
-		t.Errorf("expected user %q, got %q", "user@example.com", p.User)
+	if p.User != "default@example.com" {
+		t.Errorf("expected user %q, got %q", "default@example.com", p.User)
 	}
-	if p.SpaceKey != "SECOND" {
-		t.Errorf("expected space_key %q, got %q", "SECOND", p.SpaceKey)
+	if p.SpaceKey != "DEF" {
+		t.Errorf("expected space_key %q, got %q", "DEF", p.SpaceKey)
+	}
+	if p.Output != "json" {
+		t.Errorf("expected output %q, got %q", "json", p.Output)
+	}
+}
+
+func TestConfigInit_DefaultsWithoutDefaultProfile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{
+				Name:     "work",
+				Domain:   "work.atlassian.net",
+				User:     "work@example.com",
+				SpaceKey: "WORK",
+				Output:   "json",
+			},
+		},
+	}
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("save config failed: %v", err)
+	}
+
+	opts := &configInitOptions{
+		configPath: configPath,
+	}
+	// name, domain, user, space_key, output
+	input := "other\nother.atlassian.net\nother@example.com\nOTHER\n\n"
+	out := &bytes.Buffer{}
+	if err := runConfigInit(strings.NewReader(input), out, opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	promptOutput := out.String()
+	if strings.Contains(promptOutput, "[work.atlassian.net]") {
+		t.Fatalf("did not expect current profile domain default: %s", promptOutput)
+	}
+	if !strings.Contains(promptOutput, "Output [table]: ") {
+		t.Fatalf("expected table default output prompt: %s", promptOutput)
+	}
+
+	loaded, err := config.LoadFrom(configPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	p := loaded.FindProfile("other")
+	if p == nil {
+		t.Fatal("expected profile 'other' to be created")
 	}
 	if p.Output != "table" {
-		t.Errorf("expected output %q, got %q", "table", p.Output)
+		t.Fatalf("expected output %q, got %q", "table", p.Output)
 	}
 }
 
@@ -272,6 +346,62 @@ func TestConfigInit_InvalidOutput(t *testing.T) {
 		t.Fatal("expected error for invalid output, got nil")
 	}
 	if !strings.Contains(err.Error(), "output must be one of") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestConfigInit_WithPositionalName(t *testing.T) {
+	xdgConfigHome := t.TempDir()
+
+	prevXDG := os.Getenv("XDG_CONFIG_HOME")
+	if err := os.Setenv("XDG_CONFIG_HOME", xdgConfigHome); err != nil {
+		t.Fatalf("set env failed: %v", err)
+	}
+	defer func() {
+		if prevXDG == "" {
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
+			return
+		}
+		_ = os.Setenv("XDG_CONFIG_HOME", prevXDG)
+	}()
+
+	root := NewRootCmd()
+	out := &bytes.Buffer{}
+	root.SetOut(out)
+	root.SetErr(out)
+	root.SetIn(strings.NewReader("site.atlassian.net\nuser@example.com\nDEV\njson\n"))
+	root.SetArgs([]string{"config", "init", "work"})
+
+	if err := root.Execute(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	cfgPath := filepath.Join(xdgConfigHome, "cflcli", "config.toml")
+	cfg, err := config.LoadFrom(cfgPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	p := cfg.FindProfile("work")
+	if p == nil {
+		t.Fatal("expected profile 'work' to be created")
+	}
+	if strings.Contains(out.String(), "Profile Name: ") {
+		t.Fatalf("did not expect profile name prompt for positional name: %s", out.String())
+	}
+}
+
+func TestConfigInit_WithPositionalNameAndFlagConflict(t *testing.T) {
+	cmd := newConfigInitCmd()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetIn(strings.NewReader(""))
+	cmd.SetArgs([]string{"arg-name", "--name", "flag-name"})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected conflict error, got nil")
+	}
+	if !strings.Contains(err.Error(), "conflicts with --name") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -484,6 +614,43 @@ func TestConfigDelete_CurrentProfile(t *testing.T) {
 
 	opts := &configDeleteOptions{configPath: configPath}
 	out := &bytes.Buffer{}
+	err := runConfigDelete(out, "work", opts)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "cannot delete current profile") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	loaded, err := config.LoadFrom(configPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	if len(loaded.Profiles) != 2 {
+		t.Fatalf("expected 2 profiles remaining, got %d", len(loaded.Profiles))
+	}
+	if loaded.Current != "work" {
+		t.Errorf("expected current %q, got %q", "work", loaded.Current)
+	}
+}
+
+func TestConfigDelete_CurrentProfileWithForce(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+			{Name: "personal", Domain: "personal.atlassian.net", User: "me@example.com", SpaceKey: "HOME"},
+		},
+	}
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("failed to save config: %v", err)
+	}
+
+	opts := &configDeleteOptions{configPath: configPath, force: true}
+	out := &bytes.Buffer{}
 	if err := runConfigDelete(out, "work", opts); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -500,6 +667,80 @@ func TestConfigDelete_CurrentProfile(t *testing.T) {
 	}
 	if loaded.Current != "" {
 		t.Errorf("expected current to be cleared, got %q", loaded.Current)
+	}
+}
+
+func TestConfigEdit_Profile(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{
+				Name:     "default",
+				Domain:   "default.atlassian.net",
+				User:     "default@example.com",
+				SpaceKey: "DEF",
+				Output:   "json",
+			},
+			{
+				Name:     "work",
+				Domain:   "work.atlassian.net",
+				User:     "work@example.com",
+				SpaceKey: "WORK",
+				Output:   "table",
+			},
+		},
+	}
+	if err := cfg.SaveTo(configPath); err != nil {
+		t.Fatalf("save config failed: %v", err)
+	}
+
+	opts := &configEditOptions{configPath: configPath}
+	in := strings.NewReader("\nnew@example.com\n\njson\n")
+	out := &bytes.Buffer{}
+	if err := runConfigEdit(in, out, "work", opts); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	loaded, err := config.LoadFrom(configPath)
+	if err != nil {
+		t.Fatalf("failed to load config: %v", err)
+	}
+	edited := loaded.FindProfile("work")
+	if edited == nil {
+		t.Fatal("expected profile 'work' to exist")
+	}
+	if edited.Domain != "work.atlassian.net" {
+		t.Fatalf("expected domain to stay unchanged, got %q", edited.Domain)
+	}
+	if edited.User != "new@example.com" {
+		t.Fatalf("expected user %q, got %q", "new@example.com", edited.User)
+	}
+	if edited.SpaceKey != "WORK" {
+		t.Fatalf("expected space key %q, got %q", "WORK", edited.SpaceKey)
+	}
+	if edited.Output != "json" {
+		t.Fatalf("expected output %q, got %q", "json", edited.Output)
+	}
+
+	if !strings.Contains(out.String(), `Profile "work" updated successfully.`) {
+		t.Fatalf("unexpected output: %s", out.String())
+	}
+}
+
+func TestConfigEdit_ProfileNotFound(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.toml")
+
+	opts := &configEditOptions{configPath: configPath}
+	err := runConfigEdit(strings.NewReader(""), &bytes.Buffer{}, "work", opts)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `profile "work" not found`) {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

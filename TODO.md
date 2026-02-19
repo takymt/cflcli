@@ -23,10 +23,17 @@
 ### 設定管理
 
 - [x] `cfl config init` — 対話式で新しい profile を作成
+  - [x] domain, email, space key, output は default プロファイルを参照する
+  - [x] Default space keyという表記はやめて Space Key にする
+  - [x] Profile name -> Profile Name, Confluence domain -> Domain, Email Address -> Email, Output format -> Output
+  - [x] `cfl config init <name>` の場合は Profile Name を `<name>` なものとして設定を省略する
+  - [x] `cfl config edit <name>` の場合は、デフォルト値が `<name>` プロファイルな `cfl config init` 相当の挙動とする
 - [x] `cfl config list` — profile 一覧表示
 - [x] `cfl config show` — 現在の profile 詳細表示
   - [x] `output` の表示を追加
 - [x] `cfl config delete <name>` — profile 削除
+  - [x] current の削除はエラー
+  - [x] `--force` オプション時は current 削除可能
 
 ### プロファイル切り替え
 

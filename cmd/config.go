@@ -19,6 +19,7 @@ func newConfigCmd() *cobra.Command {
 	}
 
 	configCmd.AddCommand(newConfigInitCmd())
+	configCmd.AddCommand(newConfigEditCmd())
 	configCmd.AddCommand(newConfigListCmd())
 	configCmd.AddCommand(newConfigShowCmd())
 	configCmd.AddCommand(newConfigDeleteCmd())
@@ -33,20 +34,72 @@ type configInitOptions struct {
 	spaceKey   string
 	output     string
 	configPath string
+
+	defaultProfileName string
+	updateExisting     bool
 }
 
 func newConfigInitCmd() *cobra.Command {
 	opts := &configInitOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "init",
+		Use:   "init [name]",
 		Short: "Create a new profile interactively",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runConfigInit(cmd.InOrStdin(), cmd.OutOrStdout(), opts)
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) > 1 {
+				return fmt.Errorf("too many arguments\nUsage: cfl config init [name]")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name, err := resolveConfigInitName(opts.name, args)
+			if err != nil {
+				return err
+			}
+
+			runOpts := *opts
+			runOpts.name = name
+			return runConfigInit(cmd.InOrStdin(), cmd.OutOrStdout(), &runOpts)
 		},
 	}
 
 	cmd.Flags().StringVar(&opts.name, "name", "", "profile name")
+	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
+	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
+	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
+	cmd.Flags().StringVar(&opts.output, "profile-output", "", "default output format for this profile (json | table)")
+
+	return cmd
+}
+
+type configEditOptions struct {
+	domain     string
+	user       string
+	spaceKey   string
+	output     string
+	configPath string
+}
+
+func newConfigEditCmd() *cobra.Command {
+	opts := &configEditOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "edit <name>",
+		Short: "Edit an existing profile interactively",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("profile name is required\nUsage: cfl config edit <name>")
+			}
+			if len(args) > 1 {
+				return fmt.Errorf("too many arguments\nUsage: cfl config edit <name>")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runConfigEdit(cmd.InOrStdin(), cmd.OutOrStdout(), args[0], opts)
+		},
+	}
+
 	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
 	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
 	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
@@ -70,22 +123,48 @@ func saveConfig(cfg *config.Config, configPath string) error {
 }
 
 func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
-	reader := bufio.NewReader(in)
-
 	cfg, err := loadConfig(opts.configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	var defaultDomain, defaultUser string
-	if cur := cfg.CurrentProfile(); cur != nil {
-		defaultDomain = cur.Domain
-		defaultUser = cur.User
+	return runConfigInitWithConfig(in, out, opts, cfg)
+}
+
+func runConfigEdit(in io.Reader, out io.Writer, name string, opts *configEditOptions) error {
+	cfg, err := loadConfig(opts.configPath)
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	if cfg.FindProfile(name) == nil {
+		return fmt.Errorf("profile %q not found", name)
+	}
+
+	runOpts := &configInitOptions{
+		name:               name,
+		domain:             opts.domain,
+		user:               opts.user,
+		spaceKey:           opts.spaceKey,
+		output:             opts.output,
+		configPath:         opts.configPath,
+		defaultProfileName: name,
+		updateExisting:     true,
+	}
+	return runConfigInitWithConfig(in, out, runOpts, cfg)
+}
+
+func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOptions, cfg *config.Config) error {
+	reader := bufio.NewReader(in)
+	var err error
+
+	defaultProfile := configInitDefaults(cfg, opts.defaultProfileName)
+	if defaultProfile == nil {
+		defaultProfile = &config.Profile{}
 	}
 
 	name := opts.name
 	if name == "" {
-		name, err = prompt(reader, out, "Profile name", "")
+		name, err = prompt(reader, out, "Profile Name", "")
 		if err != nil {
 			return err
 		}
@@ -96,11 +175,7 @@ func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
 
 	domain := opts.domain
 	if domain == "" {
-		if len(cfg.Profiles) == 0 {
-			domain, err = prompt(reader, out, "Confluence domain (e.g. example.atlassian.net)", "")
-		} else {
-			domain, err = prompt(reader, out, "Confluence domain", defaultDomain)
-		}
+		domain, err = prompt(reader, out, "Domain", defaultProfile.Domain)
 		if err != nil {
 			return err
 		}
@@ -111,7 +186,7 @@ func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
 
 	user := opts.user
 	if user == "" {
-		user, err = prompt(reader, out, "Email address", defaultUser)
+		user, err = prompt(reader, out, "Email", defaultProfile.User)
 		if err != nil {
 			return err
 		}
@@ -122,7 +197,7 @@ func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
 
 	spaceKey := opts.spaceKey
 	if spaceKey == "" {
-		spaceKey, err = prompt(reader, out, "Default space key", "")
+		spaceKey, err = prompt(reader, out, "Space Key", defaultProfile.SpaceKey)
 		if err != nil {
 			return err
 		}
@@ -133,7 +208,7 @@ func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
 
 	profileOutput := opts.output
 	if profileOutput == "" {
-		profileOutput, err = prompt(reader, out, "Output format (json|table)", defaultOutputFormat(cfg))
+		profileOutput, err = prompt(reader, out, "Output", defaultOutputFormat(defaultProfile.Output))
 		if err != nil {
 			return err
 		}
@@ -151,17 +226,30 @@ func runConfigInit(in io.Reader, out io.Writer, opts *configInitOptions) error {
 		Output:   profileOutput,
 	}
 
-	if err := cfg.AddProfile(profile); err != nil {
-		return err
+	if opts.updateExisting {
+		existing := cfg.FindProfile(name)
+		if existing == nil {
+			return fmt.Errorf("profile %q not found", name)
+		}
+		*existing = *profile
+	} else {
+		if err := cfg.AddProfile(profile); err != nil {
+			return err
+		}
 	}
 
 	if err := saveConfig(cfg, opts.configPath); err != nil {
 		return fmt.Errorf("save config: %w", err)
 	}
 
+	if opts.updateExisting {
+		_, _ = fmt.Fprintf(out, "Profile %q updated successfully.\n", name)
+		return nil
+	}
+
 	_, _ = fmt.Fprintf(out, "Profile %q created successfully.\n", name)
 	if cfg.Current == name {
-		_, _ = fmt.Fprintf(out, "Set as current profile.\n")
+		_, _ = fmt.Fprintln(out, "Set as current profile.")
 	}
 	return nil
 }
@@ -266,6 +354,7 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 
 type configDeleteOptions struct {
 	configPath string
+	force      bool
 }
 
 func newConfigDeleteCmd() *cobra.Command {
@@ -288,6 +377,8 @@ func newConfigDeleteCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().BoolVar(&opts.force, "force", false, "allow deleting current profile")
+
 	return cmd
 }
 
@@ -295,6 +386,10 @@ func runConfigDelete(out io.Writer, name string, opts *configDeleteOptions) erro
 	cfg, err := loadConfig(opts.configPath)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
+	}
+
+	if cfg.Current == name && !opts.force {
+		return fmt.Errorf("cannot delete current profile %q without --force", name)
 	}
 
 	if err := cfg.DeleteProfile(name); err != nil {
@@ -326,16 +421,35 @@ func prompt(reader *bufio.Reader, out io.Writer, label string, defaultVal string
 	return val, nil
 }
 
-func defaultOutputFormat(cfg *config.Config) string {
-	cur := cfg.CurrentProfile()
-	if cur == nil {
-		return "table"
+func configInitDefaults(cfg *config.Config, profileName string) *config.Profile {
+	source := strings.TrimSpace(profileName)
+	if source == "" {
+		source = "default"
 	}
-	output, err := normalizeOutputFormat(cur.Output)
+	return cfg.FindProfile(source)
+}
+
+func defaultOutputFormat(value string) string {
+	output, err := normalizeOutputFormat(value)
 	if err != nil {
 		return "table"
 	}
 	return output
+}
+
+func resolveConfigInitName(flagName string, args []string) (string, error) {
+	if len(args) > 1 {
+		return "", fmt.Errorf("too many arguments\nUsage: cfl config init [name]")
+	}
+	if len(args) == 0 {
+		return strings.TrimSpace(flagName), nil
+	}
+
+	argName := strings.TrimSpace(args[0])
+	if flagName != "" && argName != flagName {
+		return "", fmt.Errorf("argument %q conflicts with --name %q", argName, flagName)
+	}
+	return argName, nil
 }
 
 func normalizeOutputFormat(value string) (string, error) {
