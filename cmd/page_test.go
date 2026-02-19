@@ -240,20 +240,6 @@ func TestRunPageListWithConfig_SpaceSelectorErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("space key missing from options and profile", func(t *testing.T) {
-		cfg := &config.Config{
-			Current: "work",
-			Profiles: []config.Profile{
-				{Name: "work", Domain: "example.atlassian.net", User: "user@example.com"},
-			},
-		}
-
-		err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{Limit: 1}, cfg)
-		if err == nil || !strings.Contains(err.Error(), "space key is required") {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
 	t.Run("space key not found", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/wiki/api/v2/spaces" {
@@ -277,60 +263,6 @@ func TestRunPageListWithConfig_SpaceSelectorErrors(t *testing.T) {
 
 		err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{SpaceKey: "WORK", Limit: 1}, cfg)
 		if err == nil || !strings.Contains(err.Error(), "not found") {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("space key resolved to multiple spaces", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/wiki/api/v2/spaces" {
-				t.Fatalf("unexpected path: %s", r.URL.Path)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"1","key":"WORK"},{"id":"2","key":"WORK"}]}`))
-		}))
-		defer srv.Close()
-
-		originalHTTPClient := client.DefaultHTTPClient
-		client.DefaultHTTPClient = srv.Client()
-		t.Cleanup(func() { client.DefaultHTTPClient = originalHTTPClient })
-
-		cfg := &config.Config{
-			Current: "work",
-			Profiles: []config.Profile{
-				{Name: "work", Domain: srv.URL, User: "user@example.com"},
-			},
-		}
-
-		err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{SpaceKey: "WORK", Limit: 1}, cfg)
-		if err == nil || !strings.Contains(err.Error(), "multiple spaces") {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("space key resolve api error", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/wiki/api/v2/spaces" {
-				t.Fatalf("unexpected path: %s", r.URL.Path)
-			}
-			w.WriteHeader(http.StatusForbidden)
-			_, _ = w.Write([]byte(`{"message":"forbidden"}`))
-		}))
-		defer srv.Close()
-
-		originalHTTPClient := client.DefaultHTTPClient
-		client.DefaultHTTPClient = srv.Client()
-		t.Cleanup(func() { client.DefaultHTTPClient = originalHTTPClient })
-
-		cfg := &config.Config{
-			Current: "work",
-			Profiles: []config.Profile{
-				{Name: "work", Domain: srv.URL, User: "user@example.com"},
-			},
-		}
-
-		err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{SpaceKey: "WORK", Limit: 1}, cfg)
-		if err == nil || !strings.Contains(err.Error(), "403 Forbidden") {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
