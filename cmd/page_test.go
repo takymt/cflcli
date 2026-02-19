@@ -1,0 +1,212 @@
+package cmd
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/takymt/cflcli/internal/client"
+	"github.com/takymt/cflcli/internal/config"
+)
+
+func TestValidatePageListLimit(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		limit   int
+		wantErr bool
+	}{
+		{name: "min", limit: 1},
+		{name: "max", limit: 250},
+		{name: "below min", limit: 0, wantErr: true},
+		{name: "above max", limit: 251, wantErr: true},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := validatePageListLimit(tc.limit)
+			if tc.wantErr && err == nil {
+				t.Fatalf("expected error")
+			}
+			if !tc.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestResolveProfile(t *testing.T) {
+	cfg := &config.Config{
+		Current: "default",
+		Profiles: []config.Profile{
+			{Name: "default", Domain: "example.atlassian.net", User: "default@example.com"},
+			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com"},
+		},
+	}
+
+	original := ProfileFlag()
+	t.Cleanup(func() { SetProfileFlag(original) })
+
+	t.Run("profile flag", func(t *testing.T) {
+		SetProfileFlag("work")
+		got, err := resolveProfile(cfg)
+		if err != nil {
+			t.Fatalf("resolveProfile: %v", err)
+		}
+		if got.Name != "work" {
+			t.Fatalf("got %q want %q", got.Name, "work")
+		}
+	})
+
+	t.Run("current profile", func(t *testing.T) {
+		SetProfileFlag("")
+		got, err := resolveProfile(cfg)
+		if err != nil {
+			t.Fatalf("resolveProfile: %v", err)
+		}
+		if got.Name != "default" {
+			t.Fatalf("got %q want %q", got.Name, "default")
+		}
+	})
+
+	t.Run("missing flagged profile", func(t *testing.T) {
+		SetProfileFlag("missing")
+		_, err := resolveProfile(cfg)
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+
+	t.Run("missing current profile", func(t *testing.T) {
+		SetProfileFlag("")
+		emptyCfg := &config.Config{}
+		_, err := resolveProfile(emptyCfg)
+		if err == nil {
+			t.Fatalf("expected error")
+		}
+	})
+}
+
+func TestRunPageListWithConfig_JSON(t *testing.T) {
+	var gotQuery string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/wiki/api/v2/pages" {
+			http.NotFound(w, r)
+			return
+		}
+		user, password, ok := r.BasicAuth()
+		if !ok || user != "user@example.com" || password != "token" {
+			t.Fatalf("unexpected basic auth: ok=%v user=%q", ok, user)
+		}
+		gotQuery = r.URL.RawQuery
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"T","status":"current","space":{"id":"S1"}}],"_links":{"next":"cursor-2"}}`))
+	}))
+	defer srv.Close()
+
+	originalHTTPClient := client.DefaultHTTPClient
+	client.DefaultHTTPClient = srv.Client()
+	t.Cleanup(func() { client.DefaultHTTPClient = originalHTTPClient })
+
+	originalOutput := OutputFlag()
+	SetOutputFlag("json")
+	t.Cleanup(func() { SetOutputFlag(originalOutput) })
+
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{Name: "work", Domain: srv.URL, User: "user@example.com"},
+		},
+	}
+
+	var out bytes.Buffer
+	err := RunPageListWithConfig(&out, &PageListOptions{SpaceID: "SPACE-1", Limit: 2}, cfg)
+	if err != nil {
+		t.Fatalf("RunPageListWithConfig: %v", err)
+	}
+
+	if !strings.Contains(gotQuery, "space-id=SPACE-1") || !strings.Contains(gotQuery, "limit=2") {
+		t.Fatalf("unexpected query: %q", gotQuery)
+	}
+
+	var payload struct {
+		Request struct {
+			SpaceID string `json:"space_id"`
+			Limit   int    `json:"limit"`
+		} `json:"request"`
+		Next    string `json:"next"`
+		Results []struct {
+			ID string `json:"id"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+	if payload.Request.SpaceID != "SPACE-1" || payload.Request.Limit != 2 || payload.Next != "cursor-2" {
+		t.Fatalf("unexpected payload: %+v", payload)
+	}
+	if len(payload.Results) != 1 || payload.Results[0].ID != "1" {
+		t.Fatalf("unexpected results: %+v", payload.Results)
+	}
+}
+
+func TestRunPageListWithConfig_TableAndErrors(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/wiki/api/v2/pages" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"results":[{"id":"9","title":"Doc","status":"current","space":{"id":"S9"}}],"_links":{}}`))
+	}))
+	defer srv.Close()
+
+	originalHTTPClient := client.DefaultHTTPClient
+	client.DefaultHTTPClient = srv.Client()
+	t.Cleanup(func() { client.DefaultHTTPClient = originalHTTPClient })
+
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{Name: "work", Domain: srv.URL, User: "user@example.com"},
+		},
+	}
+
+	t.Run("table output", func(t *testing.T) {
+		originalOutput := OutputFlag()
+		SetOutputFlag("table")
+		t.Cleanup(func() { SetOutputFlag(originalOutput) })
+
+		var out bytes.Buffer
+		err := RunPageListWithConfig(&out, &PageListOptions{Limit: 1}, cfg)
+		if err != nil {
+			t.Fatalf("RunPageListWithConfig: %v", err)
+		}
+		raw := out.String()
+		if !strings.Contains(raw, "ID") || !strings.Contains(raw, "TITLE") || !strings.Contains(raw, "Doc") {
+			t.Fatalf("unexpected table output: %q", raw)
+		}
+	})
+
+	t.Run("unsupported output", func(t *testing.T) {
+		originalOutput := OutputFlag()
+		SetOutputFlag("yaml")
+		t.Cleanup(func() { SetOutputFlag(originalOutput) })
+
+		err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{Limit: 1}, cfg)
+		if err == nil || !strings.Contains(err.Error(), "unsupported output format") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}

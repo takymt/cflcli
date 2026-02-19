@@ -5,6 +5,11 @@ pre-commit:
     lint:
       run: golangci-lint run --new-from-rev=HEAD --fix=false
 
+pre-push:
+  commands:
+    test:
+      run: go test ./...
+
 commit-msg:
   commands:
     conventional-commit:

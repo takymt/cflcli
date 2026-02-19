@@ -10,6 +10,15 @@ run = "go build -o cfl ."
 [tasks.test]
 run = "go test ./..."
 
+[tasks.test-it]
+run = "go test -tags=integration ./internal/integration"
+
+[tasks.test-live]
+run = "CFL_LIVE=1 go test -tags=integration ./internal/integration -run Live"
+
+[tasks.cover]
+run = "go test -cover ./cmd/... ./internal/..."
+
 [tasks.fmt]
 run = "gofmt -w ."
 
@@ -20,7 +29,7 @@ run = "golangci-lint run ./..."
 run = "rm -rf cfl dist"
 
 [tasks.all]
-run = ["mise run fmt", "mise run lint", "mise run test", "mise run build"]
+run = ["mise run build", "mise run fmt", "mise run lint", "mise run test"]
 
 [tasks.bump]
 run = "gobump patch -w ."
