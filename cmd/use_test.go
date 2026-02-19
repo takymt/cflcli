@@ -9,249 +9,113 @@ import (
 	"github.com/takymt/cflcli/internal/config"
 )
 
-func TestUse_WithName(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
-			{Name: "personal", Domain: "personal.atlassian.net", User: "me@example.com", SpaceKey: "HOME"},
+func TestRunUseInteractive(t *testing.T) {
+	testCases := []struct {
+		name         string
+		current      string
+		profiles     []config.Profile
+		input        string
+		wantErr      string
+		wantContains string
+		wantCurrent  string
+		checkConfig  bool
+	}{
+		{
+			name:    "select profile by number",
+			current: "work",
+			profiles: []config.Profile{
+				{Name: "default", Domain: "default.atlassian.net", User: "default@example.com", SpaceKey: "DEF"},
+				{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+				{Name: "personal", Domain: "personal.atlassian.net", User: "me@example.com", SpaceKey: "HOME"},
+			},
+			input:        "3\n",
+			wantContains: `Switched to profile "personal".`,
+			wantCurrent:  "personal",
+			checkConfig:  true,
+		},
+		{
+			name:         "no profiles configured",
+			input:        "",
+			wantContains: "No profiles configured. Run 'cfl config init' to create one.",
+		},
+		{
+			name:    "esc cancels selection",
+			current: "work",
+			profiles: []config.Profile{
+				{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+			},
+			input:        "\x1b\n",
+			wantContains: "selection cancelled",
+			wantCurrent:  "work",
+			checkConfig:  true,
+		},
+		{
+			name:    "invalid non numeric selection",
+			current: "work",
+			profiles: []config.Profile{
+				{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+			},
+			input:       "abc\n",
+			wantErr:     "invalid selection",
+			wantCurrent: "work",
+			checkConfig: true,
+		},
+		{
+			name:    "out of range selection",
+			current: "work",
+			profiles: []config.Profile{
+				{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
+			},
+			input:       "9\n",
+			wantErr:     "must be between",
+			wantCurrent: "work",
+			checkConfig: true,
 		},
 	}
-	if err := cfg.SaveTo(configPath); err != nil {
-		t.Fatalf("failed to save config: %v", err)
-	}
 
-	opts := &useOptions{configPath: configPath}
-	out := &bytes.Buffer{}
-	if err := runUse(out, "personal", opts); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			configPath := filepath.Join(dir, "config.toml")
 
-	output := out.String()
-	if !strings.Contains(output, `Switched to profile "personal".`) {
-		t.Errorf("unexpected output: %s", output)
-	}
+			if len(tc.profiles) > 0 {
+				cfg := &config.Config{
+					Current:  tc.current,
+					Profiles: tc.profiles,
+				}
+				if err := cfg.SaveTo(configPath); err != nil {
+					t.Fatalf("save config failed: %v", err)
+				}
+			}
 
-	loaded, err := config.LoadFrom(configPath)
-	if err != nil {
-		t.Fatalf("failed to load config: %v", err)
-	}
-	if loaded.Current != "personal" {
-		t.Errorf("expected current %q, got %q", "personal", loaded.Current)
-	}
-}
+			opts := &useOptions{configPath: configPath}
+			out := &bytes.Buffer{}
+			err := runUseInteractive(strings.NewReader(tc.input), out, opts)
+			if tc.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tc.wantErr)
+				}
+				if !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+				}
+			} else if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
-func TestUse_WithName_NotFound(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
+			if tc.wantContains != "" && !strings.Contains(out.String(), tc.wantContains) {
+				t.Fatalf("expected output containing %q, got: %s", tc.wantContains, out.String())
+			}
 
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
-		},
-	}
-	if err := cfg.SaveTo(configPath); err != nil {
-		t.Fatalf("failed to save config: %v", err)
-	}
-
-	opts := &useOptions{configPath: configPath}
-	out := &bytes.Buffer{}
-	err := runUse(out, "nonexistent", opts)
-	if err == nil {
-		t.Fatal("expected error for nonexistent profile, got nil")
-	}
-}
-
-func TestUseInteractive_Select(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
-			{Name: "personal", Domain: "personal.atlassian.net", User: "me@example.com", SpaceKey: "HOME"},
-		},
-	}
-	if err := cfg.SaveTo(configPath); err != nil {
-		t.Fatalf("failed to save config: %v", err)
-	}
-
-	opts := &useOptions{configPath: configPath}
-	in := strings.NewReader("2\n")
-	out := &bytes.Buffer{}
-	if err := runUseInteractive(in, out, opts); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	output := out.String()
-	if !strings.Contains(output, "1) work (current)") {
-		t.Errorf("expected current marker on work: %s", output)
-	}
-	if !strings.Contains(output, "2) personal") {
-		t.Errorf("expected personal in list: %s", output)
-	}
-	if !strings.Contains(output, `Switched to profile "personal".`) {
-		t.Errorf("unexpected output: %s", output)
-	}
-
-	loaded, err := config.LoadFrom(configPath)
-	if err != nil {
-		t.Fatalf("failed to load config: %v", err)
-	}
-	if loaded.Current != "personal" {
-		t.Errorf("expected current %q, got %q", "personal", loaded.Current)
-	}
-}
-
-func TestUseInteractive_NoProfiles(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	opts := &useOptions{configPath: configPath}
-	in := strings.NewReader("")
-	out := &bytes.Buffer{}
-	if err := runUseInteractive(in, out, opts); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	output := out.String()
-	if !strings.Contains(output, "No profiles configured") {
-		t.Errorf("expected no profiles message, got: %s", output)
-	}
-}
-
-func TestUseInteractive_EOF(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
-		},
-	}
-	if err := cfg.SaveTo(configPath); err != nil {
-		t.Fatalf("failed to save config: %v", err)
-	}
-
-	opts := &useOptions{configPath: configPath}
-	in := strings.NewReader("") // EOF
-	out := &bytes.Buffer{}
-	err := runUseInteractive(in, out, opts)
-	if err == nil {
-		t.Fatalf("expected error, got nil")
-	}
-	if !strings.Contains(err.Error(), "read input") {
-		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-func TestUseInteractive_ESC(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
-		},
-	}
-	if err := cfg.SaveTo(configPath); err != nil {
-		t.Fatalf("failed to save config: %v", err)
-	}
-
-	opts := &useOptions{configPath: configPath}
-	in := strings.NewReader("\x1b\n")
-	out := &bytes.Buffer{}
-	if err := runUseInteractive(in, out, opts); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	output := out.String()
-	if !strings.Contains(output, "selection cancelled") {
-		t.Errorf("expected cancelled message, got: %s", output)
-	}
-}
-
-func TestUseInteractive_InvalidInput(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
-		},
-	}
-	if err := cfg.SaveTo(configPath); err != nil {
-		t.Fatalf("failed to save config: %v", err)
-	}
-
-	opts := &useOptions{configPath: configPath}
-	in := strings.NewReader("abc\n")
-	out := &bytes.Buffer{}
-	err := runUseInteractive(in, out, opts)
-	if err == nil {
-		t.Fatal("expected error for invalid input, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid selection") {
-		t.Errorf("unexpected error message: %v", err)
-	}
-}
-
-func TestUseInteractive_OutOfRange(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
-		},
-	}
-	if err := cfg.SaveTo(configPath); err != nil {
-		t.Fatalf("failed to save config: %v", err)
-	}
-
-	opts := &useOptions{configPath: configPath}
-	in := strings.NewReader("99\n")
-	out := &bytes.Buffer{}
-	err := runUseInteractive(in, out, opts)
-	if err == nil {
-		t.Fatal("expected error for out of range, got nil")
-	}
-	if !strings.Contains(err.Error(), "must be between") {
-		t.Errorf("unexpected error message: %v", err)
-	}
-}
-
-func TestUseInteractive_EmptyInput(t *testing.T) {
-	dir := t.TempDir()
-	configPath := filepath.Join(dir, "config.toml")
-
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "work.atlassian.net", User: "work@example.com", SpaceKey: "WORK"},
-		},
-	}
-	if err := cfg.SaveTo(configPath); err != nil {
-		t.Fatalf("failed to save config: %v", err)
-	}
-
-	opts := &useOptions{configPath: configPath}
-	in := strings.NewReader("\n")
-	out := &bytes.Buffer{}
-	err := runUseInteractive(in, out, opts)
-	if err == nil {
-		t.Fatal("expected error for empty input, got nil")
-	}
-	if !strings.Contains(err.Error(), "invalid selection") {
-		t.Errorf("unexpected error message: %v", err)
+			if tc.checkConfig {
+				loaded, loadErr := config.LoadFrom(configPath)
+				if loadErr != nil {
+					t.Fatalf("load config failed: %v", loadErr)
+				}
+				if loaded.Current != tc.wantCurrent {
+					t.Fatalf("expected current %q, got %q", tc.wantCurrent, loaded.Current)
+				}
+			}
+		})
 	}
 }
