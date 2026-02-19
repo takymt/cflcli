@@ -1,4 +1,4 @@
-package test
+package e2e
 
 import (
 	"bytes"
@@ -14,7 +14,7 @@ import (
 	"github.com/takymt/cflcli/internal/config"
 )
 
-func TestPageList_CLIOutputJSON(t *testing.T) {
+func TestPageListCLIOutputJSON(t *testing.T) {
 	var gotQuery string
 	var gotAuth string
 
