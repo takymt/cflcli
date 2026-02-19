@@ -14,8 +14,9 @@ import (
 
 // PageListOptions holds options for page listing.
 type PageListOptions struct {
-	SpaceID string
-	Limit   int
+	SpaceID  string
+	SpaceKey string
+	Limit    int
 }
 
 func newPageCmd() *cobra.Command {
@@ -41,7 +42,8 @@ func newPageListCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id")
+	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
+	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
 	cmd.Flags().IntVar(&opts.Limit, "limit", 25, "number of results per page")
 
 	return cmd
@@ -63,7 +65,12 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	result, err := cli.ListPages(opts.SpaceID, opts.Limit, "")
+	spaceID, err := resolvePageListSpaceID(opts, profile, cli)
+	if err != nil {
+		return err
+	}
+
+	result, err := cli.ListPages(spaceID, opts.Limit, "")
 	if err != nil {
 		return err
 	}
@@ -73,7 +80,7 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return output.WritePagesTable(out, result.Results)
 	case "json":
 		return output.WritePageListJSON(out, output.PageListOutput{
-			Request: output.PageListRequest{SpaceID: opts.SpaceID, Limit: opts.Limit},
+			Request: output.PageListRequest{SpaceID: spaceID, Limit: opts.Limit},
 			Next:    result.Links.Next,
 			Results: result.Results,
 		})
@@ -111,4 +118,23 @@ func resolveProfile(cfg *config.Config) (*config.Profile, error) {
 		return nil, fmt.Errorf("no current profile; run 'cfl config init' or 'cfl use <name>'")
 	}
 	return profile, nil
+}
+
+func resolvePageListSpaceID(opts *PageListOptions, profile *config.Profile, cli *client.Client) (string, error) {
+	if opts.SpaceID != "" && opts.SpaceKey != "" {
+		return "", fmt.Errorf("--space-id and --space-key are mutually exclusive; specify only one")
+	}
+	if opts.SpaceID != "" {
+		return opts.SpaceID, nil
+	}
+
+	spaceKey := opts.SpaceKey
+	if spaceKey == "" {
+		spaceKey = profile.SpaceKey
+	}
+	if spaceKey == "" {
+		return "", fmt.Errorf("space key is required; specify --space-key or configure space_key in profile")
+	}
+
+	return cli.ResolveSpaceIDByKey(spaceKey)
 }

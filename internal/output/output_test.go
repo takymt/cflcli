@@ -38,11 +38,11 @@ func TestWritePagesTable(t *testing.T) {
 	t.Parallel()
 
 	page := model.Page{
-		ID:     "1",
-		Title:  "Doc",
-		Status: "current",
+		ID:      "1",
+		Title:   "Doc",
+		Status:  "current",
+		SpaceID: "SPACE-1",
 	}
-	page.Space.ID = "SPACE-1"
 
 	var out bytes.Buffer
 	if err := WritePagesTable(&out, []model.Page{page}); err != nil {

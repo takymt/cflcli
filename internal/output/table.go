@@ -15,7 +15,7 @@ func WritePagesTable(out io.Writer, pages []model.Page) error {
 		return err
 	}
 	for _, page := range pages {
-		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", page.ID, page.Title, page.Status, page.Space.ID); err != nil {
+		if _, err := fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", page.ID, page.Title, page.Status, page.SpaceID); err != nil {
 			return err
 		}
 	}
