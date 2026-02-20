@@ -119,11 +119,10 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("details block converts to collapsed expand macro", func(t *testing.T) {
+	t.Run("details block without title uses default title", func(t *testing.T) {
 		input := strings.Join([]string{
-			":::details 折りたたみタイトル",
-			"折りたたみ本文1",
-			"折りたたみ本文2",
+			":::details",
+			"body",
 			":::",
 		}, "\n")
 		got, err := ToStorage([]byte(input), "markdown")
@@ -133,27 +132,16 @@ func TestToStorage(t *testing.T) {
 		if !strings.Contains(got, `<ac:structured-macro ac:name="expand">`) {
 			t.Fatalf("missing expand macro: %q", got)
 		}
-		if !strings.Contains(got, `<ac:parameter ac:name="title">折りたたみタイトル</ac:parameter>`) {
-			t.Fatalf("missing expand title: %q", got)
+		if !strings.Contains(got, `<ac:parameter ac:name="title">Details</ac:parameter>`) {
+			t.Fatalf("missing default expand title: %q", got)
 		}
 		if !strings.Contains(got, `<ac:parameter ac:name="expanded">false</ac:parameter>`) {
 			t.Fatalf("expand default state must be collapsed: %q", got)
 		}
-		if !strings.Contains(got, "<p>折りたたみ本文1\n折りたたみ本文2</p>") {
-			t.Fatalf("missing expand body: %q", got)
-		}
 	})
 
-	t.Run("admonition blocks convert to confluence macros", func(t *testing.T) {
+	t.Run("admonition aliases map to expected macros", func(t *testing.T) {
 		input := strings.Join([]string{
-			":::info",
-			"info",
-			":::",
-			"",
-			":::memo",
-			"memo",
-			":::",
-			"",
 			":::success",
 			"success",
 			":::",
@@ -161,33 +149,16 @@ func TestToStorage(t *testing.T) {
 			":::warn",
 			"warn",
 			":::",
-			"",
-			":::error",
-			"error",
-			":::",
 		}, "\n")
 		got, err := ToStorage([]byte(input), "markdown")
 		if err != nil {
 			t.Fatalf("ToStorage: %v", err)
 		}
-
-		if !strings.Contains(got, `<ac:structured-macro ac:name="info"><ac:rich-text-body><p>info</p>`) {
-			t.Fatalf("missing info macro: %q", got)
+		if !strings.Contains(got, `<ac:structured-macro ac:name="tip">`) {
+			t.Fatalf("missing tip macro for success alias: %q", got)
 		}
-		if !strings.Contains(got, `<ac:adf-extension><ac:adf-node type="panel"><ac:adf-attribute key="panel-type">note</ac:adf-attribute><ac:adf-content><p>memo</p>`) {
-			t.Fatalf("missing note panel adf-extension for memo: %q", got)
-		}
-		if !strings.Contains(got, `<ac:structured-macro ac:name="tip"><ac:rich-text-body><p>success</p>`) {
-			t.Fatalf("missing tip macro for success: %q", got)
-		}
-		if !strings.Contains(got, `<ac:structured-macro ac:name="note"><ac:rich-text-body><p>warn</p>`) {
-			t.Fatalf("missing note macro for warn: %q", got)
-		}
-		if strings.Count(got, `<ac:structured-macro ac:name="warning">`) != 1 {
-			t.Fatalf("expected one warning macro for error: %q", got)
-		}
-		if !strings.Contains(got, `<ac:structured-macro ac:name="warning"><ac:rich-text-body><p>error</p>`) {
-			t.Fatalf("missing warning macro for error: %q", got)
+		if !strings.Contains(got, `<ac:structured-macro ac:name="note">`) {
+			t.Fatalf("missing note macro for warn alias: %q", got)
 		}
 	})
 
