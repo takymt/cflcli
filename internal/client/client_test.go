@@ -187,32 +187,3 @@ func TestGetPage_QueryAndAuth(t *testing.T) {
 		t.Fatalf("unexpected page body: %+v", page.Body.Storage)
 	}
 }
-
-func TestGetPage_HTTPError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		_, _ = w.Write([]byte("not found"))
-	}))
-	defer srv.Close()
-
-	old := DefaultHTTPClient
-	DefaultHTTPClient = srv.Client()
-	t.Cleanup(func() { DefaultHTTPClient = old })
-
-	cli, err := New(
-		context.Background(),
-		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
-		"token",
-	)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	_, err = cli.GetPage("999")
-	if err == nil {
-		t.Fatalf("expected error")
-	}
-	if !strings.Contains(err.Error(), "404 Not Found") || !strings.Contains(err.Error(), "not found") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}

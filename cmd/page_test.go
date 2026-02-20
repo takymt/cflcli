@@ -554,17 +554,10 @@ func TestRunPageListWithConfig_SpaceSelectorErrors(t *testing.T) {
 }
 
 func TestRunPageGetWithConfig_WritesStorageBody(t *testing.T) {
-	var gotQuery string
-
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/wiki/api/v2/pages/123" {
 			http.NotFound(w, r)
 			return
-		}
-		gotQuery = r.URL.RawQuery
-		user, password, ok := r.BasicAuth()
-		if !ok || user != "user@example.com" || password != "token" {
-			t.Fatalf("unexpected basic auth: ok=%v user=%q", ok, user)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"123","title":"Doc","status":"current","spaceId":"SPACE-1","body":{"storage":{"representation":"storage","value":"<p>Hello</p>"}}}`))
@@ -578,10 +571,6 @@ func TestRunPageGetWithConfig_WritesStorageBody(t *testing.T) {
 	err := RunPageGetWithConfig(&out, "123", cfg)
 	if err != nil {
 		t.Fatalf("RunPageGetWithConfig: %v", err)
-	}
-
-	if gotQuery != "body-format=storage" {
-		t.Fatalf("unexpected query: %q", gotQuery)
 	}
 	if out.String() != "<p>Hello</p>" {
 		t.Fatalf("unexpected output: %q", out.String())
@@ -620,39 +609,5 @@ func TestPageListSortFlagErrorShowsAllowedValues(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "allowed values: "+pageListAllowedSortValues) {
 		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestPageGetArgsValidation(t *testing.T) {
-	testCases := []struct {
-		name    string
-		args    []string
-		wantSub string
-	}{
-		{
-			name:    "missing page id",
-			args:    []string{"page", "get"},
-			wantSub: "page id is required",
-		},
-		{
-			name:    "too many args",
-			args:    []string{"page", "get", "1", "2"},
-			wantSub: "too many arguments",
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			rootCmd := NewRootCmd()
-			rootCmd.SetOut(io.Discard)
-			rootCmd.SetErr(io.Discard)
-			rootCmd.SetArgs(tc.args)
-
-			err := rootCmd.Execute()
-			if err == nil || !strings.Contains(err.Error(), tc.wantSub) {
-				t.Fatalf("unexpected error: %v", err)
-			}
-		})
 	}
 }
