@@ -25,17 +25,18 @@ var markdownConverter = goldmark.New(
 )
 
 var (
-	codeBlockPattern   = regexp.MustCompile(`(?s)<pre><code(?: class="language-([^"]+)")?>(.*?)</code></pre>`)
-	listItemPattern    = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
-	taskLinePattern    = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
-	expandStartPattern = regexp.MustCompile(`^:::\s*details(?:\s+(.*))?\s*$`)
-	inlineCardPattern  = regexp.MustCompile(`(?s)<p>\s*<a href="([^"]+)">([^<]+)</a>\s*</p>`)
-	hrTagPattern       = regexp.MustCompile(`(?i)<hr\s*/?>`)
-	imageTagPattern    = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
-	strikeTagPattern   = regexp.MustCompile(`(?s)<del>(.*?)</del>`)
-	srcAttrPattern     = regexp.MustCompile(`\ssrc="([^"]*)"`)
-	altAttrPattern     = regexp.MustCompile(`\salt="([^"]*)"`)
-	emojiPattern       = regexp.MustCompile(`:([a-z0-9_+-]+):`)
+	codeBlockPattern       = regexp.MustCompile(`(?s)<pre><code(?: class="language-([^"]+)")?>(.*?)</code></pre>`)
+	listItemPattern        = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
+	taskLinePattern        = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
+	expandStartPattern     = regexp.MustCompile(`^:::\s*details(?:\s+(.*))?\s*$`)
+	admonitionStartPattern = regexp.MustCompile(`^:::\s*([a-zA-Z][a-zA-Z0-9_-]*)\s*$`)
+	inlineCardPattern      = regexp.MustCompile(`(?s)<p>\s*<a href="([^"]+)">([^<]+)</a>\s*</p>`)
+	hrTagPattern           = regexp.MustCompile(`(?i)<hr\s*/?>`)
+	imageTagPattern        = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
+	strikeTagPattern       = regexp.MustCompile(`(?s)<del>(.*?)</del>`)
+	srcAttrPattern         = regexp.MustCompile(`\ssrc="([^"]*)"`)
+	altAttrPattern         = regexp.MustCompile(`\salt="([^"]*)"`)
+	emojiPattern           = regexp.MustCompile(`:([a-z0-9_+-]+):`)
 )
 
 type taskItem struct {
@@ -52,6 +53,12 @@ type expandPlaceholder struct {
 	Token string
 	Title string
 	Body  string
+}
+
+type admonitionPlaceholder struct {
+	Token     string
+	MacroName string
+	Body      string
 }
 
 // NormalizeFormat validates and normalizes body format.
@@ -83,7 +90,7 @@ func ToStorage(content []byte, format string) (string, error) {
 }
 
 func convertMarkdownToStorage(markdown string) (string, error) {
-	markdown, taskPlaceholders, expandPlaceholders := preprocessMarkdown(markdown)
+	markdown, taskPlaceholders, admonitionPlaceholders, expandPlaceholders := preprocessMarkdown(markdown)
 	html, err := markdownToHTML(markdown)
 	if err != nil {
 		return "", err
@@ -91,6 +98,10 @@ func convertMarkdownToStorage(markdown string) (string, error) {
 
 	storage := htmlToConfluenceStorage(html)
 	storage = restoreTaskListPlaceholders(storage, taskPlaceholders)
+	storage, err = restoreAdmonitionPlaceholders(storage, admonitionPlaceholders)
+	if err != nil {
+		return "", err
+	}
 	storage, err = restoreExpandPlaceholders(storage, expandPlaceholders)
 	if err != nil {
 		return "", err
@@ -98,11 +109,12 @@ func convertMarkdownToStorage(markdown string) (string, error) {
 	return applyEditModeCompatibility(storage), nil
 }
 
-func preprocessMarkdown(markdown string) (string, []taskListPlaceholder, []expandPlaceholder) {
+func preprocessMarkdown(markdown string) (string, []taskListPlaceholder, []admonitionPlaceholder, []expandPlaceholder) {
 	normalized := normalizeListSpacing(markdown)
 	normalized, expandPlaceholders := extractExpandBlocks(normalized)
+	normalized, admonitionPlaceholders := extractAdmonitionBlocks(normalized)
 	normalized, taskPlaceholders := extractTaskLists(normalized)
-	return normalized, taskPlaceholders, expandPlaceholders
+	return normalized, taskPlaceholders, admonitionPlaceholders, expandPlaceholders
 }
 
 func markdownToHTML(markdown string) (string, error) {
@@ -327,6 +339,53 @@ func extractExpandBlocks(markdown string) (string, []expandPlaceholder) {
 	return strings.Join(normalized, "\n"), placeholders
 }
 
+func extractAdmonitionBlocks(markdown string) (string, []admonitionPlaceholder) {
+	lines := strings.Split(markdown, "\n")
+	normalized := make([]string, 0, len(lines))
+	placeholders := make([]admonitionPlaceholder, 0)
+
+	for i := 0; i < len(lines); {
+		matches := admonitionStartPattern.FindStringSubmatch(lines[i])
+		if len(matches) != 2 {
+			normalized = append(normalized, lines[i])
+			i++
+			continue
+		}
+
+		macroName, ok := mapAdmonitionToMacroName(matches[1])
+		if !ok {
+			normalized = append(normalized, lines[i])
+			i++
+			continue
+		}
+
+		bodyStart := i + 1
+		bodyEnd := -1
+		for j := bodyStart; j < len(lines); j++ {
+			if strings.TrimSpace(lines[j]) == ":::" {
+				bodyEnd = j
+				break
+			}
+		}
+		if bodyEnd == -1 {
+			normalized = append(normalized, lines[i])
+			i++
+			continue
+		}
+
+		token := fmt.Sprintf("@@CFL_ADMONITION_%d@@", len(placeholders)+1)
+		placeholders = append(placeholders, admonitionPlaceholder{
+			Token:     token,
+			MacroName: macroName,
+			Body:      strings.Join(lines[bodyStart:bodyEnd], "\n"),
+		})
+		normalized = append(normalized, token)
+		i = bodyEnd + 1
+	}
+
+	return strings.Join(normalized, "\n"), placeholders
+}
+
 func parseTaskLine(line string) (int, taskItem, bool) {
 	matches := taskLinePattern.FindStringSubmatch(line)
 	if len(matches) != 4 {
@@ -357,6 +416,24 @@ func restoreTaskListPlaceholders(storage string, placeholders []taskListPlacehol
 	return storage
 }
 
+func restoreAdmonitionPlaceholders(storage string, placeholders []admonitionPlaceholder) (string, error) {
+	for _, placeholder := range placeholders {
+		bodyStorage, err := convertMarkdownToStorage(placeholder.Body)
+		if err != nil {
+			return "", err
+		}
+
+		macro := `<ac:structured-macro ac:name="` +
+			stdhtml.EscapeString(placeholder.MacroName) +
+			`"><ac:rich-text-body>` +
+			bodyStorage +
+			`</ac:rich-text-body></ac:structured-macro>`
+		storage = strings.ReplaceAll(storage, "<p>"+placeholder.Token+"</p>", macro)
+		storage = strings.ReplaceAll(storage, placeholder.Token, macro)
+	}
+	return storage, nil
+}
+
 func restoreExpandPlaceholders(storage string, placeholders []expandPlaceholder) (string, error) {
 	for _, placeholder := range placeholders {
 		bodyStorage, err := convertMarkdownToStorage(placeholder.Body)
@@ -375,6 +452,21 @@ func restoreExpandPlaceholders(storage string, placeholders []expandPlaceholder)
 		storage = strings.ReplaceAll(storage, placeholder.Token, macro)
 	}
 	return storage, nil
+}
+
+func mapAdmonitionToMacroName(name string) (string, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "info":
+		return "info", true
+	case "memo", "note":
+		return "note", true
+	case "warn", "warning", "error":
+		return "warning", true
+	case "success", "tip":
+		return "tip", true
+	default:
+		return "", false
+	}
 }
 
 func buildTaskListMacro(items []taskItem) string {

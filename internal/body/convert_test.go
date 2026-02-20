@@ -239,6 +239,47 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("admonition blocks convert to confluence macros", func(t *testing.T) {
+		input := strings.Join([]string{
+			":::info",
+			"info",
+			":::",
+			"",
+			":::memo",
+			"memo",
+			":::",
+			"",
+			":::error",
+			"error",
+			":::",
+			"",
+			":::success",
+			"success",
+			":::",
+			"",
+			":::warn",
+			"warn",
+			":::",
+		}, "\n")
+		got, err := ToStorage([]byte(input), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+
+		if !strings.Contains(got, `<ac:structured-macro ac:name="info"><ac:rich-text-body><p>info</p>`) {
+			t.Fatalf("missing info macro: %q", got)
+		}
+		if !strings.Contains(got, `<ac:structured-macro ac:name="note"><ac:rich-text-body><p>memo</p>`) {
+			t.Fatalf("missing note macro for memo: %q", got)
+		}
+		if strings.Count(got, `<ac:structured-macro ac:name="warning">`) != 2 {
+			t.Fatalf("expected two warning macros for error/warn: %q", got)
+		}
+		if !strings.Contains(got, `<ac:structured-macro ac:name="tip"><ac:rich-text-body><p>success</p>`) {
+			t.Fatalf("missing tip macro for success: %q", got)
+		}
+	})
+
 	t.Run("nested quote depth is preserved", func(t *testing.T) {
 		got, err := ToStorage([]byte("> 親引用\n>> 子引用"), "markdown")
 		if err != nil {
