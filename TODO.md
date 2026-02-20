@@ -56,10 +56,10 @@
       - 許可値: `current`, `archived`, `deleted`, `trashed`
     - [x] IF `--status` を明示指定して `--output table` THEN `STATUS` 列を表示する
     - [x] IF `--status` 未指定で `--output table` THEN `STATUS` 列を表示しない
-  - [ ] `--sort` 並び順
-    - [ ] IF `--sort` が未指定 THEN `/pages` リクエストに `sort` クエリを付与しない
-    - [ ] IF `--sort` が指定される THEN 指定値を `sort` クエリとして付与する
-    - [ ] IF `--sort` が許可値以外 THEN バリデーションエラーにする
+  - [x] `--sort` 並び順
+    - [x] IF `--sort` が未指定 THEN `/pages` リクエストに `sort` クエリを付与しない
+    - [x] IF `--sort` が指定される THEN 指定値を `sort` クエリとして付与する
+    - [x] IF `--sort` が許可値以外 THEN バリデーションエラーにする
       - 許可値: `id`, `-id`, `created-date`, `-created-date`, `modified-date`, `-modified-date`, `title`, `-title`
 - [ ] `cfl page get <page-id>`
 - [ ] `cfl page create --title TITLE --body-file FILE [--parent-id ID]`

@@ -201,6 +201,59 @@ func TestResolvePageListStatuses(t *testing.T) {
 	}
 }
 
+func TestResolvePageListSort(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		opts       *PageListOptions
+		want       string
+		wantErrSub string
+	}{
+		{
+			name: "unspecified sort",
+			opts: &PageListOptions{},
+			want: "",
+		},
+		{
+			name: "valid sort",
+			opts: &PageListOptions{Sort: "-modified-date"},
+			want: "-modified-date",
+		},
+		{
+			name: "valid sort with surrounding spaces",
+			opts: &PageListOptions{Sort: " title "},
+			want: "title",
+		},
+		{
+			name:       "invalid sort",
+			opts:       &PageListOptions{Sort: "updated"},
+			wantErrSub: "invalid sort",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := resolvePageListSort(tc.opts)
+			if tc.wantErrSub != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErrSub) {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolvePageListSort: %v", err)
+			}
+			if got != tc.want {
+				t.Fatalf("sort=%q want %q", got, tc.want)
+			}
+		})
+	}
+}
+
 func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {
 	var gotSpacesQuery string
 	var gotPagesQuery string
@@ -246,6 +299,9 @@ func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {
 	}
 	if strings.Contains(gotPagesQuery, "cursor=") {
 		t.Fatalf("unexpected cursor query: %q", gotPagesQuery)
+	}
+	if strings.Contains(gotPagesQuery, "sort=") {
+		t.Fatalf("unexpected sort query: %q", gotPagesQuery)
 	}
 
 	var payload struct {
@@ -307,6 +363,9 @@ func TestRunPageListWithConfig_Table_UsesProfileSpaceKey(t *testing.T) {
 		t.Fatalf("unexpected spaces query: %q", gotSpacesQuery)
 	}
 	if !strings.Contains(gotPagesQuery, "status=current") {
+		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
+	}
+	if strings.Contains(gotPagesQuery, "sort=") {
 		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
 	}
 }
@@ -395,6 +454,42 @@ func TestRunPageListWithConfig_JSON_UsesCursor(t *testing.T) {
 	}
 	if payload.Next != "cursor-3" {
 		t.Fatalf("unexpected next: %q", payload.Next)
+	}
+}
+
+func TestRunPageListWithConfig_JSON_UsesSort(t *testing.T) {
+	var gotPagesQuery string
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
+		case "/wiki/api/v2/pages":
+			gotPagesQuery = r.URL.RawQuery
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[],"_links":{"next":"cursor-3"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "json")
+
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+
+	var out bytes.Buffer
+	err := RunPageListWithConfig(&out, &PageListOptions{
+		Limit: 10,
+		Sort:  "-created-date",
+	}, cfg)
+	if err != nil {
+		t.Fatalf("RunPageListWithConfig: %v", err)
+	}
+
+	if !strings.Contains(gotPagesQuery, "sort=-created-date") {
+		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
 	}
 }
 
