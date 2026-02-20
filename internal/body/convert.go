@@ -3,9 +3,12 @@ package body
 import (
 	"bytes"
 	"fmt"
+	"html"
+	"regexp"
 	"strings"
 
 	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
 )
 
 const (
@@ -13,6 +16,15 @@ const (
 	FormatMarkdown = "markdown"
 	// FormatStorage represents Confluence storage format input.
 	FormatStorage = "storage"
+)
+
+var markdownConverter = goldmark.New(
+	goldmark.WithExtensions(extension.GFM),
+)
+
+var (
+	codeBlockPattern = regexp.MustCompile(`(?s)<pre><code(?: class="language-([^"]+)")?>(.*?)</code></pre>`)
+	listItemPattern  = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
 )
 
 // NormalizeFormat validates and normalizes body format.
@@ -37,12 +49,79 @@ func ToStorage(content []byte, format string) (string, error) {
 	case FormatStorage:
 		return string(content), nil
 	case FormatMarkdown:
+		normalizedMarkdown := normalizeNestedListSpacing(string(content))
+
 		var out bytes.Buffer
-		if err := goldmark.Convert(content, &out); err != nil {
+		if err := markdownConverter.Convert([]byte(normalizedMarkdown), &out); err != nil {
 			return "", fmt.Errorf("convert markdown to storage: %w", err)
 		}
-		return out.String(), nil
+		return htmlToConfluenceStorage(out.String()), nil
 	default:
 		return "", fmt.Errorf("unsupported body format: %s", normalized)
 	}
+}
+
+func htmlToConfluenceStorage(value string) string {
+	return codeBlockPattern.ReplaceAllStringFunc(value, func(match string) string {
+		submatches := codeBlockPattern.FindStringSubmatch(match)
+		if len(submatches) != 3 {
+			return match
+		}
+
+		language := strings.TrimSpace(submatches[1])
+		if language == "" {
+			language = "text"
+		}
+
+		code := html.UnescapeString(submatches[2])
+		code = strings.ReplaceAll(code, "]]>", "]]]]><![CDATA[>")
+
+		return fmt.Sprintf(
+			`<ac:structured-macro ac:name="code"><ac:parameter ac:name="language">%s</ac:parameter><ac:plain-text-body><![CDATA[%s]]></ac:plain-text-body></ac:structured-macro>`,
+			language,
+			code,
+		)
+	})
+}
+
+func normalizeNestedListSpacing(markdown string) string {
+	if !strings.Contains(markdown, "\n\n") {
+		return markdown
+	}
+
+	lines := strings.Split(markdown, "\n")
+	normalized := make([]string, 0, len(lines))
+	for i, line := range lines {
+		if strings.TrimSpace(line) != "" || i == 0 || i+1 >= len(lines) {
+			normalized = append(normalized, line)
+			continue
+		}
+
+		prevIndent, prevIsList := listItemIndent(lines[i-1])
+		nextIndent, nextIsList := listItemIndent(lines[i+1])
+		if prevIsList && nextIsList && nextIndent > prevIndent {
+			continue
+		}
+
+		normalized = append(normalized, line)
+	}
+
+	return strings.Join(normalized, "\n")
+}
+
+func listItemIndent(line string) (int, bool) {
+	match := listItemPattern.FindStringSubmatch(line)
+	if len(match) != 2 {
+		return 0, false
+	}
+
+	indent := 0
+	for _, r := range match[1] {
+		if r == '\t' {
+			indent += 4
+			continue
+		}
+		indent++
+	}
+	return indent, true
 }

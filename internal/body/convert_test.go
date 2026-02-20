@@ -54,6 +54,48 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("markdown strikethrough", func(t *testing.T) {
+		got, err := ToStorage([]byte("~~hoge~~"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if strings.Contains(got, "~~hoge~~") {
+			t.Fatalf("unexpected literal strike syntax: %q", got)
+		}
+		if !strings.Contains(got, "<del>hoge</del>") {
+			t.Fatalf("missing converted strike tag: %q", got)
+		}
+	})
+
+	t.Run("markdown code fence converts to confluence code macro", func(t *testing.T) {
+		got, err := ToStorage([]byte("```go\nfmt.Println(\"hi\")\n```"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, `<ac:structured-macro ac:name="code">`) {
+			t.Fatalf("missing code macro: %q", got)
+		}
+		if !strings.Contains(got, `<ac:parameter ac:name="language">go</ac:parameter>`) {
+			t.Fatalf("missing code language: %q", got)
+		}
+		if !strings.Contains(got, `<![CDATA[fmt.Println("hi")`) {
+			t.Fatalf("missing code body: %q", got)
+		}
+	})
+
+	t.Run("nested list blank line is tightened", func(t *testing.T) {
+		got, err := ToStorage([]byte("- parent\n\n  - child\n"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if strings.Contains(got, "<p>parent</p>") {
+			t.Fatalf("unexpected loose parent paragraph: %q", got)
+		}
+		if !strings.Contains(got, "<li>child</li>") {
+			t.Fatalf("missing child list item: %q", got)
+		}
+	})
+
 	t.Run("storage passthrough", func(t *testing.T) {
 		got, err := ToStorage([]byte("<p>Hello</p>"), "storage")
 		if err != nil {
