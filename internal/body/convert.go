@@ -29,11 +29,10 @@ var (
 	listItemPattern    = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
 	taskLinePattern    = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
 	expandStartPattern = regexp.MustCompile(`^:::\s*details(?:\s+(.*))?\s*$`)
-	quoteLinePattern   = regexp.MustCompile(`^([ \t]*)(>+)\s?(.*)$`)
 	hrTagPattern       = regexp.MustCompile(`(?i)<hr\s*/?>`)
-	anchorTagPattern   = regexp.MustCompile(`(?s)<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>`)
 	linkCardPattern    = regexp.MustCompile(`(?s)<p>\s*<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>\s*</p>`)
 	imageTagPattern    = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
+	strikeTagPattern   = regexp.MustCompile(`(?s)<del>(.*?)</del>`)
 	srcAttrPattern     = regexp.MustCompile(`\ssrc="([^"]*)"`)
 	altAttrPattern     = regexp.MustCompile(`\salt="([^"]*)"`)
 	htmlTagPattern     = regexp.MustCompile(`(?s)<[^>]+>`)
@@ -46,8 +45,10 @@ var confluenceEmojiNames = map[string]string{
 	"cheeky":      "cheeky",
 	"laugh":       "laugh",
 	"wink":        "wink",
-	"thumbsup":    "thumbsup",
-	"thumbsdown":  "thumbsdown",
+	"thumbsup":    "thumbs-up",
+	"thumbsdown":  "thumbs-down",
+	"thumbs-up":   "thumbs-up",
+	"thumbs-down": "thumbs-down",
 	"information": "information",
 	"warning":     "warning",
 	"tick":        "tick",
@@ -116,7 +117,6 @@ func convertMarkdownToStorage(markdown string) (string, error) {
 
 func preprocessMarkdown(markdown string) (string, []taskListPlaceholder, []expandPlaceholder) {
 	normalized := normalizeListSpacing(markdown)
-	normalized = normalizeBlockquoteDepth(normalized)
 	normalized, expandPlaceholders := extractExpandBlocks(normalized)
 	normalized, taskPlaceholders := extractTaskLists(normalized)
 	return normalized, taskPlaceholders, expandPlaceholders
@@ -132,7 +132,6 @@ func markdownToHTML(markdown string) (string, error) {
 
 func htmlToConfluenceStorage(value string) string {
 	storage := convertURLOnlyParagraphToLinkCard(value)
-	storage = convertAnchorTags(storage)
 	storage = convertImageTags(storage)
 	storage = codeBlockPattern.ReplaceAllStringFunc(storage, func(match string) string {
 		submatches := codeBlockPattern.FindStringSubmatch(match)
@@ -156,6 +155,7 @@ func htmlToConfluenceStorage(value string) string {
 		)
 	})
 	storage = hrTagPattern.ReplaceAllString(storage, "<hr />")
+	storage = strikeTagPattern.ReplaceAllString(storage, `<span style="text-decoration: line-through;">$1</span>`)
 	storage = convertEmojiShortcodes(storage)
 	return storage
 }
@@ -177,29 +177,6 @@ func convertURLOnlyParagraphToLinkCard(value string) string {
 		return `<ac:link ac:card-appearance="block"><ri:url ri:value="` +
 			stdhtml.EscapeString(url) +
 			`" /></ac:link>`
-	})
-}
-
-func convertAnchorTags(value string) string {
-	return anchorTagPattern.ReplaceAllStringFunc(value, func(match string) string {
-		submatches := anchorTagPattern.FindStringSubmatch(match)
-		if len(submatches) != 3 {
-			return match
-		}
-
-		url := stdhtml.UnescapeString(submatches[1])
-		text := strings.TrimSpace(htmlTagPattern.ReplaceAllString(submatches[2], ""))
-		if text == "" {
-			text = url
-		}
-		text = stdhtml.UnescapeString(text)
-		text = strings.ReplaceAll(text, "]]>", "]]]]><![CDATA[>")
-
-		return `<ac:link><ri:url ri:value="` +
-			stdhtml.EscapeString(url) +
-			`" /><ac:link-body>` +
-			stdhtml.EscapeString(text) +
-			`</ac:link-body></ac:link>`
 	})
 }
 
@@ -494,27 +471,6 @@ func normalizeListSpacing(markdown string) string {
 		normalized = append(normalized, line)
 	}
 
-	return strings.Join(normalized, "\n")
-}
-
-func normalizeBlockquoteDepth(markdown string) string {
-	lines := strings.Split(markdown, "\n")
-	normalized := make([]string, 0, len(lines))
-	for _, line := range lines {
-		matches := quoteLinePattern.FindStringSubmatch(line)
-		if len(matches) != 4 {
-			normalized = append(normalized, line)
-			continue
-		}
-
-		indent := matches[1]
-		content := strings.TrimSpace(matches[3])
-		if content == "" {
-			normalized = append(normalized, indent+">")
-			continue
-		}
-		normalized = append(normalized, indent+"> "+content)
-	}
 	return strings.Join(normalized, "\n")
 }
 

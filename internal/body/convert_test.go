@@ -63,8 +63,8 @@ func TestToStorage(t *testing.T) {
 		if strings.Contains(got, "~~hoge~~") {
 			t.Fatalf("unexpected literal strike syntax: %q", got)
 		}
-		if !strings.Contains(got, "<del>hoge</del>") {
-			t.Fatalf("missing converted strike tag: %q", got)
+		if !strings.Contains(got, `<span style="text-decoration: line-through;">hoge</span>`) {
+			t.Fatalf("missing converted strike span: %q", got)
 		}
 	})
 
@@ -103,22 +103,16 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("markdown link converts to confluence link macro", func(t *testing.T) {
+	t.Run("markdown link converts to storage anchor tag", func(t *testing.T) {
 		got, err := ToStorage([]byte(`[アンカーテキスト](https://developer.atlassian.com/cloud/confluence/)`), "markdown")
 		if err != nil {
 			t.Fatalf("ToStorage: %v", err)
 		}
-		if !strings.Contains(got, `<ac:link>`) {
-			t.Fatalf("missing link macro: %q", got)
+		if !strings.Contains(got, `<a href="https://developer.atlassian.com/cloud/confluence/">アンカーテキスト</a>`) {
+			t.Fatalf("missing storage anchor tag: %q", got)
 		}
-		if !strings.Contains(got, `ri:url ri:value="https://developer.atlassian.com/cloud/confluence/"`) {
-			t.Fatalf("missing link url: %q", got)
-		}
-		if !strings.Contains(got, `<ac:link-body>アンカーテキスト</ac:link-body>`) {
-			t.Fatalf("missing link body: %q", got)
-		}
-		if strings.Contains(got, "<a href=") {
-			t.Fatalf("raw anchor tag remains: %q", got)
+		if strings.Contains(got, "<ac:link>") {
+			t.Fatalf("unexpected ac:link macro for normal markdown link: %q", got)
 		}
 	})
 
@@ -182,6 +176,9 @@ func TestToStorage(t *testing.T) {
 		if strings.Contains(got, "<ac:plain-text-link-body>") {
 			t.Fatalf("unexpected plain-text link body for block card: %q", got)
 		}
+		if strings.Contains(got, "<a href=") {
+			t.Fatalf("unexpected plain anchor for URL-only line: %q", got)
+		}
 	})
 
 	t.Run("emoji shortcodes convert to confluence emoticons", func(t *testing.T) {
@@ -192,8 +189,8 @@ func TestToStorage(t *testing.T) {
 		if !strings.Contains(got, `<ac:emoticon ac:name="smile" />`) {
 			t.Fatalf("missing smile emoji: %q", got)
 		}
-		if !strings.Contains(got, `<ac:emoticon ac:name="thumbsup" />`) {
-			t.Fatalf("missing thumbsup emoji: %q", got)
+		if !strings.Contains(got, `<ac:emoticon ac:name="thumbs-up" />`) {
+			t.Fatalf("missing thumbs-up emoji: %q", got)
 		}
 		if !strings.Contains(got, ":unknown_emoji:") {
 			t.Fatalf("unknown emoji should remain literal: %q", got)
@@ -235,16 +232,16 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("nested quote depth is flattened for edit compatibility", func(t *testing.T) {
+	t.Run("nested quote depth is preserved", func(t *testing.T) {
 		got, err := ToStorage([]byte("> 親引用\n>> 子引用"), "markdown")
 		if err != nil {
 			t.Fatalf("ToStorage: %v", err)
 		}
-		if !strings.Contains(got, "<blockquote>") {
+		if strings.Count(got, "<blockquote>") < 2 {
 			t.Fatalf("missing blockquote: %q", got)
 		}
-		if strings.Contains(got, "<blockquote>\n<blockquote>") || strings.Contains(got, "<blockquote><blockquote>") {
-			t.Fatalf("nested blockquote must be flattened: %q", got)
+		if !strings.Contains(got, "<blockquote>\n<p>子引用</p>\n</blockquote>") {
+			t.Fatalf("nested blockquote was not preserved: %q", got)
 		}
 	})
 
@@ -330,7 +327,7 @@ func TestToStorage(t *testing.T) {
 			"<hr />",
 			"<em>italic</em>",
 			"<strong>bold</strong>",
-			"<del>strike</del>",
+			`<span style="text-decoration: line-through;">strike</span>`,
 			"<code>code</code>",
 			"*escaped*",
 			"<u>underline</u>",
@@ -363,7 +360,7 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 		"<h4>見出し4</h4>",
 		"<ul>",
 		"<ol>",
-		"<ac:link><ri:url ri:value=\"https://developer.atlassian.com/cloud/confluence/\" />",
+		"<a href=\"https://developer.atlassian.com/cloud/confluence/\">アンカーテキスト</a>",
 		"<ac:image ac:alt=\"alt-text\"><ri:url ri:value=\"https://developer.atlassian.com/favicon.ico\" /></ac:image>",
 		"<ac:task-list>",
 		"<ac:task-status>incomplete</ac:task-status>",
@@ -372,11 +369,11 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 		"<hr />",
 		"<em>イタリック</em>",
 		"<strong>太字</strong>",
-		"<del>打ち消し線</del>",
+		`<span style="text-decoration: line-through;">打ち消し線</span>`,
 		"<code>code</code>",
 		`ac:card-appearance="block"`,
 		`<ac:emoticon ac:name="smile" />`,
-		`<ac:emoticon ac:name="thumbsup" />`,
+		`<ac:emoticon ac:name="thumbs-up" />`,
 		`<ac:structured-macro ac:name="code">`,
 		`<ac:parameter ac:name="language">js</ac:parameter>`,
 		`<ac:structured-macro ac:name="expand">`,
@@ -392,9 +389,6 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 
 	if !strings.Contains(got, "[×] これはタスクリストにしない") {
 		t.Fatalf("non-task [×] item must remain literal: %q", got)
-	}
-	if strings.Contains(got, "<a href=") {
-		t.Fatalf("raw anchor tag remains: %q", got)
 	}
 	if strings.Contains(got, "<img ") {
 		t.Fatalf("raw image tag remains: %q", got)
