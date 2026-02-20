@@ -1,35 +1,75 @@
 package output
 
 import (
-	"fmt"
 	"io"
-	"text/tabwriter"
+	"strings"
 
+	"github.com/mattn/go-runewidth"
 	"github.com/takymt/cflcli/internal/model"
 )
 
+const pageTableGap = 3
+
 // WritePagesTable writes pages as a table.
 func WritePagesTable(out io.Writer, pages []model.Page, includeStatus bool) error {
-	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
+	var rows [][]string
 	if includeStatus {
-		if _, err := fmt.Fprintln(w, "ID\tTITLE\tSTATUS"); err != nil {
-			return err
-		}
+		rows = append(rows, []string{"ID", "TITLE", "STATUS"})
 		for _, page := range pages {
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", page.ID, page.Title, page.Status); err != nil {
-				return err
-			}
+			rows = append(rows, []string{page.ID, page.Title, page.Status})
 		}
-		return w.Flush()
+	} else {
+		rows = append(rows, []string{"ID", "TITLE"})
+		for _, page := range pages {
+			rows = append(rows, []string{page.ID, page.Title})
+		}
 	}
 
-	if _, err := fmt.Fprintln(w, "ID\tTITLE"); err != nil {
-		return err
-	}
-	for _, page := range pages {
-		if _, err := fmt.Fprintf(w, "%s\t%s\n", page.ID, page.Title); err != nil {
-			return err
+	widths := make([]int, len(rows[0]))
+	for _, row := range rows {
+		for i, cell := range row {
+			if w := stringWidth(cell); w > widths[i] {
+				widths[i] = w
+			}
 		}
 	}
-	return w.Flush()
+
+	var b strings.Builder
+	for rowIndex, row := range rows {
+		for i, cell := range row {
+			b.WriteString(cell)
+			if i == len(row)-1 {
+				continue
+			}
+			pad := widths[i] - stringWidth(cell) + pageTableGap
+			if pad < pageTableGap {
+				pad = pageTableGap
+			}
+			b.WriteString(strings.Repeat(" ", pad))
+		}
+		b.WriteByte('\n')
+
+		if rowIndex == 0 {
+			for i, width := range widths {
+				if width < 2 {
+					width = 2
+				}
+				b.WriteString(strings.Repeat("-", width))
+				if i == len(widths)-1 {
+					continue
+				}
+				b.WriteString(strings.Repeat(" ", pageTableGap))
+			}
+			b.WriteByte('\n')
+		}
+	}
+
+	if _, err := io.WriteString(out, b.String()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func stringWidth(s string) int {
+	return runewidth.StringWidth(s)
 }

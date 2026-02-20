@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 	"strings"
-	"text/tabwriter"
 
 	"github.com/fatih/color"
+	"github.com/mattn/go-runewidth"
 	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/config"
 )
@@ -323,32 +323,29 @@ func runConfigList(out io.Writer, opts *configListOptions) error {
 		return nil
 	}
 
-	// Pass 1: format with tabwriter using plain text
-	var buf strings.Builder
-	w := tabwriter.NewWriter(&buf, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintln(w, "  NAME\tDOMAIN\tSPACE")
+	rows := [][]string{{"  NAME", "DOMAIN", "SPACE"}}
+	rowIsCurrent := []bool{false}
 	for _, p := range cfg.Profiles {
 		marker := " "
 		if p.Name == cfg.Current {
 			marker = "*"
 		}
-		_, _ = fmt.Fprintf(w, "%s %s\t%s\t%s\n", marker, p.Name, p.Domain, p.SpaceKey)
-	}
-	if err := w.Flush(); err != nil {
-		return err
+		rows = append(rows, []string{fmt.Sprintf("%s %s", marker, p.Name), p.Domain, p.SpaceKey})
+		rowIsCurrent = append(rowIsCurrent, p.Name == cfg.Current)
 	}
 
-	// Pass 2: colorize current profile line
+	widths := tableColumnWidths(rows)
 	green := color.New(color.FgGreen)
-	for _, line := range strings.Split(buf.String(), "\n") {
-		if line == "" {
+	_, _ = fmt.Fprintln(out, formatTableRow(rows[0], widths, 3))
+	_, _ = fmt.Fprintln(out, formatTableSeparator(widths, 3))
+
+	for i := 1; i < len(rows); i++ {
+		line := formatTableRow(rows[i], widths, 3)
+		if rowIsCurrent[i] {
+			_, _ = green.Fprintln(out, line)
 			continue
 		}
-		if strings.HasPrefix(line, "*") {
-			_, _ = green.Fprintln(out, line)
-		} else {
-			_, _ = fmt.Fprintln(out, line)
-		}
+		_, _ = fmt.Fprintln(out, line)
 	}
 	return nil
 }
@@ -383,13 +380,19 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 		return nil
 	}
 
-	w := tabwriter.NewWriter(out, 0, 0, 3, ' ', 0)
-	_, _ = fmt.Fprintf(w, "Name:\t%s\n", p.Name)
-	_, _ = fmt.Fprintf(w, "Domain:\t%s\n", p.Domain)
-	_, _ = fmt.Fprintf(w, "User:\t%s\n", p.User)
-	_, _ = fmt.Fprintf(w, "Space Key:\t%s\n", p.SpaceKey)
-	_, _ = fmt.Fprintf(w, "Output:\t%s\n", outputForDisplay(p.Output))
-	return w.Flush()
+	rows := [][]string{
+		{"Name:", p.Name},
+		{"Domain:", p.Domain},
+		{"User:", p.User},
+		{"Space Key:", p.SpaceKey},
+		{"Output:", outputForDisplay(p.Output)},
+	}
+
+	widths := tableColumnWidths(rows)
+	for _, row := range rows {
+		_, _ = fmt.Fprintln(out, formatTableRow(row, widths, 1))
+	}
+	return nil
 }
 
 type configDeleteOptions struct {
@@ -456,6 +459,49 @@ func runConfigDelete(out io.Writer, name string, opts *configDeleteOptions) erro
 		_, _ = fmt.Fprintln(out, `Current profile switched to "default".`)
 	}
 	return nil
+}
+
+func tableColumnWidths(rows [][]string) []int {
+	widths := make([]int, len(rows[0]))
+	for _, row := range rows {
+		for i, cell := range row {
+			if w := runewidth.StringWidth(cell); w > widths[i] {
+				widths[i] = w
+			}
+		}
+	}
+	return widths
+}
+
+func formatTableRow(row []string, widths []int, gap int) string {
+	var b strings.Builder
+	for i, cell := range row {
+		b.WriteString(cell)
+		if i == len(row)-1 {
+			continue
+		}
+		pad := widths[i] - runewidth.StringWidth(cell) + gap
+		if pad < gap {
+			pad = gap
+		}
+		b.WriteString(strings.Repeat(" ", pad))
+	}
+	return b.String()
+}
+
+func formatTableSeparator(widths []int, gap int) string {
+	var b strings.Builder
+	for i, w := range widths {
+		if w < 2 {
+			w = 2
+		}
+		b.WriteString(strings.Repeat("-", w))
+		if i == len(widths)-1 {
+			continue
+		}
+		b.WriteString(strings.Repeat(" ", gap))
+	}
+	return b.String()
 }
 
 func prompt(reader *bufio.Reader, out io.Writer, label string, defaultVal string) (string, error) {

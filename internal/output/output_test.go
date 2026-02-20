@@ -39,6 +39,7 @@ func TestWritePagesTable(t *testing.T) {
 
 	pages := []model.Page{
 		{ID: "1", Title: "Doc", Status: "current"},
+		{ID: "2", Title: "概要", Status: "archived"},
 	}
 
 	t.Run("with status", func(t *testing.T) {
@@ -48,8 +49,25 @@ func TestWritePagesTable(t *testing.T) {
 		}
 
 		raw := out.String()
-		if !strings.Contains(raw, "STATUS") || !strings.Contains(raw, "current") {
-			t.Fatalf("missing status values: %q", raw)
+		lines := strings.Split(strings.TrimRight(raw, "\n"), "\n")
+		if len(lines) < 4 {
+			t.Fatalf("unexpected table lines: %q", raw)
+		}
+		if !strings.Contains(lines[1], "---") {
+			t.Fatalf("missing header separator: %q", raw)
+		}
+
+		row1 := lines[2]
+		row2 := lines[3]
+		i1 := strings.Index(row1, "current")
+		i2 := strings.Index(row2, "archived")
+		if i1 < 0 || i2 < 0 {
+			t.Fatalf("status cell not found: %q", raw)
+		}
+		prefixWidth1 := stringWidth(row1[:i1])
+		prefixWidth2 := stringWidth(row2[:i2])
+		if prefixWidth1 != prefixWidth2 {
+			t.Fatalf("status column is not aligned: %d vs %d, raw=%q", prefixWidth1, prefixWidth2, raw)
 		}
 	})
 
