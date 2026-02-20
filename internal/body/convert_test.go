@@ -209,6 +209,31 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("details block converts to collapsed expand macro", func(t *testing.T) {
+		input := strings.Join([]string{
+			":::details 折りたたみタイトル",
+			"折りたたみ本文1",
+			"折りたたみ本文2",
+			":::",
+		}, "\n")
+		got, err := ToStorage([]byte(input), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, `<ac:structured-macro ac:name="expand">`) {
+			t.Fatalf("missing expand macro: %q", got)
+		}
+		if !strings.Contains(got, `<ac:parameter ac:name="title">折りたたみタイトル</ac:parameter>`) {
+			t.Fatalf("missing expand title: %q", got)
+		}
+		if !strings.Contains(got, `<ac:parameter ac:name="expanded">false</ac:parameter>`) {
+			t.Fatalf("expand default state must be collapsed: %q", got)
+		}
+		if !strings.Contains(got, "<p>折りたたみ本文1\n折りたたみ本文2</p>") {
+			t.Fatalf("missing expand body: %q", got)
+		}
+	})
+
 	t.Run("nested list blank line is tightened", func(t *testing.T) {
 		got, err := ToStorage([]byte("- parent\n\n  - child\n"), "markdown")
 		if err != nil {

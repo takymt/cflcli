@@ -89,8 +89,8 @@
   - [x] code block 末尾の余計な改行を除去して edit 上の行数ずれを防ぐ
 - [x] URL 単独行をリンクカード（block card）として変換する
 - [x] `:emoji_id:` は Confluence 絵文字セット準拠で変換する
-- [ ] 折りたたみ（expand macro）をサポートする
-  - [ ] storage の初期状態は未展開（collapsed）
+- [x] 折りたたみ（expand macro）をサポートする
+  - [x] storage の初期状態は未展開（collapsed）
 - [x] underline は Markdown 独自記法を追加しない
   - [x] 生 HTML の `<u>...</u>` は許容する
 - [ ] 変換の回帰テストを追加する（`internal/body`）

@@ -25,17 +25,18 @@ var markdownConverter = goldmark.New(
 )
 
 var (
-	codeBlockPattern = regexp.MustCompile(`(?s)<pre><code(?: class="language-([^"]+)")?>(.*?)</code></pre>`)
-	listItemPattern  = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
-	taskLinePattern  = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
-	hrTagPattern     = regexp.MustCompile(`(?i)<hr\s*/?>`)
-	anchorTagPattern = regexp.MustCompile(`(?s)<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>`)
-	linkCardPattern  = regexp.MustCompile(`(?s)<p>\s*<ac:link><ri:url ri:value="([^"]+)" /><ac:plain-text-link-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-link-body></ac:link>\s*</p>`)
-	imageTagPattern  = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
-	srcAttrPattern   = regexp.MustCompile(`\ssrc="([^"]*)"`)
-	altAttrPattern   = regexp.MustCompile(`\salt="([^"]*)"`)
-	htmlTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
-	emojiPattern     = regexp.MustCompile(`:([a-z0-9_+-]+):`)
+	codeBlockPattern   = regexp.MustCompile(`(?s)<pre><code(?: class="language-([^"]+)")?>(.*?)</code></pre>`)
+	listItemPattern    = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
+	taskLinePattern    = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
+	expandStartPattern = regexp.MustCompile(`^:::\s*details(?:\s+(.*))?\s*$`)
+	hrTagPattern       = regexp.MustCompile(`(?i)<hr\s*/?>`)
+	anchorTagPattern   = regexp.MustCompile(`(?s)<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>`)
+	linkCardPattern    = regexp.MustCompile(`(?s)<p>\s*<ac:link><ri:url ri:value="([^"]+)" /><ac:plain-text-link-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-link-body></ac:link>\s*</p>`)
+	imageTagPattern    = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
+	srcAttrPattern     = regexp.MustCompile(`\ssrc="([^"]*)"`)
+	altAttrPattern     = regexp.MustCompile(`\salt="([^"]*)"`)
+	htmlTagPattern     = regexp.MustCompile(`(?s)<[^>]+>`)
+	emojiPattern       = regexp.MustCompile(`:([a-z0-9_+-]+):`)
 )
 
 var confluenceEmojiNames = map[string]string{
@@ -62,6 +63,12 @@ type taskListPlaceholder struct {
 	Items []taskItem
 }
 
+type expandPlaceholder struct {
+	Token string
+	Title string
+	Body  string
+}
+
 // NormalizeFormat validates and normalizes body format.
 func NormalizeFormat(value string) (string, error) {
 	normalized := strings.ToLower(strings.TrimSpace(value))
@@ -84,23 +91,33 @@ func ToStorage(content []byte, format string) (string, error) {
 	case FormatStorage:
 		return string(content), nil
 	case FormatMarkdown:
-		markdown, taskPlaceholders := preprocessMarkdown(string(content))
-		html, err := markdownToHTML(markdown)
-		if err != nil {
-			return "", err
-		}
-
-		storage := htmlToConfluenceStorage(html)
-		storage = restoreTaskListPlaceholders(storage, taskPlaceholders)
-		return applyEditModeCompatibility(storage), nil
+		return convertMarkdownToStorage(string(content))
 	default:
 		return "", fmt.Errorf("unsupported body format: %s", normalized)
 	}
 }
 
-func preprocessMarkdown(markdown string) (string, []taskListPlaceholder) {
+func convertMarkdownToStorage(markdown string) (string, error) {
+	markdown, taskPlaceholders, expandPlaceholders := preprocessMarkdown(markdown)
+	html, err := markdownToHTML(markdown)
+	if err != nil {
+		return "", err
+	}
+
+	storage := htmlToConfluenceStorage(html)
+	storage = restoreTaskListPlaceholders(storage, taskPlaceholders)
+	storage, err = restoreExpandPlaceholders(storage, expandPlaceholders)
+	if err != nil {
+		return "", err
+	}
+	return applyEditModeCompatibility(storage), nil
+}
+
+func preprocessMarkdown(markdown string) (string, []taskListPlaceholder, []expandPlaceholder) {
 	normalized := normalizeListSpacing(markdown)
-	return extractTaskLists(normalized)
+	normalized, expandPlaceholders := extractExpandBlocks(normalized)
+	normalized, taskPlaceholders := extractTaskLists(normalized)
+	return normalized, taskPlaceholders, expandPlaceholders
 }
 
 func markdownToHTML(markdown string) (string, error) {
@@ -305,6 +322,51 @@ func extractTaskLists(markdown string) (string, []taskListPlaceholder) {
 	return strings.Join(normalized, "\n"), placeholders
 }
 
+func extractExpandBlocks(markdown string) (string, []expandPlaceholder) {
+	lines := strings.Split(markdown, "\n")
+	normalized := make([]string, 0, len(lines))
+	placeholders := make([]expandPlaceholder, 0)
+
+	for i := 0; i < len(lines); {
+		matches := expandStartPattern.FindStringSubmatch(lines[i])
+		if len(matches) == 0 {
+			normalized = append(normalized, lines[i])
+			i++
+			continue
+		}
+
+		title := "Details"
+		if len(matches) > 1 && strings.TrimSpace(matches[1]) != "" {
+			title = strings.TrimSpace(matches[1])
+		}
+
+		bodyStart := i + 1
+		bodyEnd := -1
+		for j := bodyStart; j < len(lines); j++ {
+			if strings.TrimSpace(lines[j]) == ":::" {
+				bodyEnd = j
+				break
+			}
+		}
+		if bodyEnd == -1 {
+			normalized = append(normalized, lines[i])
+			i++
+			continue
+		}
+
+		token := fmt.Sprintf("@@CFL_EXPAND_%d@@", len(placeholders)+1)
+		placeholders = append(placeholders, expandPlaceholder{
+			Token: token,
+			Title: title,
+			Body:  strings.Join(lines[bodyStart:bodyEnd], "\n"),
+		})
+		normalized = append(normalized, token)
+		i = bodyEnd + 1
+	}
+
+	return strings.Join(normalized, "\n"), placeholders
+}
+
 func parseTaskLine(line string) (int, taskItem, bool) {
 	matches := taskLinePattern.FindStringSubmatch(line)
 	if len(matches) != 4 {
@@ -333,6 +395,26 @@ func restoreTaskListPlaceholders(storage string, placeholders []taskListPlacehol
 		storage = strings.ReplaceAll(storage, placeholder.Token, macro)
 	}
 	return storage
+}
+
+func restoreExpandPlaceholders(storage string, placeholders []expandPlaceholder) (string, error) {
+	for _, placeholder := range placeholders {
+		bodyStorage, err := convertMarkdownToStorage(placeholder.Body)
+		if err != nil {
+			return "", err
+		}
+
+		title := stdhtml.EscapeString(placeholder.Title)
+		macro := `<ac:structured-macro ac:name="expand">` +
+			`<ac:parameter ac:name="title">` + title + `</ac:parameter>` +
+			`<ac:parameter ac:name="expanded">false</ac:parameter>` +
+			`<ac:rich-text-body>` + bodyStorage + `</ac:rich-text-body>` +
+			`</ac:structured-macro>`
+
+		storage = strings.ReplaceAll(storage, "<p>"+placeholder.Token+"</p>", macro)
+		storage = strings.ReplaceAll(storage, placeholder.Token, macro)
+	}
+	return storage, nil
 }
 
 func buildTaskListMacro(items []taskItem) string {
