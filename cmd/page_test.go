@@ -798,6 +798,128 @@ func TestRunPageCreateWithConfig_Validation(t *testing.T) {
 	}
 }
 
+func TestRunPageCreateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T) {
+	var gotPayload struct {
+		Title string `json:"title"`
+		Body  struct {
+			Storage struct {
+				Value string `json:"value"`
+			} `json:"storage"`
+		} `json:"body"`
+	}
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
+		case "/wiki/api/v2/pages":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method=%q", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+				t.Fatalf("decode create payload: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"10","title":"Frontmatter Title","status":"current","spaceId":"SPACE-1"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "table")
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageCreateOptions{
+		BodyFile: writeTempBodyFile(t, strings.Join([]string{
+			"---",
+			"title: Frontmatter Title",
+			"---",
+			"",
+			"Hello **world**",
+		}, "\n")),
+	}
+
+	var out bytes.Buffer
+	if err := RunPageCreateWithConfig(&out, opts, cfg); err != nil {
+		t.Fatalf("RunPageCreateWithConfig: %v", err)
+	}
+
+	if gotPayload.Title != "Frontmatter Title" {
+		t.Fatalf("title=%q want %q", gotPayload.Title, "Frontmatter Title")
+	}
+	if strings.Contains(gotPayload.Body.Storage.Value, "Frontmatter Title") {
+		t.Fatalf("frontmatter title leaked to body: %q", gotPayload.Body.Storage.Value)
+	}
+	if !strings.Contains(gotPayload.Body.Storage.Value, "<strong>world</strong>") {
+		t.Fatalf("unexpected markdown conversion: %q", gotPayload.Body.Storage.Value)
+	}
+	if !strings.Contains(out.String(), `Created page "Frontmatter Title" (id: "10").`) {
+		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestRunPageCreateWithConfig_FlagTitleOverridesFrontMatter(t *testing.T) {
+	var gotPayload struct {
+		Title string `json:"title"`
+	}
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
+		case "/wiki/api/v2/pages":
+			if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+				t.Fatalf("decode create payload: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"10","title":"CLI Title","status":"current","spaceId":"SPACE-1"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "table")
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageCreateOptions{
+		Title: "CLI Title",
+		BodyFile: writeTempBodyFile(t, strings.Join([]string{
+			"---",
+			"title: Frontmatter Title",
+			"---",
+			"",
+			"body",
+		}, "\n")),
+	}
+
+	if err := RunPageCreateWithConfig(&bytes.Buffer{}, opts, cfg); err != nil {
+		t.Fatalf("RunPageCreateWithConfig: %v", err)
+	}
+	if gotPayload.Title != "CLI Title" {
+		t.Fatalf("title=%q want %q", gotPayload.Title, "CLI Title")
+	}
+}
+
+func TestRunPageCreateWithConfig_InvalidFrontMatter(t *testing.T) {
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig("example.atlassian.net", "WORK")
+	opts := &pageCreateOptions{
+		BodyFile: writeTempBodyFile(t, strings.Join([]string{
+			"---",
+			"title: Broken",
+			"body without closing delimiter",
+		}, "\n")),
+	}
+
+	err := RunPageCreateWithConfig(&bytes.Buffer{}, opts, cfg)
+	if err == nil || !strings.Contains(err.Error(), "invalid frontmatter") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func TestRunPageUpdateWithConfig_JSON_AutoVersion(t *testing.T) {
 	var gotVersion int
 	var gotBodyValue string
@@ -865,6 +987,77 @@ func TestRunPageUpdateWithConfig_JSON_AutoVersion(t *testing.T) {
 	}
 	if payload.ID != "123" || payload.Title != "Updated" {
 		t.Fatalf("unexpected output: %+v", payload)
+	}
+}
+
+func TestRunPageUpdateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T) {
+	var gotTitle string
+	var gotVersion int
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/pages/123":
+			if r.Method == http.MethodGet {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"123","title":"Old","status":"current","spaceId":"SPACE-1","version":{"number":7},"body":{"storage":{"representation":"storage","value":"<p>old</p>"}}}`))
+				return
+			}
+			if r.Method == http.MethodPut {
+				var payload struct {
+					Title   string `json:"title"`
+					Version struct {
+						Number int `json:"number"`
+					} `json:"version"`
+					Body struct {
+						Storage struct {
+							Value string `json:"value"`
+						} `json:"storage"`
+					} `json:"body"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Fatalf("decode update payload: %v", err)
+				}
+				gotTitle = payload.Title
+				gotVersion = payload.Version.Number
+				if strings.Contains(payload.Body.Storage.Value, "Frontmatter Update") {
+					t.Fatalf("frontmatter title leaked to body: %q", payload.Body.Storage.Value)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"123","title":"Frontmatter Update","status":"current","spaceId":"SPACE-1"}`))
+				return
+			}
+			t.Fatalf("unexpected method: %s", r.Method)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "table")
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageUpdateOptions{
+		PageID: "123",
+		BodyFile: writeTempBodyFile(t, strings.Join([]string{
+			"---",
+			"title: Frontmatter Update",
+			"---",
+			"",
+			"updated body",
+		}, "\n")),
+	}
+
+	var out bytes.Buffer
+	if err := RunPageUpdateWithConfig(&out, opts, cfg); err != nil {
+		t.Fatalf("RunPageUpdateWithConfig: %v", err)
+	}
+	if gotTitle != "Frontmatter Update" {
+		t.Fatalf("title=%q want %q", gotTitle, "Frontmatter Update")
+	}
+	if gotVersion != 8 {
+		t.Fatalf("version=%d want 8", gotVersion)
+	}
+	if !strings.Contains(out.String(), `Updated page "Frontmatter Update" (id: "123").`) {
+		t.Fatalf("unexpected output: %q", out.String())
 	}
 }
 

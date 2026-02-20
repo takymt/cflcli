@@ -95,6 +95,19 @@
   - [x] 生 HTML の `<u>...</u>` は許容する
 - [x] 変換の回帰テストを追加する（`internal/body`）
 
+## Phase 1.2: Frontmatter 対応（最小）
+
+### Frontmatter -> create/update 連携
+
+- [x] Markdown frontmatter の `title` を解釈する
+  - [x] `--title` 未指定時は frontmatter `title` を採用する
+  - [x] `--title` 指定時は frontmatter `title` より優先する
+  - [x] frontmatter ブロックは本文から除外して storage 変換する
+  - [x] frontmatter の終端 `---` が無い場合はエラーにする
+- [x] `cfl page create` に frontmatter `title` を適用する
+- [x] `cfl page update` に frontmatter `title` を適用する
+- [x] create/update のテストを追加する（`cmd/page_test.go`）
+
 ## Phase 2: 拡張機能
 
 ### ページ補助操作

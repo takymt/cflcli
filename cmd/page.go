@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -50,6 +51,11 @@ type pageUpdateOptions struct {
 
 type pageDeleteOptions struct {
 	PageID string
+}
+
+type pageBodyInput struct {
+	StorageBody      string
+	FrontMatterTitle string
 }
 
 var pageListAllowedStatuses = map[string]struct{}{
@@ -349,17 +355,17 @@ func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) erro
 
 // RunPageCreateWithConfig runs the page create command with a provided config.
 func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config.Config) error {
-	title := strings.TrimSpace(opts.Title)
-	if title == "" {
-		return fmt.Errorf("--title is required")
-	}
 	bodyFile := strings.TrimSpace(opts.BodyFile)
 	if bodyFile == "" {
 		return fmt.Errorf("--body-file is required")
 	}
-	bodyStorage, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
+	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
 	if err != nil {
 		return err
+	}
+	title := resolvePageTitle(opts.Title, bodyInput.FrontMatterTitle)
+	if title == "" {
+		return fmt.Errorf("--title is required")
 	}
 
 	profile, err := resolveProfile(cfg)
@@ -377,7 +383,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return err
 	}
 
-	created, err := cli.CreatePage(spaceID, title, bodyStorage, opts.ParentID)
+	created, err := cli.CreatePage(spaceID, title, bodyInput.StorageBody, opts.ParentID)
 	if err != nil {
 		return err
 	}
@@ -397,17 +403,17 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 
 // RunPageUpdateWithConfig runs the page update command with a provided config.
 func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config.Config) error {
-	title := strings.TrimSpace(opts.Title)
-	if title == "" {
-		return fmt.Errorf("--title is required")
-	}
 	bodyFile := strings.TrimSpace(opts.BodyFile)
 	if bodyFile == "" {
 		return fmt.Errorf("--body-file is required")
 	}
-	bodyStorage, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
+	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
 	if err != nil {
 		return err
+	}
+	title := resolvePageTitle(opts.Title, bodyInput.FrontMatterTitle)
+	if title == "" {
+		return fmt.Errorf("--title is required")
 	}
 
 	profile, err := resolveProfile(cfg)
@@ -432,7 +438,7 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 		return fmt.Errorf("page %q has invalid current version", opts.PageID)
 	}
 
-	updated, err := cli.UpdatePage(opts.PageID, title, bodyStorage, opts.ParentID, current.Version.Number+1)
+	updated, err := cli.UpdatePage(opts.PageID, title, bodyInput.StorageBody, opts.ParentID, current.Version.Number+1)
 	if err != nil {
 		var httpErr *client.HTTPError
 		if errors.As(err, &httpErr) &&
@@ -553,20 +559,92 @@ func normalizePageBodyFormat(value string) (string, error) {
 	return format, nil
 }
 
-func loadPageStorageBody(path, format string) (string, error) {
+func loadPageStorageBody(path, format string) (*pageBodyInput, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return "", fmt.Errorf("read body file: %w", err)
+		return nil, fmt.Errorf("read body file: %w", err)
 	}
 	normalized, err := normalizePageBodyFormat(format)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
+
+	frontMatterTitle := ""
+	if normalized == body.FormatMarkdown {
+		parsedTitle, bodyContent, parseErr := parseMarkdownFrontMatter(content)
+		if parseErr != nil {
+			return nil, parseErr
+		}
+		frontMatterTitle = parsedTitle
+		content = bodyContent
+	}
+
 	storage, err := body.ToStorage(content, normalized)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return storage, nil
+	return &pageBodyInput{
+		StorageBody:      storage,
+		FrontMatterTitle: frontMatterTitle,
+	}, nil
+}
+
+func resolvePageTitle(flagTitle, frontMatterTitle string) string {
+	flagTitle = strings.TrimSpace(flagTitle)
+	if flagTitle != "" {
+		return flagTitle
+	}
+	return strings.TrimSpace(frontMatterTitle)
+}
+
+func parseMarkdownFrontMatter(content []byte) (string, []byte, error) {
+	text := strings.ReplaceAll(string(content), "\r\n", "\n")
+	lines := strings.Split(text, "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return "", content, nil
+	}
+
+	closingIndex := -1
+	for i := 1; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) == "---" {
+			closingIndex = i
+			break
+		}
+	}
+	if closingIndex == -1 {
+		return "", nil, fmt.Errorf("invalid frontmatter: missing closing ---")
+	}
+
+	frontMatterLines := lines[1:closingIndex]
+	title := ""
+	for _, line := range frontMatterLines {
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		if strings.ToLower(strings.TrimSpace(key)) != "title" {
+			continue
+		}
+		raw := strings.TrimSpace(value)
+		switch {
+		case strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"") && len(raw) >= 2:
+			unquoted, err := strconv.Unquote(raw)
+			if err != nil {
+				title = raw[1 : len(raw)-1]
+			} else {
+				title = unquoted
+			}
+		case strings.HasPrefix(raw, "'") && strings.HasSuffix(raw, "'") && len(raw) >= 2:
+			title = raw[1 : len(raw)-1]
+		default:
+			title = raw
+		}
+		break
+	}
+
+	bodyLines := lines[closingIndex+1:]
+	bodyText := strings.Join(bodyLines, "\n")
+	return strings.TrimSpace(title), []byte(bodyText), nil
 }
 
 func resolvePageListStatuses(opts *PageListOptions) ([]string, bool, error) {
