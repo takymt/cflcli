@@ -93,7 +93,7 @@
   - [x] storage の初期状態は未展開（collapsed）
 - [x] underline は Markdown 独自記法を追加しない
   - [x] 生 HTML の `<u>...</u>` は許容する
-- [ ] 変換の回帰テストを追加する（`internal/body`）
+- [x] 変換の回帰テストを追加する（`internal/body`）
 
 ## Phase 2: 拡張機能
 

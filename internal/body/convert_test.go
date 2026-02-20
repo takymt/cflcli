@@ -1,6 +1,7 @@
 package body
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -327,4 +328,62 @@ func TestToStorage(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestToStorage_Phase11RegressionFixture(t *testing.T) {
+	t.Parallel()
+
+	fixture, err := os.ReadFile("testdata/phase11_regression.md")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+
+	got, err := ToStorage(fixture, "markdown")
+	if err != nil {
+		t.Fatalf("ToStorage: %v", err)
+	}
+
+	wantContains := []string{
+		"<h1>見出し1</h1>",
+		"<h2>見出し2</h2>",
+		"<h3>見出し3</h3>",
+		"<h4>見出し4</h4>",
+		"<ul>",
+		"<ol>",
+		"<ac:link><ri:url ri:value=\"https://example.com/docs\" />",
+		"<ac:image ac:alt=\"alt-text\"><ri:url ri:value=\"https://example.com/image.png\" /></ac:image>",
+		"<ac:task-list>",
+		"<ac:task-status>incomplete</ac:task-status>",
+		"<ac:task-status>complete</ac:task-status>",
+		"<blockquote>",
+		"<hr />",
+		"<em>イタリック</em>",
+		"<strong>太字</strong>",
+		"<del>打ち消し線</del>",
+		"<code>code</code>",
+		`ac:card-appearance="block"`,
+		`<ac:emoticon ac:name="smile" />`,
+		`<ac:emoticon ac:name="thumbsup" />`,
+		`<ac:structured-macro ac:name="code">`,
+		`<ac:parameter ac:name="language">js</ac:parameter>`,
+		`<ac:structured-macro ac:name="expand">`,
+		`<ac:parameter ac:name="expanded">false</ac:parameter>`,
+		"<u>underline via raw html</u>",
+	}
+
+	for _, token := range wantContains {
+		if !strings.Contains(got, token) {
+			t.Fatalf("output missing %q in %q", token, got)
+		}
+	}
+
+	if !strings.Contains(got, "[×] これはタスクリストにしない") {
+		t.Fatalf("non-task [×] item must remain literal: %q", got)
+	}
+	if strings.Contains(got, "<a href=") {
+		t.Fatalf("raw anchor tag remains: %q", got)
+	}
+	if strings.Contains(got, "<img ") {
+		t.Fatalf("raw image tag remains: %q", got)
+	}
 }
