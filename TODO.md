@@ -101,7 +101,7 @@
 
 - [x] Markdown frontmatter の `title` を解釈する
   - [x] `--title` 未指定時は frontmatter `title` を採用する
-  - [x] `--title` 指定時は frontmatter `title` より優先する
+  - [x] `--title` と frontmatter `title` の同時指定はエラーにする
   - [x] frontmatter ブロックは本文から除外して storage 変換する
   - [x] frontmatter の終端 `---` が無い場合はエラーにする
 - [x] `cfl page create` に frontmatter `title` を適用する

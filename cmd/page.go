@@ -364,6 +364,9 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return err
 	}
 	title := resolvePageTitle(opts.Title, bodyInput.FrontMatterTitle)
+	if err := validatePageTitleSources(opts.Title, bodyInput.FrontMatterTitle); err != nil {
+		return err
+	}
 	if title == "" {
 		return fmt.Errorf("--title is required")
 	}
@@ -412,6 +415,9 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 		return err
 	}
 	title := resolvePageTitle(opts.Title, bodyInput.FrontMatterTitle)
+	if err := validatePageTitleSources(opts.Title, bodyInput.FrontMatterTitle); err != nil {
+		return err
+	}
 	if title == "" {
 		return fmt.Errorf("--title is required")
 	}
@@ -595,6 +601,13 @@ func resolvePageTitle(flagTitle, frontMatterTitle string) string {
 		return flagTitle
 	}
 	return strings.TrimSpace(frontMatterTitle)
+}
+
+func validatePageTitleSources(flagTitle, frontMatterTitle string) error {
+	if strings.TrimSpace(flagTitle) != "" && strings.TrimSpace(frontMatterTitle) != "" {
+		return fmt.Errorf("--title and frontmatter title are mutually exclusive; specify only one")
+	}
+	return nil
 }
 
 func parseMarkdownFrontMatter(content []byte) (string, []byte, error) {

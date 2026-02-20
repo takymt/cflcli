@@ -859,22 +859,14 @@ func TestRunPageCreateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 	}
 }
 
-func TestRunPageCreateWithConfig_FlagTitleOverridesFrontMatter(t *testing.T) {
-	var gotPayload struct {
-		Title string `json:"title"`
-	}
-
+func TestRunPageCreateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) {
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/wiki/api/v2/spaces":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
 		case "/wiki/api/v2/pages":
-			if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
-				t.Fatalf("decode create payload: %v", err)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"10","title":"CLI Title","status":"current","spaceId":"SPACE-1"}`))
+			t.Fatalf("create API must not be called when title sources conflict")
 		default:
 			http.NotFound(w, r)
 		}
@@ -894,11 +886,9 @@ func TestRunPageCreateWithConfig_FlagTitleOverridesFrontMatter(t *testing.T) {
 		}, "\n")),
 	}
 
-	if err := RunPageCreateWithConfig(&bytes.Buffer{}, opts, cfg); err != nil {
-		t.Fatalf("RunPageCreateWithConfig: %v", err)
-	}
-	if gotPayload.Title != "CLI Title" {
-		t.Fatalf("title=%q want %q", gotPayload.Title, "CLI Title")
+	err := RunPageCreateWithConfig(&bytes.Buffer{}, opts, cfg)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -1058,6 +1048,39 @@ func TestRunPageUpdateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 	}
 	if !strings.Contains(out.String(), `Updated page "Frontmatter Update" (id: "123").`) {
 		t.Fatalf("unexpected output: %q", out.String())
+	}
+}
+
+func TestRunPageUpdateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) {
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/wiki/api/v2/pages/123" && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"123","title":"Old","status":"current","spaceId":"SPACE-1","version":{"number":7},"body":{"storage":{"representation":"storage","value":"<p>old</p>"}}}`))
+			return
+		}
+		if r.URL.Path == "/wiki/api/v2/pages/123" && r.Method == http.MethodPut {
+			t.Fatalf("update API must not be called when title sources conflict")
+		}
+		http.NotFound(w, r)
+	}))
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageUpdateOptions{
+		PageID: "123",
+		Title:  "CLI Update Title",
+		BodyFile: writeTempBodyFile(t, strings.Join([]string{
+			"---",
+			"title: Frontmatter Update",
+			"---",
+			"",
+			"updated body",
+		}, "\n")),
+	}
+
+	err := RunPageUpdateWithConfig(&bytes.Buffer{}, opts, cfg)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
