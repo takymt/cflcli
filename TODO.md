@@ -66,6 +66,35 @@
 - [x] `cfl page update <page-id> --title TITLE --body-file FILE`（versionは自動解決）
 - [x] `cfl page delete <page-id>`
 
+## Phase 1.1: Markdown 変換品質改善
+
+### Markdown -> Confluence storage（`--body-format markdown`）
+
+- [ ] 変換パイプラインを固定する
+  - [ ] 前処理 -> Markdown(GFM) -> HTML->storage -> edit互換後処理
+- [ ] 見出し `#` `##` `###` `####` を正しく変換する
+- [ ] 箇条書き（ネスト含む）を edit/view で同等表示にする
+  - [ ] list 項目間や親子 list 前後で不要な soft 改行を入れない
+- [ ] 番号付きリストを正しく変換する
+- [ ] リンク `[text](url)` を Confluence storage link へ変換する
+- [ ] 画像 `![alt](url)` を Confluence storage image へ変換する
+- [ ] タスクリストを `<ac:task-list>` で厳密生成する
+  - [ ] 許可記法は `- [ ]` と `- [x]` のみ
+  - [ ] `- [×]` はタスクリストとして扱わない
+- [ ] 引用（`>` とネスト引用 `>>`）を保持する
+- [ ] 区切り線 `---` を変換する
+- [ ] 強調記法を変換する（italic, bold, strike, inline code, escape）
+- [ ] fenced code block を Confluence code macro に変換する
+  - [ ] language 未指定時は `text`
+  - [ ] code block 末尾の余計な改行を除去して edit 上の行数ずれを防ぐ
+- [ ] URL 単独行をリンクカード（block card）として変換する
+- [ ] `:emoji_id:` は Confluence 絵文字セット準拠で変換する
+- [ ] 折りたたみ（expand macro）をサポートする
+  - [ ] storage の初期状態は未展開（collapsed）
+- [ ] underline は Markdown 独自記法を追加しない
+  - [ ] 生 HTML の `<u>...</u>` は許容する
+- [ ] 変換の回帰テストを追加する（`internal/body`）
+
 ## Phase 2: 拡張機能
 
 ### ページ補助操作
