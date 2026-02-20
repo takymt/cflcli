@@ -88,7 +88,7 @@
   - [x] language 未指定時は `text`
   - [x] code block 末尾の余計な改行を除去して edit 上の行数ずれを防ぐ
 - [x] URL 単独行をリンクカード（block card）として変換する
-- [ ] `:emoji_id:` は Confluence 絵文字セット準拠で変換する
+- [x] `:emoji_id:` は Confluence 絵文字セット準拠で変換する
 - [ ] 折りたたみ（expand macro）をサポートする
   - [ ] storage の初期状態は未展開（collapsed）
 - [x] underline は Markdown 独自記法を追加しない

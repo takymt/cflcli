@@ -35,7 +35,22 @@ var (
 	srcAttrPattern   = regexp.MustCompile(`\ssrc="([^"]*)"`)
 	altAttrPattern   = regexp.MustCompile(`\salt="([^"]*)"`)
 	htmlTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
+	emojiPattern     = regexp.MustCompile(`:([a-z0-9_+-]+):`)
 )
+
+var confluenceEmojiNames = map[string]string{
+	"smile":       "smile",
+	"sad":         "sad",
+	"cheeky":      "cheeky",
+	"laugh":       "laugh",
+	"wink":        "wink",
+	"thumbsup":    "thumbsup",
+	"thumbsdown":  "thumbsdown",
+	"information": "information",
+	"warning":     "warning",
+	"tick":        "tick",
+	"cross":       "cross",
+}
 
 type taskItem struct {
 	Complete bool
@@ -122,6 +137,7 @@ func htmlToConfluenceStorage(value string) string {
 		)
 	})
 	storage = hrTagPattern.ReplaceAllString(storage, "<hr />")
+	storage = convertEmojiShortcodes(storage)
 	return storage
 }
 
@@ -206,6 +222,52 @@ func applyEditModeCompatibility(storage string) string {
 	storage = strings.ReplaceAll(storage, "</ul>\n</li>", "</ul></li>")
 	storage = strings.ReplaceAll(storage, "</ol>\n</li>", "</ol></li>")
 	return storage
+}
+
+func convertEmojiShortcodes(value string) string {
+	var b strings.Builder
+	for i := 0; i < len(value); {
+		switch {
+		case strings.HasPrefix(value[i:], "<![CDATA["):
+			end := strings.Index(value[i:], "]]>")
+			if end == -1 {
+				b.WriteString(value[i:])
+				return b.String()
+			}
+			end += i + len("]]>")
+			b.WriteString(value[i:end])
+			i = end
+		case value[i] == '<':
+			end := strings.IndexByte(value[i:], '>')
+			if end == -1 {
+				b.WriteString(value[i:])
+				return b.String()
+			}
+			end += i + 1
+			b.WriteString(value[i:end])
+			i = end
+		default:
+			end := strings.IndexByte(value[i:], '<')
+			if end == -1 {
+				end = len(value)
+			} else {
+				end += i
+			}
+			b.WriteString(emojiPattern.ReplaceAllStringFunc(value[i:end], func(match string) string {
+				submatches := emojiPattern.FindStringSubmatch(match)
+				if len(submatches) != 2 {
+					return match
+				}
+				name, ok := confluenceEmojiNames[submatches[1]]
+				if !ok {
+					return match
+				}
+				return `<ac:emoticon ac:name="` + name + `" />`
+			}))
+			i = end
+		}
+	}
+	return b.String()
 }
 
 func extractTaskLists(markdown string) (string, []taskListPlaceholder) {

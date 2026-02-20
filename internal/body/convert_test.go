@@ -183,6 +183,32 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("emoji shortcodes convert to confluence emoticons", func(t *testing.T) {
+		got, err := ToStorage([]byte(":smile: :thumbsup: :unknown_emoji:"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, `<ac:emoticon ac:name="smile" />`) {
+			t.Fatalf("missing smile emoji: %q", got)
+		}
+		if !strings.Contains(got, `<ac:emoticon ac:name="thumbsup" />`) {
+			t.Fatalf("missing thumbsup emoji: %q", got)
+		}
+		if !strings.Contains(got, ":unknown_emoji:") {
+			t.Fatalf("unknown emoji should remain literal: %q", got)
+		}
+	})
+
+	t.Run("emoji shortcode in code block stays literal", func(t *testing.T) {
+		got, err := ToStorage([]byte("```\n:smile:\n```"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, `<![CDATA[:smile:]]>`) {
+			t.Fatalf("emoji in code block was transformed unexpectedly: %q", got)
+		}
+	})
+
 	t.Run("nested list blank line is tightened", func(t *testing.T) {
 		got, err := ToStorage([]byte("- parent\n\n  - child\n"), "markdown")
 		if err != nil {
