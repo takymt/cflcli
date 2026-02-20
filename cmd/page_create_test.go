@@ -200,8 +200,9 @@ func TestRunPageCreateWithConfig_Validation(t *testing.T) {
 
 func TestRunPageCreateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T) {
 	var gotPayload struct {
-		Title string `json:"title"`
-		Body  struct {
+		Title    string `json:"title"`
+		ParentID string `json:"parentId"`
+		Body     struct {
 			Storage struct {
 				Value string `json:"value"`
 			} `json:"storage"`
@@ -234,6 +235,7 @@ func TestRunPageCreateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 		BodyFile: writeTempBodyFile(t, strings.Join([]string{
 			"---",
 			"title: Frontmatter Title",
+			"parent-id: 777",
 			"---",
 			"",
 			"Hello **world**",
@@ -247,6 +249,9 @@ func TestRunPageCreateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 
 	if gotPayload.Title != "Frontmatter Title" {
 		t.Fatalf("title=%q want %q", gotPayload.Title, "Frontmatter Title")
+	}
+	if gotPayload.ParentID != "777" {
+		t.Fatalf("parentId=%q want %q", gotPayload.ParentID, "777")
 	}
 	if strings.Contains(gotPayload.Body.Storage.Value, "Frontmatter Title") {
 		t.Fatalf("frontmatter title leaked to body: %q", gotPayload.Body.Storage.Value)
@@ -280,6 +285,28 @@ func TestRunPageCreateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 		BodyFile: writeTempBodyFile(t, strings.Join([]string{
 			"---",
 			"title: Frontmatter Title",
+			"---",
+			"",
+			"body",
+		}, "\n")),
+	}
+
+	err := RunPageCreateWithConfig(&bytes.Buffer{}, opts, cfg)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunPageCreateWithConfig_ParentIDSourcesAreMutuallyExclusive(t *testing.T) {
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig("example.atlassian.net", "WORK")
+	opts := &pageCreateOptions{
+		Title:    "Doc",
+		ParentID: "123",
+		BodyFile: writeTempBodyFile(t, strings.Join([]string{
+			"---",
+			"parent-id: 777",
 			"---",
 			"",
 			"body",

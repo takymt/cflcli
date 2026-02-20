@@ -67,6 +67,10 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 	if err := validatePageTitleSources(opts.Title, bodyInput.FrontMatterTitle); err != nil {
 		return err
 	}
+	parentID := resolvePageParentID(opts.ParentID, bodyInput.FrontMatterParentID)
+	if err := validatePageParentIDSources(opts.ParentID, bodyInput.FrontMatterParentID); err != nil {
+		return err
+	}
 	if title == "" {
 		return fmt.Errorf("--title is required")
 	}
@@ -86,7 +90,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return err
 	}
 
-	created, err := cli.CreatePage(spaceID, title, bodyInput.StorageBody, opts.ParentID)
+	created, err := cli.CreatePage(spaceID, title, bodyInput.StorageBody, parentID)
 	if err != nil {
 		return err
 	}

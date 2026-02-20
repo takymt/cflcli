@@ -92,8 +92,9 @@ func TestRunPageUpdateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 			}
 			if r.Method == http.MethodPut {
 				var payload struct {
-					Title   string `json:"title"`
-					Version struct {
+					Title    string `json:"title"`
+					ParentID string `json:"parentId"`
+					Version  struct {
 						Number int `json:"number"`
 					} `json:"version"`
 					Body struct {
@@ -106,6 +107,9 @@ func TestRunPageUpdateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 					t.Fatalf("decode update payload: %v", err)
 				}
 				gotTitle = payload.Title
+				if payload.ParentID != "777" {
+					t.Fatalf("parentId=%q want %q", payload.ParentID, "777")
+				}
 				gotVersion = payload.Version.Number
 				if strings.Contains(payload.Body.Storage.Value, "Frontmatter Update") {
 					t.Fatalf("frontmatter title leaked to body: %q", payload.Body.Storage.Value)
@@ -128,6 +132,7 @@ func TestRunPageUpdateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 		BodyFile: writeTempBodyFile(t, strings.Join([]string{
 			"---",
 			"title: Frontmatter Update",
+			"parent-id: 777",
 			"---",
 			"",
 			"updated body",
@@ -170,6 +175,29 @@ func TestRunPageUpdateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 		BodyFile: writeTempBodyFile(t, strings.Join([]string{
 			"---",
 			"title: Frontmatter Update",
+			"---",
+			"",
+			"updated body",
+		}, "\n")),
+	}
+
+	err := RunPageUpdateWithConfig(&bytes.Buffer{}, opts, cfg)
+	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunPageUpdateWithConfig_ParentIDSourcesAreMutuallyExclusive(t *testing.T) {
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig("example.atlassian.net", "WORK")
+	opts := &pageUpdateOptions{
+		PageID:   "123",
+		Title:    "CLI Update Title",
+		ParentID: "123",
+		BodyFile: writeTempBodyFile(t, strings.Join([]string{
+			"---",
+			"parent-id: 777",
 			"---",
 			"",
 			"updated body",

@@ -74,6 +74,10 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 	if err := validatePageTitleSources(opts.Title, bodyInput.FrontMatterTitle); err != nil {
 		return err
 	}
+	parentID := resolvePageParentID(opts.ParentID, bodyInput.FrontMatterParentID)
+	if err := validatePageParentIDSources(opts.ParentID, bodyInput.FrontMatterParentID); err != nil {
+		return err
+	}
 	if title == "" {
 		return fmt.Errorf("--title is required")
 	}
@@ -100,7 +104,7 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 		return fmt.Errorf("page %q has invalid current version", opts.PageID)
 	}
 
-	updated, err := cli.UpdatePage(opts.PageID, title, bodyInput.StorageBody, opts.ParentID, current.Version.Number+1)
+	updated, err := cli.UpdatePage(opts.PageID, title, bodyInput.StorageBody, parentID, current.Version.Number+1)
 	if err != nil {
 		var httpErr *client.HTTPError
 		if errors.As(err, &httpErr) &&

@@ -13,8 +13,9 @@ import (
 )
 
 type pageBodyInput struct {
-	StorageBody      string
-	FrontMatterTitle string
+	StorageBody         string
+	FrontMatterTitle    string
+	FrontMatterParentID string
 }
 
 const pageBodyFormatValues = "markdown, storage"
@@ -91,12 +92,14 @@ func loadPageStorageBody(path, format string) (*pageBodyInput, error) {
 	}
 
 	frontMatterTitle := ""
+	frontMatterParentID := ""
 	if normalized == body.FormatMarkdown {
-		parsedTitle, bodyContent, parseErr := parseMarkdownFrontMatter(content)
+		parsedTitle, parsedParentID, bodyContent, parseErr := parseMarkdownFrontMatter(content)
 		if parseErr != nil {
 			return nil, parseErr
 		}
 		frontMatterTitle = parsedTitle
+		frontMatterParentID = parsedParentID
 		content = bodyContent
 	}
 
@@ -105,8 +108,9 @@ func loadPageStorageBody(path, format string) (*pageBodyInput, error) {
 		return nil, err
 	}
 	return &pageBodyInput{
-		StorageBody:      storage,
-		FrontMatterTitle: frontMatterTitle,
+		StorageBody:         storage,
+		FrontMatterTitle:    frontMatterTitle,
+		FrontMatterParentID: frontMatterParentID,
 	}, nil
 }
 
@@ -125,11 +129,26 @@ func validatePageTitleSources(flagTitle, frontMatterTitle string) error {
 	return nil
 }
 
-func parseMarkdownFrontMatter(content []byte) (string, []byte, error) {
+func resolvePageParentID(flagParentID, frontMatterParentID string) string {
+	flagParentID = strings.TrimSpace(flagParentID)
+	if flagParentID != "" {
+		return flagParentID
+	}
+	return strings.TrimSpace(frontMatterParentID)
+}
+
+func validatePageParentIDSources(flagParentID, frontMatterParentID string) error {
+	if strings.TrimSpace(flagParentID) != "" && strings.TrimSpace(frontMatterParentID) != "" {
+		return fmt.Errorf("--parent-id and frontmatter parent-id are mutually exclusive; specify only one")
+	}
+	return nil
+}
+
+func parseMarkdownFrontMatter(content []byte) (string, string, []byte, error) {
 	text := strings.ReplaceAll(string(content), "\r\n", "\n")
 	lines := strings.Split(text, "\n")
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
-		return "", content, nil
+		return "", "", content, nil
 	}
 
 	closingIndex := -1
@@ -140,37 +159,47 @@ func parseMarkdownFrontMatter(content []byte) (string, []byte, error) {
 		}
 	}
 	if closingIndex == -1 {
-		return "", nil, fmt.Errorf("invalid frontmatter: missing closing ---")
+		return "", "", nil, fmt.Errorf("invalid frontmatter: missing closing ---")
 	}
 
 	frontMatterLines := lines[1:closingIndex]
 	title := ""
+	parentID := ""
 	for _, line := range frontMatterLines {
 		key, value, ok := strings.Cut(line, ":")
 		if !ok {
 			continue
 		}
-		if strings.ToLower(strings.TrimSpace(key)) != "title" {
-			continue
-		}
 		raw := strings.TrimSpace(value)
-		switch {
-		case strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"") && len(raw) >= 2:
-			unquoted, err := strconv.Unquote(raw)
-			if err != nil {
-				title = raw[1 : len(raw)-1]
-			} else {
-				title = unquoted
+		parsed := parseFrontMatterValue(raw)
+		switch strings.ToLower(strings.TrimSpace(key)) {
+		case "title":
+			if title == "" {
+				title = parsed
 			}
-		case strings.HasPrefix(raw, "'") && strings.HasSuffix(raw, "'") && len(raw) >= 2:
-			title = raw[1 : len(raw)-1]
-		default:
-			title = raw
+		case "parent-id", "parent_id", "parentid":
+			if parentID == "" {
+				parentID = parsed
+			}
 		}
-		break
 	}
 
 	bodyLines := lines[closingIndex+1:]
 	bodyText := strings.Join(bodyLines, "\n")
-	return strings.TrimSpace(title), []byte(bodyText), nil
+	return strings.TrimSpace(title), strings.TrimSpace(parentID), []byte(bodyText), nil
+}
+
+func parseFrontMatterValue(raw string) string {
+	switch {
+	case strings.HasPrefix(raw, "\"") && strings.HasSuffix(raw, "\"") && len(raw) >= 2:
+		unquoted, err := strconv.Unquote(raw)
+		if err != nil {
+			return raw[1 : len(raw)-1]
+		}
+		return unquoted
+	case strings.HasPrefix(raw, "'") && strings.HasSuffix(raw, "'") && len(raw) >= 2:
+		return raw[1 : len(raw)-1]
+	default:
+		return raw
+	}
 }
