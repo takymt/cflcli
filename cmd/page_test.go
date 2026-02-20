@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -42,6 +44,16 @@ func newPageListConfig(domain, spaceKey string) *config.Config {
 			{Name: "work", Domain: domain, User: "user@example.com", SpaceKey: spaceKey},
 		},
 	}
+}
+
+func writeTempBodyFile(t *testing.T, content string) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "body.xhtml")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write body file: %v", err)
+	}
+	return path
 }
 
 func TestValidatePageListLimit(t *testing.T) {
@@ -594,6 +606,184 @@ func TestRunPageGetWithConfig_NotFound(t *testing.T) {
 	err := RunPageGetWithConfig(&bytes.Buffer{}, "999", cfg)
 	if err == nil || !strings.Contains(err.Error(), `page "999" not found`) {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
+	var gotSpacesQuery string
+	var gotPayload struct {
+		SpaceID  string `json:"spaceId"`
+		Status   string `json:"status"`
+		Title    string `json:"title"`
+		ParentID string `json:"parentId"`
+		Body     struct {
+			Storage struct {
+				Representation string `json:"representation"`
+				Value          string `json:"value"`
+			} `json:"storage"`
+		} `json:"body"`
+	}
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			gotSpacesQuery = r.URL.RawQuery
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
+		case "/wiki/api/v2/pages":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method=%q", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+				t.Fatalf("decode create payload: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"10","title":"New Doc","status":"current","spaceId":"SPACE-1"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "table")
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageCreateOptions{
+		Title:    "New Doc",
+		BodyFile: writeTempBodyFile(t, "<p>Hello</p>"),
+	}
+
+	var out bytes.Buffer
+	if err := RunPageCreateWithConfig(&out, opts, cfg); err != nil {
+		t.Fatalf("RunPageCreateWithConfig: %v", err)
+	}
+
+	if !strings.Contains(gotSpacesQuery, "keys=WORK") {
+		t.Fatalf("unexpected spaces query: %q", gotSpacesQuery)
+	}
+	if gotPayload.SpaceID != "SPACE-1" || gotPayload.Status != "current" || gotPayload.Title != "New Doc" || gotPayload.ParentID != "" {
+		t.Fatalf("unexpected payload: %+v", gotPayload)
+	}
+	if gotPayload.Body.Storage.Representation != "storage" || gotPayload.Body.Storage.Value != "<p>Hello</p>" {
+		t.Fatalf("unexpected body payload: %+v", gotPayload.Body.Storage)
+	}
+
+	raw := out.String()
+	if !strings.Contains(raw, "ID") || !strings.Contains(raw, "TITLE") || !strings.Contains(raw, "New Doc") {
+		t.Fatalf("unexpected table output: %q", raw)
+	}
+	if strings.Contains(raw, "STATUS") || strings.Contains(raw, "SPACEID") || strings.Contains(raw, "SPACE ID") {
+		t.Fatalf("unexpected table columns: %q", raw)
+	}
+}
+
+func TestRunPageCreateWithConfig_JSON_UsesSpaceID(t *testing.T) {
+	var gotPayload struct {
+		SpaceID  string `json:"spaceId"`
+		ParentID string `json:"parentId"`
+	}
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			t.Fatalf("unexpected spaces lookup for explicit --space-id")
+		case "/wiki/api/v2/pages":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method=%q", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&gotPayload); err != nil {
+				t.Fatalf("decode create payload: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"11","title":"Child Doc","status":"current","spaceId":"SPACE-99"}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "json")
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageCreateOptions{
+		Title:    "Child Doc",
+		BodyFile: writeTempBodyFile(t, "<p>child</p>"),
+		ParentID: "55",
+		SpaceID:  "SPACE-99",
+	}
+
+	var out bytes.Buffer
+	if err := RunPageCreateWithConfig(&out, opts, cfg); err != nil {
+		t.Fatalf("RunPageCreateWithConfig: %v", err)
+	}
+
+	if gotPayload.SpaceID != "SPACE-99" || gotPayload.ParentID != "55" {
+		t.Fatalf("unexpected payload: %+v", gotPayload)
+	}
+
+	var created struct {
+		ID      string `json:"id"`
+		Title   string `json:"title"`
+		Status  string `json:"status"`
+		SpaceID string `json:"spaceId"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &created); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+	if created.ID != "11" || created.Title != "Child Doc" || created.SpaceID != "SPACE-99" {
+		t.Fatalf("unexpected output: %+v", created)
+	}
+}
+
+func TestRunPageCreateWithConfig_Validation(t *testing.T) {
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig("example.atlassian.net", "WORK")
+	testCases := []struct {
+		name       string
+		opts       *pageCreateOptions
+		wantErrSub string
+	}{
+		{
+			name: "missing title",
+			opts: &pageCreateOptions{
+				BodyFile: writeTempBodyFile(t, "<p>Hello</p>"),
+			},
+			wantErrSub: "title is required",
+		},
+		{
+			name: "missing body file",
+			opts: &pageCreateOptions{
+				Title: "Doc",
+			},
+			wantErrSub: "body file is required",
+		},
+		{
+			name: "body file read error",
+			opts: &pageCreateOptions{
+				Title:    "Doc",
+				BodyFile: filepath.Join(t.TempDir(), "missing.xhtml"),
+			},
+			wantErrSub: "read body file",
+		},
+		{
+			name: "space selectors are mutually exclusive",
+			opts: &pageCreateOptions{
+				Title:    "Doc",
+				BodyFile: writeTempBodyFile(t, "<p>Hello</p>"),
+				SpaceID:  "1",
+				SpaceKey: "WORK",
+			},
+			wantErrSub: "mutually exclusive",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			err := RunPageCreateWithConfig(&bytes.Buffer{}, tc.opts, cfg)
+			if err == nil || !strings.Contains(err.Error(), tc.wantErrSub) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
 	}
 }
 

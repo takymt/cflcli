@@ -27,3 +27,17 @@ type PageDetail struct {
 	SpaceID string   `json:"spaceId"`
 	Body    PageBody `json:"body"`
 }
+
+// PageCreateBody represents create request body payload in storage format.
+type PageCreateBody struct {
+	Storage BodyType `json:"storage"`
+}
+
+// PageCreateRequest represents page create request payload.
+type PageCreateRequest struct {
+	SpaceID  string         `json:"spaceId"`
+	Status   string         `json:"status"`
+	Title    string         `json:"title"`
+	ParentID string         `json:"parentId,omitempty"`
+	Body     PageCreateBody `json:"body"`
+}

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,6 +28,14 @@ type PageListOptions struct {
 
 type pageGetOptions struct {
 	PageID string
+}
+
+type pageCreateOptions struct {
+	Title    string
+	BodyFile string
+	ParentID string
+	SpaceID  string
+	SpaceKey string
 }
 
 var pageListAllowedStatuses = map[string]struct{}{
@@ -57,6 +66,7 @@ func newPageCmd() *cobra.Command {
 
 	pageCmd.AddCommand(newPageListCmd())
 	pageCmd.AddCommand(newPageGetCmd())
+	pageCmd.AddCommand(newPageCreateCmd())
 
 	return pageCmd
 }
@@ -115,6 +125,27 @@ func newPageListCmd() *cobra.Command {
 		opts.StatusSpecified = cmd.Flags().Changed("status")
 		return originalRunE(cmd, args)
 	}
+
+	return cmd
+}
+
+func newPageCreateCmd() *cobra.Command {
+	opts := &pageCreateOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create page",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runPageCreate(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	cmd.Flags().StringVar(&opts.Title, "title", "", "page title")
+	cmd.Flags().StringVar(&opts.BodyFile, "body-file", "", "path to storage format body file")
+	cmd.Flags().StringVar(&opts.ParentID, "parent-id", "", "parent page id")
+	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
+	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
 
 	return cmd
 }
@@ -196,6 +227,14 @@ func runPageGet(out io.Writer, opts *pageGetOptions) error {
 	return RunPageGetWithConfig(out, opts.PageID, cfg)
 }
 
+func runPageCreate(out io.Writer, opts *pageCreateOptions) error {
+	cfg, err := loadConfig("")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	return RunPageCreateWithConfig(out, opts, cfg)
+}
+
 // RunPageGetWithConfig runs the page get command with a provided config.
 func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) error {
 	profile, err := resolveProfile(cfg)
@@ -221,6 +260,54 @@ func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) erro
 	return err
 }
 
+// RunPageCreateWithConfig runs the page create command with a provided config.
+func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config.Config) error {
+	title := strings.TrimSpace(opts.Title)
+	if title == "" {
+		return fmt.Errorf("title is required")
+	}
+	bodyFile := strings.TrimSpace(opts.BodyFile)
+	if bodyFile == "" {
+		return fmt.Errorf("body file is required")
+	}
+
+	body, err := os.ReadFile(bodyFile)
+	if err != nil {
+		return fmt.Errorf("read body file: %w", err)
+	}
+
+	profile, err := resolveProfile(cfg)
+	if err != nil {
+		return err
+	}
+
+	cli, err := client.New(context.Background(), profile, os.Getenv("CONFLUENCE_API_TOKEN"))
+	if err != nil {
+		return err
+	}
+
+	spaceID, err := resolvePageSpaceID(opts.SpaceID, opts.SpaceKey, profile, cli)
+	if err != nil {
+		return err
+	}
+
+	created, err := cli.CreatePage(spaceID, title, string(body), opts.ParentID)
+	if err != nil {
+		return err
+	}
+
+	switch outputFlag {
+	case "table":
+		return output.WritePagesTable(out, []client.Page{*created}, false)
+	case "json":
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(created)
+	default:
+		return fmt.Errorf("unsupported output format: %s", outputFlag)
+	}
+}
+
 func resolveProfile(cfg *config.Config) (*config.Profile, error) {
 	if profileFlag != "" {
 		profile := cfg.FindProfile(profileFlag)
@@ -238,19 +325,23 @@ func resolveProfile(cfg *config.Config) (*config.Profile, error) {
 }
 
 func resolvePageListSpaceID(opts *PageListOptions, profile *config.Profile, cli *client.Client) (string, error) {
-	if opts.SpaceID != "" && opts.SpaceKey != "" {
+	return resolvePageSpaceID(opts.SpaceID, opts.SpaceKey, profile, cli)
+}
+
+func resolvePageSpaceID(spaceID, spaceKey string, profile *config.Profile, cli *client.Client) (string, error) {
+	spaceID = strings.TrimSpace(spaceID)
+	spaceKey = strings.TrimSpace(spaceKey)
+	if spaceID != "" && spaceKey != "" {
 		return "", fmt.Errorf("--space-id and --space-key are mutually exclusive; specify only one")
 	}
-	if opts.SpaceID != "" {
-		return opts.SpaceID, nil
-	}
-
-	spaceKey := opts.SpaceKey
-	if spaceKey == "" {
-		spaceKey = profile.SpaceKey
+	if spaceID != "" {
+		return spaceID, nil
 	}
 	if spaceKey == "" {
-		return "", fmt.Errorf("space key is required; specify --space-key or configure space_key in profile")
+		spaceKey = strings.TrimSpace(profile.SpaceKey)
+	}
+	if spaceKey == "" {
+		return "", fmt.Errorf("space key is required; specify --space-id or --space-key or configure space_key in profile")
 	}
 
 	return cli.ResolveSpaceIDByKey(spaceKey)

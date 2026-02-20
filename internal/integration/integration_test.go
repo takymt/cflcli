@@ -4,6 +4,7 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -51,5 +52,38 @@ func TestPageListSmoke(t *testing.T) {
 	}
 	if len(result.Results) > 1 {
 		t.Fatalf("expected at most one result, got %d", len(result.Results))
+	}
+}
+
+func TestPageCreateSmoke(t *testing.T) {
+	if os.Getenv("CFL_IT_ENABLE_CREATE") != "1" {
+		t.Skip("set CFL_IT_ENABLE_CREATE=1 to run page create integration test")
+	}
+
+	profile, token := integrationProfile(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	cli, err := client.New(ctx, profile, token)
+	if err != nil {
+		t.Fatalf("client.New: %v", err)
+	}
+
+	spaceID := strings.TrimSpace(os.Getenv("CFL_IT_SPACE_ID"))
+	if spaceID == "" {
+		t.Skip("set CFL_IT_SPACE_ID for page create integration test")
+	}
+
+	title := fmt.Sprintf("cfl-it-create-%d", time.Now().UnixNano())
+	created, err := cli.CreatePage(spaceID, title, "<p>integration create smoke</p>", "")
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatalf("created page id is empty")
+	}
+	if created.Title != title {
+		t.Fatalf("title=%q want %q", created.Title, title)
 	}
 }

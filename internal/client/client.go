@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -108,5 +109,26 @@ func (c *Client) get(path string, query url.Values, decode func(*json.Decoder) e
 	if err != nil {
 		return err
 	}
+	return c.do(req, decode)
+}
+
+func (c *Client) post(path string, query url.Values, payload any, decode func(*json.Decoder) error) error {
+	u, err := url.Parse(c.baseURL + path)
+	if err != nil {
+		return err
+	}
+	u.RawQuery = query.Encode()
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(payload); err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodPost, u.String(), &body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
 	return c.do(req, decode)
 }

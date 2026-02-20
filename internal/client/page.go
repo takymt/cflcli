@@ -49,6 +49,41 @@ func (c *Client) ListPages(spaceID string, limit int, cursor string, statuses []
 	return &result, nil
 }
 
+// CreatePage creates a page in storage format.
+func (c *Client) CreatePage(spaceID, title, body, parentID string) (*Page, error) {
+	spaceID = strings.TrimSpace(spaceID)
+	if spaceID == "" {
+		return nil, fmt.Errorf("space id is required")
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return nil, fmt.Errorf("title is required")
+	}
+
+	req := model.PageCreateRequest{
+		SpaceID: spaceID,
+		Status:  "current",
+		Title:   title,
+		Body: model.PageCreateBody{
+			Storage: model.BodyType{
+				Representation: "storage",
+				Value:          body,
+			},
+		},
+	}
+	if trimmedParentID := strings.TrimSpace(parentID); trimmedParentID != "" {
+		req.ParentID = trimmedParentID
+	}
+
+	var result Page
+	if err := c.post("/pages", url.Values{}, req, func(decoder *json.Decoder) error {
+		return decoder.Decode(&result)
+	}); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetPage gets a page by ID in storage body format.
 func (c *Client) GetPage(pageID string) (*PageDetail, error) {
 	pageID = strings.TrimSpace(pageID)

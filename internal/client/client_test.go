@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -142,6 +144,75 @@ func TestListPages_HTTPError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "401 Unauthorized") || !strings.Contains(err.Error(), "token invalid") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCreatePage_RequestAndAuth(t *testing.T) {
+	var gotBody struct {
+		SpaceID  string `json:"spaceId"`
+		Status   string `json:"status"`
+		Title    string `json:"title"`
+		ParentID string `json:"parentId"`
+		Body     struct {
+			Storage struct {
+				Representation string `json:"representation"`
+				Value          string `json:"value"`
+			} `json:"storage"`
+		} `json:"body"`
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Fatalf("method=%q", r.Method)
+		}
+		if r.URL.Path != "/wiki/api/v2/pages" {
+			http.NotFound(w, r)
+			return
+		}
+		if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
+			t.Fatalf("content-type=%q", contentType)
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "u@example.com" || pass != "token" {
+			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
+		}
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		if err := json.Unmarshal(bodyBytes, &gotBody); err != nil {
+			t.Fatalf("unmarshal body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"10","title":"New Doc","status":"current","spaceId":"SPACE-1"}`))
+	}))
+	defer srv.Close()
+
+	old := DefaultHTTPClient
+	DefaultHTTPClient = srv.Client()
+	t.Cleanup(func() { DefaultHTTPClient = old })
+
+	cli, err := New(
+		context.Background(),
+		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
+		"token",
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	created, err := cli.CreatePage("SPACE-1", "New Doc", "<p>Hello</p>", "22")
+	if err != nil {
+		t.Fatalf("CreatePage: %v", err)
+	}
+	if created.ID != "10" || created.Title != "New Doc" {
+		t.Fatalf("unexpected created page: %+v", created)
+	}
+	if gotBody.SpaceID != "SPACE-1" || gotBody.Status != "current" || gotBody.Title != "New Doc" || gotBody.ParentID != "22" {
+		t.Fatalf("unexpected create payload: %+v", gotBody)
+	}
+	if gotBody.Body.Storage.Representation != "storage" || gotBody.Body.Storage.Value != "<p>Hello</p>" {
+		t.Fatalf("unexpected create body payload: %+v", gotBody.Body.Storage)
 	}
 }
 
