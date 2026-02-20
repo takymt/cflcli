@@ -23,7 +23,7 @@ run = "go test -cover ./cmd/... ./internal/..."
 run = "gofmt -w ."
 
 [tasks.lint]
-run = "golangci-lint run ./..."
+run = ["golangci-lint run ./...", "bash scripts/check-api-version.sh"]
 
 [tasks.clean]
 run = "rm -rf cfl dist"

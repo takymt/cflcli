@@ -45,7 +45,7 @@ func TestPageListSmoke(t *testing.T) {
 	}
 
 	spaceID := strings.TrimSpace(os.Getenv("CFL_IT_SPACE_ID"))
-	result, err := cli.ListPages(spaceID, 1, "")
+	result, err := cli.ListPages(spaceID, 1, "", []string{"current"})
 	if err != nil {
 		t.Fatalf("ListPages: %v", err)
 	}

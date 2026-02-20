@@ -4,6 +4,8 @@ pre-commit:
       run: gofmt -w {staged_files}
     lint:
       run: golangci-lint run --new-from-rev=HEAD --fix=false
+    api-version:
+      run: bash scripts/check-api-version.sh
 
 pre-push:
   commands:

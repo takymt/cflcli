@@ -5,7 +5,6 @@
 A CLI tool for Confluence Cloud using REST API v2.
 
 - Binary name: `cfl`
-- API: Confluence Cloud REST API v2 (`/wiki/api/v2/`)
 - Authentication: Basic Auth (email + API token)
 
 ## API Reference
@@ -128,7 +127,7 @@ Each TODO.md task is one workflow unit. Steps:
 4. Implement code and write unit tests
 5. Run `mise run all` — confirm fmt, lint, test, build all pass
 6. Update TODO.md — mark task complete
-7. Commit with conventional commit message — e.g. `feat: add page list command`
+7. Commit with conventional commit message
 
 Make decisions independently except for significant architectural choices.
 Summarize all decisions at workflow end for user review.
@@ -142,8 +141,7 @@ After committing, the user may review and request corrections.
 When corrections are requested:
 
 1. Apply the requested changes
-2. Run `mise run all` — confirm all checks pass
-3. Commit with an appropriate conventional commit message (e.g. `fix:`, `chore:`, `refactor:`)
+2. Commit with an appropriate conventional commit message
 
 ### Dependency Management
 

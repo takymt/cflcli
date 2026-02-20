@@ -9,6 +9,7 @@ linters:
     # Bug prevention
     - bodyclose
     - durationcheck
+    - depguard
     - errcheck
     - errorlint
     - govet
@@ -28,6 +29,18 @@ linters:
     - whitespace
 
   settings:
+    depguard:
+      rules:
+        no-third-party-http-client:
+          files:
+            - "$all"
+          deny:
+            - pkg: github.com/go-resty/resty/v2
+              desc: use standard library net/http
+            - pkg: github.com/hashicorp/go-retryablehttp
+              desc: use standard library net/http
+            - pkg: github.com/imroc/req/v3
+              desc: use standard library net/http
     gocritic:
       enabled-tags:
         - diagnostic

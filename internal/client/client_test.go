@@ -79,6 +79,9 @@ func TestListPages_QueryAndAuth(t *testing.T) {
 		if got := r.URL.Query().Get("cursor"); got != "CURSOR-1" {
 			t.Fatalf("cursor=%q", got)
 		}
+		if got := r.URL.Query()["status"]; len(got) != 1 || got[0] != "current" {
+			t.Fatalf("status=%v", got)
+		}
 		user, pass, ok := r.BasicAuth()
 		if !ok || user != "u@example.com" || pass != "token" {
 			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
@@ -101,7 +104,7 @@ func TestListPages_QueryAndAuth(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	result, err := cli.ListPages("SPACE-1", 25, "CURSOR-1")
+	result, err := cli.ListPages("SPACE-1", 25, "CURSOR-1", []string{"current"})
 	if err != nil {
 		t.Fatalf("ListPages: %v", err)
 	}
@@ -130,7 +133,7 @@ func TestListPages_HTTPError(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	_, err = cli.ListPages("", 10, "")
+	_, err = cli.ListPages("", 10, "", []string{"current"})
 	if err == nil {
 		t.Fatalf("expected error")
 	}

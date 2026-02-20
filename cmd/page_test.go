@@ -12,6 +12,36 @@ import (
 	"github.com/takymt/cflcli/internal/config"
 )
 
+func setupPageListServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
+	t.Helper()
+
+	srv := httptest.NewServer(handler)
+	t.Cleanup(srv.Close)
+
+	originalHTTPClient := client.DefaultHTTPClient
+	client.DefaultHTTPClient = srv.Client()
+	t.Cleanup(func() { client.DefaultHTTPClient = originalHTTPClient })
+
+	return srv
+}
+
+func setOutputMode(t *testing.T, mode string) {
+	t.Helper()
+
+	originalOutput := OutputFlag()
+	SetOutputFlag(mode)
+	t.Cleanup(func() { SetOutputFlag(originalOutput) })
+}
+
+func newPageListConfig(domain, spaceKey string) *config.Config {
+	return &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{Name: "work", Domain: domain, User: "user@example.com", SpaceKey: spaceKey},
+		},
+	}
+}
+
 func TestValidatePageListLimit(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +127,7 @@ func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {
 	var gotSpacesQuery string
 	var gotPagesQuery string
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, password, ok := r.BasicAuth()
 		if !ok || user != "user@example.com" || password != "token" {
 			t.Fatalf("unexpected basic auth: ok=%v user=%q", ok, user)
@@ -116,24 +146,11 @@ func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
-	defer srv.Close()
-
-	originalHTTPClient := client.DefaultHTTPClient
-	client.DefaultHTTPClient = srv.Client()
-	t.Cleanup(func() { client.DefaultHTTPClient = originalHTTPClient })
-
-	originalOutput := OutputFlag()
-	SetOutputFlag("json")
-	t.Cleanup(func() { SetOutputFlag(originalOutput) })
+	setOutputMode(t, "json")
 
 	t.Setenv("CONFLUENCE_API_TOKEN", "token")
 
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: srv.URL, User: "user@example.com", SpaceKey: "WORK"},
-		},
-	}
+	cfg := newPageListConfig(srv.URL, "WORK")
 
 	var out bytes.Buffer
 	err := RunPageListWithConfig(&out, &PageListOptions{SpaceKey: "WORK", Limit: 2}, cfg)
@@ -144,7 +161,9 @@ func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {
 	if !strings.Contains(gotSpacesQuery, "keys=WORK") {
 		t.Fatalf("unexpected spaces query: %q", gotSpacesQuery)
 	}
-	if !strings.Contains(gotPagesQuery, "space-id=SPACE-1") || !strings.Contains(gotPagesQuery, "limit=2") {
+	if !strings.Contains(gotPagesQuery, "space-id=SPACE-1") ||
+		!strings.Contains(gotPagesQuery, "limit=2") ||
+		!strings.Contains(gotPagesQuery, "status=current") {
 		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
 	}
 
@@ -171,38 +190,27 @@ func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {
 
 func TestRunPageListWithConfig_Table_UsesProfileSpaceKey(t *testing.T) {
 	var gotSpacesQuery string
+	var gotPagesQuery string
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/wiki/api/v2/spaces":
 			gotSpacesQuery = r.URL.RawQuery
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-9","key":"WORK"}]}`))
 		case "/wiki/api/v2/pages":
+			gotPagesQuery = r.URL.RawQuery
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"9","title":"Doc","status":"current","spaceId":"SPACE-9"}],"_links":{}}`))
 		default:
 			http.NotFound(w, r)
 		}
 	}))
-	defer srv.Close()
-
-	originalHTTPClient := client.DefaultHTTPClient
-	client.DefaultHTTPClient = srv.Client()
-	t.Cleanup(func() { client.DefaultHTTPClient = originalHTTPClient })
-
-	originalOutput := OutputFlag()
-	SetOutputFlag("table")
-	t.Cleanup(func() { SetOutputFlag(originalOutput) })
+	setOutputMode(t, "table")
 
 	t.Setenv("CONFLUENCE_API_TOKEN", "token")
 
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: srv.URL, User: "user@example.com", SpaceKey: "WORK"},
-		},
-	}
+	cfg := newPageListConfig(srv.URL, "WORK")
 
 	var out bytes.Buffer
 	err := RunPageListWithConfig(&out, &PageListOptions{Limit: 1}, cfg)
@@ -211,11 +219,55 @@ func TestRunPageListWithConfig_Table_UsesProfileSpaceKey(t *testing.T) {
 	}
 
 	raw := out.String()
-	if !strings.Contains(raw, "Doc") || !strings.Contains(raw, "SPACE-9") {
+	if !strings.Contains(raw, "Doc") {
 		t.Fatalf("unexpected table output: %q", raw)
 	}
 	if !strings.Contains(gotSpacesQuery, "keys=WORK") {
 		t.Fatalf("unexpected spaces query: %q", gotSpacesQuery)
+	}
+	if !strings.Contains(gotPagesQuery, "status=current") {
+		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
+	}
+}
+
+func TestRunPageListWithConfig_Table_ShowsStatusWhenExplicitStatus(t *testing.T) {
+	var gotStatuses []string
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
+		case "/wiki/api/v2/pages":
+			gotStatuses = r.URL.Query()["status"]
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"Doc","status":"archived","spaceId":"SPACE-1"}],"_links":{}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "table")
+
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+
+	var out bytes.Buffer
+	err := RunPageListWithConfig(&out, &PageListOptions{
+		Limit:           1,
+		Status:          "current,archived",
+		StatusSpecified: true,
+	}, cfg)
+	if err != nil {
+		t.Fatalf("RunPageListWithConfig: %v", err)
+	}
+
+	raw := out.String()
+	if !strings.Contains(raw, "STATUS") || !strings.Contains(raw, "archived") {
+		t.Fatalf("missing status output: %q", raw)
+	}
+	if len(gotStatuses) != 2 || gotStatuses[0] != "current" || gotStatuses[1] != "archived" {
+		t.Fatalf("unexpected statuses: %v", gotStatuses)
 	}
 }
 
@@ -241,25 +293,14 @@ func TestRunPageListWithConfig_SpaceSelectorErrors(t *testing.T) {
 	})
 
 	t.Run("space key not found", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/wiki/api/v2/spaces" {
 				t.Fatalf("unexpected path: %s", r.URL.Path)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[]}`))
 		}))
-		defer srv.Close()
-
-		originalHTTPClient := client.DefaultHTTPClient
-		client.DefaultHTTPClient = srv.Client()
-		t.Cleanup(func() { client.DefaultHTTPClient = originalHTTPClient })
-
-		cfg := &config.Config{
-			Current: "work",
-			Profiles: []config.Profile{
-				{Name: "work", Domain: srv.URL, User: "user@example.com"},
-			},
-		}
+		cfg := newPageListConfig(srv.URL, "")
 
 		err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{SpaceKey: "WORK", Limit: 1}, cfg)
 		if err == nil || !strings.Contains(err.Error(), "not found") {

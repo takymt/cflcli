@@ -15,10 +15,15 @@ type Page = model.Page
 type PageListResult = PageResult[Page]
 
 // ListPages lists pages by space ID with pagination.
-func (c *Client) ListPages(spaceID string, limit int, cursor string) (*PageListResult, error) {
+func (c *Client) ListPages(spaceID string, limit int, cursor string, statuses []string) (*PageListResult, error) {
 	query := url.Values{}
 	if spaceID != "" {
 		query.Set("space-id", spaceID)
+	}
+	for _, status := range statuses {
+		if status != "" {
+			query.Add("status", status)
+		}
 	}
 	if limit > 0 {
 		query.Set("limit", strconv.Itoa(limit))

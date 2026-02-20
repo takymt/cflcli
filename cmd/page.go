@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/client"
@@ -14,9 +15,11 @@ import (
 
 // PageListOptions holds options for page listing.
 type PageListOptions struct {
-	SpaceID  string
-	SpaceKey string
-	Limit    int
+	SpaceID         string
+	SpaceKey        string
+	Status          string
+	StatusSpecified bool
+	Limit           int
 }
 
 func newPageCmd() *cobra.Command {
@@ -44,7 +47,14 @@ func newPageListCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
 	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
+	cmd.Flags().StringVar(&opts.Status, "status", "", "page status filter (comma-separated)")
 	cmd.Flags().IntVar(&opts.Limit, "limit", 25, "number of results per page")
+
+	originalRunE := cmd.RunE
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		opts.StatusSpecified = cmd.Flags().Changed("status")
+		return originalRunE(cmd, args)
+	}
 
 	return cmd
 }
@@ -70,14 +80,19 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	result, err := cli.ListPages(spaceID, opts.Limit, "")
+	statuses, showStatus, err := resolvePageListStatuses(opts)
+	if err != nil {
+		return err
+	}
+
+	result, err := cli.ListPages(spaceID, opts.Limit, "", statuses)
 	if err != nil {
 		return err
 	}
 
 	switch outputFlag {
 	case "table":
-		return output.WritePagesTable(out, result.Results)
+		return output.WritePagesTable(out, result.Results, showStatus)
 	case "json":
 		return output.WritePageListJSON(out, output.PageListOutput{
 			Request: output.PageListRequest{SpaceID: spaceID, Limit: opts.Limit},
@@ -137,4 +152,23 @@ func resolvePageListSpaceID(opts *PageListOptions, profile *config.Profile, cli 
 	}
 
 	return cli.ResolveSpaceIDByKey(spaceKey)
+}
+
+func resolvePageListStatuses(opts *PageListOptions) ([]string, bool, error) {
+	if !opts.StatusSpecified {
+		return []string{"current"}, false, nil
+	}
+
+	var statuses []string
+	for _, raw := range strings.Split(opts.Status, ",") {
+		status := strings.TrimSpace(raw)
+		if status == "" {
+			return nil, false, fmt.Errorf("status must not be empty")
+		}
+		statuses = append(statuses, status)
+	}
+	if len(statuses) == 0 {
+		return nil, false, fmt.Errorf("status must not be empty")
+	}
+	return statuses, true, nil
 }

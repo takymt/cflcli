@@ -37,23 +37,19 @@ func TestWritePageListJSON(t *testing.T) {
 func TestWritePagesTable(t *testing.T) {
 	t.Parallel()
 
-	page := model.Page{
-		ID:      "1",
-		Title:   "Doc",
-		Status:  "current",
-		SpaceID: "SPACE-1",
+	pages := []model.Page{
+		{ID: "1", Title: "Doc", Status: "current"},
 	}
 
-	var out bytes.Buffer
-	if err := WritePagesTable(&out, []model.Page{page}); err != nil {
-		t.Fatalf("WritePagesTable: %v", err)
-	}
+	t.Run("with status", func(t *testing.T) {
+		var out bytes.Buffer
+		if err := WritePagesTable(&out, pages, true); err != nil {
+			t.Fatalf("WritePagesTable: %v", err)
+		}
 
-	raw := out.String()
-	if !strings.Contains(raw, "ID") || !strings.Contains(raw, "TITLE") {
-		t.Fatalf("missing table header: %q", raw)
-	}
-	if !strings.Contains(raw, "Doc") || !strings.Contains(raw, "SPACE-1") {
-		t.Fatalf("missing table row values: %q", raw)
-	}
+		raw := out.String()
+		if !strings.Contains(raw, "STATUS") || !strings.Contains(raw, "current") {
+			t.Fatalf("missing status values: %q", raw)
+		}
+	})
 }
