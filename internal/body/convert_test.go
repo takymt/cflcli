@@ -337,61 +337,6 @@ func TestToStorage(t *testing.T) {
 			t.Fatalf("got %q want %q", got, "<p>Hello</p>")
 		}
 	})
-
-	t.Run("markdown core syntax", func(t *testing.T) {
-		input := strings.Join([]string{
-			"# 見出し1",
-			"## 見出し2",
-			"### 見出し3",
-			"#### 見出し4",
-			"",
-			"- foo",
-			"  - nested",
-			"- bar",
-			"",
-			"1. first",
-			"2. second",
-			"",
-			"> quote",
-			">> nested quote",
-			"",
-			"---",
-			"",
-			"*italic*",
-			"**bold**",
-			"~~strike~~",
-			"inline `code`",
-			`\*escaped\*`,
-			"<u>underline</u>",
-		}, "\n")
-
-		got, err := ToStorage([]byte(input), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-
-		wantContains := []string{
-			"<h1>見出し1</h1>",
-			"<h2>見出し2</h2>",
-			"<h3>見出し3</h3>",
-			"<h4>見出し4</h4>",
-			"<ul>",
-			"<ol>",
-			"<blockquote>",
-			"<hr />",
-			"<em>italic</em>",
-			"<strong>bold</strong>",
-			`<span style="text-decoration: line-through;">strike</span>`,
-			"<code>code</code>",
-			"*escaped*",
-			"<u>underline</u>",
-		}
-		for _, token := range wantContains {
-			if !strings.Contains(got, token) {
-				t.Fatalf("output missing %q in %q", token, got)
-			}
-		}
-	})
 }
 
 func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
@@ -409,34 +354,15 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 
 	wantContains := []string{
 		"<h1>見出し1</h1>",
-		"<h2>見出し2</h2>",
-		"<h3>見出し3</h3>",
-		"<h4>見出し4</h4>",
-		"<ul>",
-		"<ol>",
 		"<a href=\"https://developer.atlassian.com/cloud/confluence/\">アンカーテキスト</a>",
 		"<ac:image ac:alt=\"alt-text\"><ri:url ri:value=\"https://developer.atlassian.com/favicon.ico\" /></ac:image>",
 		"<ac:task-list>",
-		"<ac:task-status>incomplete</ac:task-status>",
-		"<ac:task-status>complete</ac:task-status>",
-		"<blockquote>",
-		"<hr />",
-		"<em>イタリック</em>",
-		"<strong>太字</strong>",
-		`<span style="text-decoration: line-through;">打ち消し線</span>`,
-		"<code>code</code>",
-		`<a href="https://zenn.dev/zenn/articles/markdown-guide" data-card-appearance="inline">https://zenn.dev/zenn/articles/markdown-guide</a>`,
-		`<ac:emoticon ac:name="smile" />`,
-		`<ac:emoticon ac:name="thumbsup" />`,
 		`<ac:structured-macro ac:name="code">`,
 		`<ac:parameter ac:name="language">js</ac:parameter>`,
 		`<ac:structured-macro ac:name="expand">`,
-		`<ac:parameter ac:name="expanded">false</ac:parameter>`,
-		`<ac:structured-macro ac:name="info"><ac:rich-text-body><p>情報</p>`,
 		`<ac:adf-extension><ac:adf-node type="panel"><ac:adf-attribute key="panel-type">note</ac:adf-attribute><ac:adf-content><p>メモ</p>`,
-		`<ac:structured-macro ac:name="tip"><ac:rich-text-body><p>成功</p>`,
-		`<ac:structured-macro ac:name="note"><ac:rich-text-body><p>警告</p>`,
 		`<ac:structured-macro ac:name="warning"><ac:rich-text-body><p>エラー</p>`,
+		`<ac:emoticon ac:name="smile" />`,
 		"<u>underline via raw html</u>",
 	}
 

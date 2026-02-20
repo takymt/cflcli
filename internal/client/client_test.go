@@ -12,6 +12,15 @@ import (
 	"github.com/takymt/cflcli/internal/config"
 )
 
+func assertBasicAuth(t *testing.T, r *http.Request, wantUser, wantPass string) {
+	t.Helper()
+
+	user, pass, ok := r.BasicAuth()
+	if !ok || user != wantUser || pass != wantPass {
+		t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
+	}
+}
+
 func TestNew(t *testing.T) {
 	t.Parallel()
 
@@ -87,10 +96,7 @@ func TestListPages_QueryAndAuth(t *testing.T) {
 		if got := r.URL.Query()["status"]; len(got) != 1 || got[0] != "current" {
 			t.Fatalf("status=%v", got)
 		}
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != "u@example.com" || pass != "token" {
-			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
-		}
+		assertBasicAuth(t, r, "u@example.com", "token")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"A","status":"current","spaceId":"S1"}],"_links":{"next":"NEXT-1"}}`))
 	}))
@@ -172,10 +178,7 @@ func TestCreatePage_RequestAndAuth(t *testing.T) {
 		if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
 			t.Fatalf("content-type=%q", contentType)
 		}
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != "u@example.com" || pass != "token" {
-			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
-		}
+		assertBasicAuth(t, r, "u@example.com", "token")
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read body: %v", err)
@@ -241,10 +244,7 @@ func TestUpdatePage_RequestAndAuth(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != "u@example.com" || pass != "token" {
-			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
-		}
+		assertBasicAuth(t, r, "u@example.com", "token")
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read body: %v", err)
@@ -295,10 +295,7 @@ func TestDeletePage_RequestAndAuth(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != "u@example.com" || pass != "token" {
-			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
-		}
+		assertBasicAuth(t, r, "u@example.com", "token")
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
@@ -336,10 +333,7 @@ func TestGetPage_QueryAndAuth(t *testing.T) {
 		if got := r.URL.Query().Get("body-format"); got != "storage" {
 			t.Fatalf("body-format=%q", got)
 		}
-		user, pass, ok := r.BasicAuth()
-		if !ok || user != "u@example.com" || pass != "token" {
-			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
-		}
+		assertBasicAuth(t, r, "u@example.com", "token")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"123","title":"Doc","status":"current","spaceId":"S1","body":{"storage":{"representation":"storage","value":"<p>Hello</p>"}}}`))
 	}))

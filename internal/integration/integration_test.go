@@ -34,6 +34,21 @@ func integrationProfile(t *testing.T) (*config.Profile, string) {
 	return profile, token
 }
 
+func cleanupCreatedPage(t *testing.T, profile *config.Profile, token, pageID string) {
+	t.Helper()
+
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	cleanupClient, err := client.New(cleanupCtx, profile, token)
+	if err != nil {
+		t.Fatalf("cleanup client.New: %v", err)
+	}
+	if err := cleanupClient.DeletePage(pageID); err != nil {
+		t.Fatalf("cleanup DeletePage(%q): %v", pageID, err)
+	}
+}
+
 func TestPageCreateSmoke(t *testing.T) {
 	if os.Getenv("CFL_IT_ENABLE_CREATE") != "1" {
 		t.Skip("set CFL_IT_ENABLE_CREATE=1 to run page create integration test")
@@ -62,6 +77,9 @@ func TestPageCreateSmoke(t *testing.T) {
 	if created.ID == "" {
 		t.Fatalf("created page id is empty")
 	}
+	t.Cleanup(func() {
+		cleanupCreatedPage(t, profile, token, created.ID)
+	})
 	if created.Title != title {
 		t.Fatalf("title=%q want %q", created.Title, title)
 	}
