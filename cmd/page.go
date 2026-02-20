@@ -96,7 +96,7 @@ func newPageGetCmd() *cobra.Command {
 		Short: "Get page body in storage format",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("page id is required\nUsage: cfl page get <page-id>")
+				return fmt.Errorf("<page-id> is required\nUsage: cfl page get <page-id>")
 			}
 			if len(args) > 1 {
 				return fmt.Errorf("too many arguments\nUsage: cfl page get <page-id>")
@@ -176,7 +176,7 @@ func newPageUpdateCmd() *cobra.Command {
 		Short: "Update page",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("page id is required\nUsage: cfl page update <page-id>")
+				return fmt.Errorf("<page-id> is required\nUsage: cfl page update <page-id>")
 			}
 			if len(args) > 1 {
 				return fmt.Errorf("too many arguments\nUsage: cfl page update <page-id>")
@@ -205,7 +205,7 @@ func newPageDeleteCmd() *cobra.Command {
 		Short: "Delete page",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("page id is required\nUsage: cfl page delete <page-id>")
+				return fmt.Errorf("<page-id> is required\nUsage: cfl page delete <page-id>")
 			}
 			if len(args) > 1 {
 				return fmt.Errorf("too many arguments\nUsage: cfl page delete <page-id>")
@@ -457,7 +457,7 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 func RunPageDeleteWithConfig(out io.Writer, pageID string, cfg *config.Config) error {
 	pageID = strings.TrimSpace(pageID)
 	if pageID == "" {
-		return fmt.Errorf("page id is required")
+		return fmt.Errorf("<page-id> is required")
 	}
 
 	profile, err := resolveProfile(cfg)
@@ -530,7 +530,7 @@ func resolvePageSpaceID(spaceID, spaceKey string, profile *config.Profile, cli *
 		spaceKey = strings.TrimSpace(profile.SpaceKey)
 	}
 	if spaceKey == "" {
-		return "", fmt.Errorf("space key is required; specify --space-id or --space-key or configure space_key in profile")
+		return "", fmt.Errorf("--space-id or --space-key is required; or configure space_key in profile")
 	}
 
 	return cli.ResolveSpaceIDByKey(spaceKey)

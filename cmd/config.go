@@ -117,7 +117,7 @@ func newConfigEditCmd() *cobra.Command {
 		Short: "Edit an existing profile interactively",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("profile name is required\nUsage: cfl config edit <name>")
+				return fmt.Errorf("<name> is required\nUsage: cfl config edit <name>")
 			}
 			if len(args) > 1 {
 				return fmt.Errorf("too many arguments\nUsage: cfl config edit <name>")
@@ -207,7 +207,7 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 		}
 	}
 	if name == "" {
-		return fmt.Errorf("profile name is required")
+		return fmt.Errorf("--name is required")
 	}
 	if !opts.updateExisting && cfg.FindProfile(name) != nil {
 		return fmt.Errorf("profile %q already exists", name)
@@ -221,7 +221,7 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 		}
 	}
 	if domain == "" {
-		return fmt.Errorf("domain is required")
+		return fmt.Errorf("--domain is required")
 	}
 
 	user := opts.user
@@ -232,7 +232,7 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 		}
 	}
 	if user == "" {
-		return fmt.Errorf("email address is required")
+		return fmt.Errorf("--user is required")
 	}
 
 	spaceKey := opts.spaceKey
@@ -243,7 +243,7 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 		}
 	}
 	if spaceKey == "" {
-		return fmt.Errorf("space key is required")
+		return fmt.Errorf("--space-key is required")
 	}
 
 	profileOutput := opts.output
@@ -408,7 +408,7 @@ func newConfigDeleteCmd() *cobra.Command {
 		Short: "Delete a profile",
 		Args: func(_ *cobra.Command, args []string) error {
 			if len(args) == 0 {
-				return fmt.Errorf("profile name is required\nUsage: cfl config delete <name>")
+				return fmt.Errorf("<name> is required\nUsage: cfl config delete <name>")
 			}
 			if len(args) > 1 {
 				return fmt.Errorf("too many arguments\nUsage: cfl config delete <name>")
