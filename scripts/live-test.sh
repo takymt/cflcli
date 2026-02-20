@@ -125,16 +125,25 @@ echo "==> config list"
 echo "==> config show"
 "$BIN" config show >/dev/null
 
+LIST_JSON=""
 if [ -n "$SPACE_ID" ]; then
   echo "==> page list (json, with space-id)"
-  "$BIN" --output json page list --space-id "$SPACE_ID" --limit "$LIMIT" >/dev/null
+  LIST_JSON="$("$BIN" --output json page list --space-id "$SPACE_ID" --limit "$LIMIT")"
   echo "==> page list (table, with space-id)"
   "$BIN" --output table page list --space-id "$SPACE_ID" --limit "$LIMIT" >/dev/null
 else
   echo "==> page list (json)"
-  "$BIN" --output json page list --limit "$LIMIT" >/dev/null
+  LIST_JSON="$("$BIN" --output json page list --limit "$LIMIT")"
   echo "==> page list (table)"
   "$BIN" --output table page list --limit "$LIMIT" >/dev/null
+fi
+
+PAGE_ID="$(printf '%s\n' "$LIST_JSON" | sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n1)"
+if [ -n "$PAGE_ID" ]; then
+  echo "==> page get (id: $PAGE_ID)"
+  "$BIN" page get "$PAGE_ID" >/dev/null
+else
+  echo "==> page get skipped (no page found from list)"
 fi
 
 echo "Live tests complete."
