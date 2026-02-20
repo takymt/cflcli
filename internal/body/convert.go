@@ -3,12 +3,13 @@ package body
 import (
 	"bytes"
 	"fmt"
-	"html"
+	stdhtml "html"
 	"regexp"
 	"strings"
 
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
+	gmhtml "github.com/yuin/goldmark/renderer/html"
 )
 
 const (
@@ -20,11 +21,13 @@ const (
 
 var markdownConverter = goldmark.New(
 	goldmark.WithExtensions(extension.GFM),
+	goldmark.WithRendererOptions(gmhtml.WithUnsafe()),
 )
 
 var (
 	codeBlockPattern = regexp.MustCompile(`(?s)<pre><code(?: class="language-([^"]+)")?>(.*?)</code></pre>`)
 	listItemPattern  = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
+	hrTagPattern     = regexp.MustCompile(`(?i)<hr\s*/?>`)
 )
 
 // NormalizeFormat validates and normalizes body format.
@@ -49,16 +52,29 @@ func ToStorage(content []byte, format string) (string, error) {
 	case FormatStorage:
 		return string(content), nil
 	case FormatMarkdown:
-		normalizedMarkdown := normalizeListSpacing(string(content))
-
-		var out bytes.Buffer
-		if err := markdownConverter.Convert([]byte(normalizedMarkdown), &out); err != nil {
-			return "", fmt.Errorf("convert markdown to storage: %w", err)
+		markdown := preprocessMarkdown(string(content))
+		html, err := markdownToHTML(markdown)
+		if err != nil {
+			return "", err
 		}
-		return htmlToConfluenceStorage(out.String()), nil
+
+		storage := htmlToConfluenceStorage(html)
+		return applyEditModeCompatibility(storage), nil
 	default:
 		return "", fmt.Errorf("unsupported body format: %s", normalized)
 	}
+}
+
+func preprocessMarkdown(markdown string) string {
+	return normalizeListSpacing(markdown)
+}
+
+func markdownToHTML(markdown string) (string, error) {
+	var out bytes.Buffer
+	if err := markdownConverter.Convert([]byte(markdown), &out); err != nil {
+		return "", fmt.Errorf("convert markdown to storage: %w", err)
+	}
+	return out.String(), nil
 }
 
 func htmlToConfluenceStorage(value string) string {
@@ -73,7 +89,7 @@ func htmlToConfluenceStorage(value string) string {
 			language = "text"
 		}
 
-		code := html.UnescapeString(submatches[2])
+		code := stdhtml.UnescapeString(submatches[2])
 		code = trimTrailingCodeFenceNewline(code)
 		code = strings.ReplaceAll(code, "]]>", "]]]]><![CDATA[>")
 
@@ -83,14 +99,17 @@ func htmlToConfluenceStorage(value string) string {
 			code,
 		)
 	})
+	storage = hrTagPattern.ReplaceAllString(storage, "<hr />")
+	return storage
+}
 
+func applyEditModeCompatibility(storage string) string {
 	// Confluence edit mode may treat line breaks between list item text and nested lists
 	// as soft line breaks. Collapse only list-adjacent newlines.
 	storage = strings.ReplaceAll(storage, "\n<ul>", "<ul>")
 	storage = strings.ReplaceAll(storage, "\n<ol>", "<ol>")
 	storage = strings.ReplaceAll(storage, "</ul>\n</li>", "</ul></li>")
 	storage = strings.ReplaceAll(storage, "</ol>\n</li>", "</ol></li>")
-
 	return storage
 }
 

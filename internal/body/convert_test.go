@@ -124,4 +124,59 @@ func TestToStorage(t *testing.T) {
 			t.Fatalf("got %q want %q", got, "<p>Hello</p>")
 		}
 	})
+
+	t.Run("markdown core syntax", func(t *testing.T) {
+		input := strings.Join([]string{
+			"# 見出し1",
+			"## 見出し2",
+			"### 見出し3",
+			"#### 見出し4",
+			"",
+			"- foo",
+			"  - nested",
+			"- bar",
+			"",
+			"1. first",
+			"2. second",
+			"",
+			"> quote",
+			">> nested quote",
+			"",
+			"---",
+			"",
+			"*italic*",
+			"**bold**",
+			"~~strike~~",
+			"inline `code`",
+			`\*escaped\*`,
+			"<u>underline</u>",
+		}, "\n")
+
+		got, err := ToStorage([]byte(input), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+
+		wantContains := []string{
+			"<h1>見出し1</h1>",
+			"<h2>見出し2</h2>",
+			"<h3>見出し3</h3>",
+			"<h4>見出し4</h4>",
+			"<ul>",
+			"<ol>",
+			"<blockquote>",
+			"<hr />",
+			"<em>italic</em>",
+			"<strong>bold</strong>",
+			"<del>strike</del>",
+			"<code>code</code>",
+			"*escaped*",
+			"<u>underline</u>",
+		}
+		for _, token := range wantContains {
+			if !strings.Contains(got, token) {
+				t.Fatalf("output missing %q in %q", token, got)
+			}
+		}
+	})
 }
