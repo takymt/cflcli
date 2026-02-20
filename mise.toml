@@ -32,6 +32,9 @@ run = "rm -rf cfl dist"
 run = ["mise run build", "mise run fmt", "mise run lint", "mise run test"]
 
 [tasks.bump]
+run = "bash scripts/bump.sh"
+
+[tasks.bump-version]
 run = "gobump patch -w ./cmd"
 
 [tasks.hooks]

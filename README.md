@@ -161,4 +161,6 @@ mise run lint
 mise run test
 mise run test-it
 mise run test-live
+mise run bump-version   # version only
+mise run bump           # version + commit + tag + push
 ```
