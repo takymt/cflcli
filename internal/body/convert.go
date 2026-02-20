@@ -49,7 +49,7 @@ func ToStorage(content []byte, format string) (string, error) {
 	case FormatStorage:
 		return string(content), nil
 	case FormatMarkdown:
-		normalizedMarkdown := normalizeNestedListSpacing(string(content))
+		normalizedMarkdown := normalizeListSpacing(string(content))
 
 		var out bytes.Buffer
 		if err := markdownConverter.Convert([]byte(normalizedMarkdown), &out); err != nil {
@@ -84,7 +84,7 @@ func htmlToConfluenceStorage(value string) string {
 	})
 }
 
-func normalizeNestedListSpacing(markdown string) string {
+func normalizeListSpacing(markdown string) string {
 	if !strings.Contains(markdown, "\n\n") {
 		return markdown
 	}
@@ -97,9 +97,9 @@ func normalizeNestedListSpacing(markdown string) string {
 			continue
 		}
 
-		prevIndent, prevIsList := listItemIndent(lines[i-1])
-		nextIndent, nextIsList := listItemIndent(lines[i+1])
-		if prevIsList && nextIsList && nextIndent > prevIndent {
+		_, prevIsList := listItemIndent(lines[i-1])
+		_, nextIsList := listItemIndent(lines[i+1])
+		if prevIsList && nextIsList {
 			continue
 		}
 

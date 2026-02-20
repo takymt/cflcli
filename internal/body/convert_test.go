@@ -96,6 +96,19 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("same level list blank lines are tightened", func(t *testing.T) {
+		got, err := ToStorage([]byte("- foo\n\n- bar\n"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if strings.Contains(got, "<p>foo</p>") || strings.Contains(got, "<p>bar</p>") {
+			t.Fatalf("unexpected loose list paragraphs: %q", got)
+		}
+		if !strings.Contains(got, "<li>foo</li>") || !strings.Contains(got, "<li>bar</li>") {
+			t.Fatalf("missing list items: %q", got)
+		}
+	})
+
 	t.Run("storage passthrough", func(t *testing.T) {
 		got, err := ToStorage([]byte("<p>Hello</p>"), "storage")
 		if err != nil {
