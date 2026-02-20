@@ -45,8 +45,22 @@
 - [x] `cfl page list [--space-id ID] [--limit N]`
   - [x] `list` `--space-id` `--limit`
   - [ ] `--cursor` ページング
+    - [ ] IF `--cursor` が未指定 THEN `/pages` リクエストに `cursor` クエリを付与しない
+    - [ ] IF `--cursor` が指定される THEN `/pages` リクエストに `cursor=<value>` を付与する
+    - [ ] IF `--output json` THEN 返却された `next` をそのまま出力し次回の `--cursor` に利用できる
+    - [ ] IF `--cursor` が無効または期限切れで API が 4xx を返す THEN 再取得が必要だと分かるエラーを表示して終了する
   - [ ] `--status` ページ状態フィルタ
+    - [ ] IF `--status` が未指定 THEN `status=current` のみを付与して取得する
+    - [ ] IF `--status` が指定される THEN カンマ区切りの値を分割し `status` クエリを複数付与する
+    - [ ] IF `--status` が許可値以外または空要素を含む THEN バリデーションエラーにする
+      - 許可値: `current`, `archived`, `deleted`, `trashed`
+    - [ ] IF `--status` を明示指定して `--output table` THEN `STATUS` 列を表示する
+    - [ ] IF `--status` 未指定で `--output table` THEN `STATUS` 列を表示しない
   - [ ] `--sort` 並び順
+    - [ ] IF `--sort` が未指定 THEN `/pages` リクエストに `sort` クエリを付与しない
+    - [ ] IF `--sort` が指定される THEN 指定値を `sort` クエリとして付与する
+    - [ ] IF `--sort` が許可値以外 THEN バリデーションエラーにする
+      - 許可値: `id`, `-id`, `created-date`, `-created-date`, `modified-date`, `-modified-date`, `title`, `-title`
 - [ ] `cfl page get <page-id>`
 - [ ] `cfl page create --title TITLE --body-file FILE [--parent-id ID]`
 - [ ] `cfl page update <page-id> --title TITLE --body-file FILE --version N`
