@@ -108,6 +108,43 @@
 - [x] `cfl page update` に frontmatter `title` を適用する
 - [x] create/update のテストを追加する（`cmd/page_test.go`）
 
+## Phase 1.3: ローカル画像解決と Mermaid 画像化
+
+### create/update の Markdown アセット解決
+
+- [ ] `cfl page create/update` の `--body-format markdown` にアセット解決ステップを追加する
+  - [ ] `--body-format storage` は既存どおり変換対象外にする
+- [ ] `--assets-root` オプションを追加する（default: `--body-file` のディレクトリ）
+  - [ ] IF 画像パスが `http://` または `https://` THEN 既存どおり URL 画像として扱う
+  - [ ] IF 画像パスが `./` `../` または bare path THEN `--body-file` のディレクトリ基準で解決する
+  - [ ] IF 画像パスが `/` 始まり THEN OS ルートではなく `--assets-root` 基準で解決する
+  - [ ] IF 解決先ファイルが存在しない THEN エラーで終了する
+
+### ローカル画像 -> Confluence 添付
+
+- [ ] ローカル画像を page 添付へアップロードできるようにする（Confluence REST API v1 attachments）
+- [ ] 本文は URL 画像ではなく `ri:attachment` 参照へ変換する
+- [ ] 添付ファイル名は元ファイル名（basename）を維持する
+  - [ ] IF 同一 Markdown 内で basename が衝突する THEN エラーで終了する
+  - [ ] IF 既存添付に同名がある THEN 新規追加ではなく添付の新バージョン更新として扱う
+
+### Mermaid 画像化
+
+- [ ] mermaid fenced code block を画像化する（内蔵レンダラ）
+- [ ] `cfl page create/update` に `--no-render-mermaid` オプションを追加する
+  - [ ] デフォルトでは mermaid 画像化を有効にする
+  - [ ] IF `--no-render-mermaid` 指定時 THEN mermaid は code block として保持する
+- [ ] 生成画像を page 添付にアップロードし、本文を `ri:attachment` 参照へ変換する
+
+### テストと受け入れ
+
+- [ ] unit tests を追加する（`internal/body`, `cmd`）
+- [ ] integration tests を追加する（`internal/integration`）
+- [ ] 回帰確認を追加する
+  - [ ] URL 画像の既存挙動を維持する
+  - [ ] `--body-format storage` の既存挙動を維持する
+  - [ ] Markdown 変換 fixture の既存挙動を維持する
+
 ## Phase 2: 拡張機能
 
 ### ページ補助操作
