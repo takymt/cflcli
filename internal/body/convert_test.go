@@ -94,6 +94,9 @@ func TestToStorage(t *testing.T) {
 		if !strings.Contains(got, "<li>child</li>") {
 			t.Fatalf("missing child list item: %q", got)
 		}
+		if strings.Contains(got, "<li>parent\n<ul>") {
+			t.Fatalf("unexpected soft-break-prone list markup: %q", got)
+		}
 	})
 
 	t.Run("same level list blank lines are tightened", func(t *testing.T) {

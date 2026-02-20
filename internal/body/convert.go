@@ -62,7 +62,7 @@ func ToStorage(content []byte, format string) (string, error) {
 }
 
 func htmlToConfluenceStorage(value string) string {
-	return codeBlockPattern.ReplaceAllStringFunc(value, func(match string) string {
+	storage := codeBlockPattern.ReplaceAllStringFunc(value, func(match string) string {
 		submatches := codeBlockPattern.FindStringSubmatch(match)
 		if len(submatches) != 3 {
 			return match
@@ -82,6 +82,15 @@ func htmlToConfluenceStorage(value string) string {
 			code,
 		)
 	})
+
+	// Confluence edit mode may treat line breaks between list item text and nested lists
+	// as soft line breaks. Collapse only list-adjacent newlines.
+	storage = strings.ReplaceAll(storage, "\n<ul>", "<ul>")
+	storage = strings.ReplaceAll(storage, "\n<ol>", "<ol>")
+	storage = strings.ReplaceAll(storage, "</ul>\n</li>", "</ul></li>")
+	storage = strings.ReplaceAll(storage, "</ol>\n</li>", "</ol></li>")
+
+	return storage
 }
 
 func normalizeListSpacing(markdown string) string {
