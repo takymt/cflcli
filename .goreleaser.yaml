@@ -46,4 +46,4 @@ sboms:
 release:
   github:
     owner: takymt
-    name: cfl
+    name: cflcli
