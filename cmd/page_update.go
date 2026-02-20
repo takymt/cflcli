@@ -9,9 +9,56 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
+	"github.com/takymt/cflcli/internal/body"
 	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
 )
+
+type pageUpdateOptions struct {
+	PageID     string
+	Title      string
+	BodyFile   string
+	BodyFormat string
+	ParentID   string
+}
+
+func newPageUpdateCmd() *cobra.Command {
+	opts := &pageUpdateOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "update <page-id>",
+		Short: "Update page",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("<page-id> is required\nUsage: cfl page update <page-id>")
+			}
+			if len(args) > 1 {
+				return fmt.Errorf("too many arguments\nUsage: cfl page update <page-id>")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.PageID = args[0]
+			return runPageUpdate(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	cmd.Flags().StringVar(&opts.Title, "title", "", "page title")
+	cmd.Flags().StringVar(&opts.BodyFile, "body-file", "", "path to storage format body file")
+	cmd.Flags().StringVar(&opts.BodyFormat, "body-format", body.FormatMarkdown, "body file format (markdown | storage)")
+	cmd.Flags().StringVar(&opts.ParentID, "parent-id", "", "parent page id")
+
+	return cmd
+}
+
+func runPageUpdate(out io.Writer, opts *pageUpdateOptions) error {
+	cfg, err := loadConfig("")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	return RunPageUpdateWithConfig(out, opts, cfg)
+}
 
 // RunPageUpdateWithConfig runs the page update command with a provided config.
 func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config.Config) error {

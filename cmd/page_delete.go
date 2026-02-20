@@ -9,9 +9,46 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
 )
+
+type pageDeleteOptions struct {
+	PageID string
+}
+
+func newPageDeleteCmd() *cobra.Command {
+	opts := &pageDeleteOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "delete <page-id>",
+		Short: "Delete page",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("<page-id> is required\nUsage: cfl page delete <page-id>")
+			}
+			if len(args) > 1 {
+				return fmt.Errorf("too many arguments\nUsage: cfl page delete <page-id>")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.PageID = args[0]
+			return runPageDelete(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	return cmd
+}
+
+func runPageDelete(out io.Writer, opts *pageDeleteOptions) error {
+	cfg, err := loadConfig("")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	return RunPageDeleteWithConfig(out, opts.PageID, cfg)
+}
 
 // RunPageDeleteWithConfig runs the page delete command with a provided config.
 func RunPageDeleteWithConfig(out io.Writer, pageID string, cfg *config.Config) error {

@@ -8,10 +8,84 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
 	"github.com/takymt/cflcli/internal/output"
 )
+
+// PageListOptions holds options for page listing.
+type PageListOptions struct {
+	SpaceID         string
+	SpaceKey        string
+	Cursor          string
+	Status          string
+	Sort            string
+	StatusSpecified bool
+	Limit           int
+}
+
+var pageListAllowedStatuses = map[string]struct{}{
+	"current":  {},
+	"archived": {},
+	"deleted":  {},
+	"trashed":  {},
+}
+
+var pageListAllowedSorts = map[string]struct{}{
+	"id":             {},
+	"-id":            {},
+	"created-date":   {},
+	"-created-date":  {},
+	"modified-date":  {},
+	"-modified-date": {},
+	"title":          {},
+	"-title":         {},
+}
+
+const pageListAllowedSortValues = "id, -id, created-date, -created-date, modified-date, -modified-date, title, -title"
+
+func newPageListCmd() *cobra.Command {
+	opts := &PageListOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List pages",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runPageList(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
+	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
+	cmd.Flags().StringVar(&opts.Cursor, "cursor", "", "pagination cursor")
+	cmd.Flags().StringVar(&opts.Status, "status", "", "page status filter (comma-separated)")
+	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort order")
+	cmd.Flags().IntVar(&opts.Limit, "limit", 25, "number of results per page")
+	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		if strings.Contains(err.Error(), "flag needs an argument: --sort") {
+			return fmt.Errorf("flag needs an argument: --sort; allowed values: %s", pageListAllowedSortValues)
+		}
+		return err
+	})
+
+	originalRunE := cmd.RunE
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		opts.StatusSpecified = cmd.Flags().Changed("status")
+		return originalRunE(cmd, args)
+	}
+
+	return cmd
+}
+
+func runPageList(out io.Writer, opts *PageListOptions) error {
+	cfg, err := loadConfig("")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	return RunPageListWithConfig(out, opts, cfg)
+}
 
 // RunPageListWithConfig runs the page list command with a provided config.
 func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Config) error {
@@ -29,7 +103,7 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	spaceID, err := resolvePageListSpaceID(opts, profile, cli)
+	spaceID, err := resolvePageSpaceID(opts.SpaceID, opts.SpaceKey, profile, cli)
 	if err != nil {
 		return err
 	}

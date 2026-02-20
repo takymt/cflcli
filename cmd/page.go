@@ -6,10 +6,33 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/body"
 	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
 )
+
+type pageBodyInput struct {
+	StorageBody      string
+	FrontMatterTitle string
+}
+
+const pageBodyFormatValues = "markdown, storage"
+
+func newPageCmd() *cobra.Command {
+	pageCmd := &cobra.Command{
+		Use:   "page",
+		Short: "Manage Confluence pages",
+	}
+
+	pageCmd.AddCommand(newPageListCmd())
+	pageCmd.AddCommand(newPageGetCmd())
+	pageCmd.AddCommand(newPageCreateCmd())
+	pageCmd.AddCommand(newPageUpdateCmd())
+	pageCmd.AddCommand(newPageDeleteCmd())
+
+	return pageCmd
+}
 
 func resolveProfile(cfg *config.Config) (*config.Profile, error) {
 	if profileFlag != "" {
@@ -25,10 +48,6 @@ func resolveProfile(cfg *config.Config) (*config.Profile, error) {
 		return nil, fmt.Errorf("no current profile; run 'cfl config init' or 'cfl use <name>'")
 	}
 	return profile, nil
-}
-
-func resolvePageListSpaceID(opts *PageListOptions, profile *config.Profile, cli *client.Client) (string, error) {
-	return resolvePageSpaceID(opts.SpaceID, opts.SpaceKey, profile, cli)
 }
 
 func resolvePageSpaceID(spaceID, spaceKey string, profile *config.Profile, cli *client.Client) (string, error) {

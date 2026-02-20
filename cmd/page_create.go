@@ -8,9 +8,50 @@ import (
 	"os"
 	"strings"
 
+	"github.com/spf13/cobra"
+	"github.com/takymt/cflcli/internal/body"
 	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
 )
+
+type pageCreateOptions struct {
+	Title      string
+	BodyFile   string
+	BodyFormat string
+	ParentID   string
+	SpaceID    string
+	SpaceKey   string
+}
+
+func newPageCreateCmd() *cobra.Command {
+	opts := &pageCreateOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create page",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runPageCreate(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	cmd.Flags().StringVar(&opts.Title, "title", "", "page title")
+	cmd.Flags().StringVar(&opts.BodyFile, "body-file", "", "path to storage format body file")
+	cmd.Flags().StringVar(&opts.BodyFormat, "body-format", body.FormatMarkdown, "body file format (markdown | storage)")
+	cmd.Flags().StringVar(&opts.ParentID, "parent-id", "", "parent page id")
+	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
+	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
+
+	return cmd
+}
+
+func runPageCreate(out io.Writer, opts *pageCreateOptions) error {
+	cfg, err := loadConfig("")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	return RunPageCreateWithConfig(out, opts, cfg)
+}
 
 // RunPageCreateWithConfig runs the page create command with a provided config.
 func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config.Config) error {
