@@ -124,6 +124,33 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("markdown task list converts to confluence task list", func(t *testing.T) {
+		input := strings.Join([]string{
+			"- [ ] タスク1",
+			"- [x] タスク2",
+			"- [×] これはタスクリストにしない",
+		}, "\n")
+		got, err := ToStorage([]byte(input), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, "<ac:task-list>") {
+			t.Fatalf("missing task list macro: %q", got)
+		}
+		if strings.Count(got, "<ac:task-status>") != 2 {
+			t.Fatalf("unexpected task count: %q", got)
+		}
+		if !strings.Contains(got, "<ac:task-status>incomplete</ac:task-status>") {
+			t.Fatalf("missing incomplete task status: %q", got)
+		}
+		if !strings.Contains(got, "<ac:task-status>complete</ac:task-status>") {
+			t.Fatalf("missing complete task status: %q", got)
+		}
+		if !strings.Contains(got, "これはタスクリストにしない") {
+			t.Fatalf("non task item was removed: %q", got)
+		}
+	})
+
 	t.Run("nested list blank line is tightened", func(t *testing.T) {
 		got, err := ToStorage([]byte("- parent\n\n  - child\n"), "markdown")
 		if err != nil {

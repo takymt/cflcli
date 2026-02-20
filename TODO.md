@@ -78,9 +78,9 @@
 - [x] 番号付きリストを正しく変換する
 - [x] リンク `[text](url)` を Confluence storage link へ変換する
 - [x] 画像 `![alt](url)` を Confluence storage image へ変換する
-- [ ] タスクリストを `<ac:task-list>` で厳密生成する
-  - [ ] 許可記法は `- [ ]` と `- [x]` のみ
-  - [ ] `- [×]` はタスクリストとして扱わない
+- [x] タスクリストを `<ac:task-list>` で厳密生成する
+  - [x] 許可記法は `- [ ]` と `- [x]` のみ
+  - [x] `- [×]` はタスクリストとして扱わない
 - [x] 引用（`>` とネスト引用 `>>`）を保持する
 - [x] 区切り線 `---` を変換する
 - [x] 強調記法を変換する（italic, bold, strike, inline code, escape）

@@ -27,6 +27,7 @@ var markdownConverter = goldmark.New(
 var (
 	codeBlockPattern = regexp.MustCompile(`(?s)<pre><code(?: class="language-([^"]+)")?>(.*?)</code></pre>`)
 	listItemPattern  = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
+	taskLinePattern  = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
 	hrTagPattern     = regexp.MustCompile(`(?i)<hr\s*/?>`)
 	anchorTagPattern = regexp.MustCompile(`(?s)<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>`)
 	imageTagPattern  = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
@@ -34,6 +35,16 @@ var (
 	altAttrPattern   = regexp.MustCompile(`\salt="([^"]*)"`)
 	htmlTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
 )
+
+type taskItem struct {
+	Complete bool
+	Body     string
+}
+
+type taskListPlaceholder struct {
+	Token string
+	Items []taskItem
+}
 
 // NormalizeFormat validates and normalizes body format.
 func NormalizeFormat(value string) (string, error) {
@@ -57,21 +68,23 @@ func ToStorage(content []byte, format string) (string, error) {
 	case FormatStorage:
 		return string(content), nil
 	case FormatMarkdown:
-		markdown := preprocessMarkdown(string(content))
+		markdown, taskPlaceholders := preprocessMarkdown(string(content))
 		html, err := markdownToHTML(markdown)
 		if err != nil {
 			return "", err
 		}
 
 		storage := htmlToConfluenceStorage(html)
+		storage = restoreTaskListPlaceholders(storage, taskPlaceholders)
 		return applyEditModeCompatibility(storage), nil
 	default:
 		return "", fmt.Errorf("unsupported body format: %s", normalized)
 	}
 }
 
-func preprocessMarkdown(markdown string) string {
-	return normalizeListSpacing(markdown)
+func preprocessMarkdown(markdown string) (string, []taskListPlaceholder) {
+	normalized := normalizeListSpacing(markdown)
+	return extractTaskLists(normalized)
 }
 
 func markdownToHTML(markdown string) (string, error) {
@@ -172,6 +185,113 @@ func applyEditModeCompatibility(storage string) string {
 	storage = strings.ReplaceAll(storage, "</ul>\n</li>", "</ul></li>")
 	storage = strings.ReplaceAll(storage, "</ol>\n</li>", "</ol></li>")
 	return storage
+}
+
+func extractTaskLists(markdown string) (string, []taskListPlaceholder) {
+	lines := strings.Split(markdown, "\n")
+	normalized := make([]string, 0, len(lines))
+	placeholders := make([]taskListPlaceholder, 0)
+
+	for i := 0; i < len(lines); {
+		indent, item, ok := parseTaskLine(lines[i])
+		if !ok {
+			normalized = append(normalized, lines[i])
+			i++
+			continue
+		}
+
+		items := []taskItem{item}
+		i++
+		for i < len(lines) {
+			nextIndent, nextItem, nextOK := parseTaskLine(lines[i])
+			if !nextOK || nextIndent != indent {
+				break
+			}
+			items = append(items, nextItem)
+			i++
+		}
+
+		token := fmt.Sprintf("@@CFL_TASK_LIST_%d@@", len(placeholders)+1)
+		placeholders = append(placeholders, taskListPlaceholder{
+			Token: token,
+			Items: items,
+		})
+		normalized = append(normalized, token)
+	}
+
+	return strings.Join(normalized, "\n"), placeholders
+}
+
+func parseTaskLine(line string) (int, taskItem, bool) {
+	matches := taskLinePattern.FindStringSubmatch(line)
+	if len(matches) != 4 {
+		return 0, taskItem{}, false
+	}
+
+	indent := 0
+	for _, r := range matches[1] {
+		if r == '\t' {
+			indent += 4
+			continue
+		}
+		indent++
+	}
+
+	return indent, taskItem{
+		Complete: matches[2] == "x",
+		Body:     strings.TrimSpace(matches[3]),
+	}, true
+}
+
+func restoreTaskListPlaceholders(storage string, placeholders []taskListPlaceholder) string {
+	for _, placeholder := range placeholders {
+		macro := buildTaskListMacro(placeholder.Items)
+		storage = strings.ReplaceAll(storage, "<p>"+placeholder.Token+"</p>", macro)
+		storage = strings.ReplaceAll(storage, placeholder.Token, macro)
+	}
+	return storage
+}
+
+func buildTaskListMacro(items []taskItem) string {
+	var b strings.Builder
+	b.WriteString("<ac:task-list>")
+	for i, item := range items {
+		status := "incomplete"
+		if item.Complete {
+			status = "complete"
+		}
+		b.WriteString("<ac:task>")
+		b.WriteString(fmt.Sprintf("<ac:task-id>%d</ac:task-id>", i+1))
+		b.WriteString("<ac:task-status>")
+		b.WriteString(status)
+		b.WriteString("</ac:task-status>")
+		b.WriteString("<ac:task-body>")
+		b.WriteString(renderInlineTaskBody(item.Body))
+		b.WriteString("</ac:task-body>")
+		b.WriteString("</ac:task>")
+	}
+	b.WriteString("</ac:task-list>")
+	return b.String()
+}
+
+func renderInlineTaskBody(text string) string {
+	if strings.TrimSpace(text) == "" {
+		return ""
+	}
+
+	html, err := markdownToHTML(text)
+	if err != nil {
+		return stdhtml.EscapeString(text)
+	}
+
+	inline := strings.TrimSpace(html)
+	inline = strings.TrimPrefix(inline, "<p>")
+	inline = strings.TrimSuffix(inline, "</p>")
+	inline = strings.TrimSpace(inline)
+	if inline == "" {
+		return stdhtml.EscapeString(text)
+	}
+	return htmlToConfluenceStorage(inline)
 }
 
 func trimTrailingCodeFenceNewline(code string) string {
