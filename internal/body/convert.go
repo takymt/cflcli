@@ -29,6 +29,9 @@ var (
 	listItemPattern  = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
 	hrTagPattern     = regexp.MustCompile(`(?i)<hr\s*/?>`)
 	anchorTagPattern = regexp.MustCompile(`(?s)<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>`)
+	imageTagPattern  = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
+	srcAttrPattern   = regexp.MustCompile(`\ssrc="([^"]*)"`)
+	altAttrPattern   = regexp.MustCompile(`\salt="([^"]*)"`)
 	htmlTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
 )
 
@@ -81,6 +84,7 @@ func markdownToHTML(markdown string) (string, error) {
 
 func htmlToConfluenceStorage(value string) string {
 	storage := convertAnchorTags(value)
+	storage = convertImageTags(storage)
 	storage = codeBlockPattern.ReplaceAllStringFunc(storage, func(match string) string {
 		submatches := codeBlockPattern.FindStringSubmatch(match)
 		if len(submatches) != 3 {
@@ -126,6 +130,37 @@ func convertAnchorTags(value string) string {
 			`" /><ac:plain-text-link-body><![CDATA[` +
 			text +
 			`]]></ac:plain-text-link-body></ac:link>`
+	})
+}
+
+func convertImageTags(value string) string {
+	return imageTagPattern.ReplaceAllStringFunc(value, func(match string) string {
+		srcMatches := srcAttrPattern.FindStringSubmatch(match)
+		if len(srcMatches) != 2 {
+			return match
+		}
+
+		src := stdhtml.UnescapeString(srcMatches[1])
+		if strings.TrimSpace(src) == "" {
+			return match
+		}
+
+		alt := ""
+		if altMatches := altAttrPattern.FindStringSubmatch(match); len(altMatches) == 2 {
+			alt = stdhtml.UnescapeString(altMatches[1])
+		}
+
+		if strings.TrimSpace(alt) == "" {
+			return `<ac:image><ri:url ri:value="` +
+				stdhtml.EscapeString(src) +
+				`" /></ac:image>`
+		}
+
+		return `<ac:image ac:alt="` +
+			stdhtml.EscapeString(alt) +
+			`"><ri:url ri:value="` +
+			stdhtml.EscapeString(src) +
+			`" /></ac:image>`
 	})
 }
 

@@ -105,6 +105,25 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("markdown image converts to confluence image", func(t *testing.T) {
+		got, err := ToStorage([]byte(`![alt-text](https://example.com/image.png)`), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, `<ac:image`) {
+			t.Fatalf("missing image tag: %q", got)
+		}
+		if !strings.Contains(got, `ac:alt="alt-text"`) {
+			t.Fatalf("missing image alt: %q", got)
+		}
+		if !strings.Contains(got, `ri:url ri:value="https://example.com/image.png"`) {
+			t.Fatalf("missing image url: %q", got)
+		}
+		if strings.Contains(got, "<img ") {
+			t.Fatalf("raw img tag remains: %q", got)
+		}
+	})
+
 	t.Run("nested list blank line is tightened", func(t *testing.T) {
 		got, err := ToStorage([]byte("- parent\n\n  - child\n"), "markdown")
 		if err != nil {
