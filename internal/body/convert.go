@@ -28,6 +28,8 @@ var (
 	codeBlockPattern = regexp.MustCompile(`(?s)<pre><code(?: class="language-([^"]+)")?>(.*?)</code></pre>`)
 	listItemPattern  = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
 	hrTagPattern     = regexp.MustCompile(`(?i)<hr\s*/?>`)
+	anchorTagPattern = regexp.MustCompile(`(?s)<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>`)
+	htmlTagPattern   = regexp.MustCompile(`(?s)<[^>]+>`)
 )
 
 // NormalizeFormat validates and normalizes body format.
@@ -78,7 +80,8 @@ func markdownToHTML(markdown string) (string, error) {
 }
 
 func htmlToConfluenceStorage(value string) string {
-	storage := codeBlockPattern.ReplaceAllStringFunc(value, func(match string) string {
+	storage := convertAnchorTags(value)
+	storage = codeBlockPattern.ReplaceAllStringFunc(storage, func(match string) string {
 		submatches := codeBlockPattern.FindStringSubmatch(match)
 		if len(submatches) != 3 {
 			return match
@@ -101,6 +104,29 @@ func htmlToConfluenceStorage(value string) string {
 	})
 	storage = hrTagPattern.ReplaceAllString(storage, "<hr />")
 	return storage
+}
+
+func convertAnchorTags(value string) string {
+	return anchorTagPattern.ReplaceAllStringFunc(value, func(match string) string {
+		submatches := anchorTagPattern.FindStringSubmatch(match)
+		if len(submatches) != 3 {
+			return match
+		}
+
+		url := stdhtml.UnescapeString(submatches[1])
+		text := strings.TrimSpace(htmlTagPattern.ReplaceAllString(submatches[2], ""))
+		if text == "" {
+			text = url
+		}
+		text = stdhtml.UnescapeString(text)
+		text = strings.ReplaceAll(text, "]]>", "]]]]><![CDATA[>")
+
+		return `<ac:link><ri:url ri:value="` +
+			stdhtml.EscapeString(url) +
+			`" /><ac:plain-text-link-body><![CDATA[` +
+			text +
+			`]]></ac:plain-text-link-body></ac:link>`
+	})
 }
 
 func applyEditModeCompatibility(storage string) string {

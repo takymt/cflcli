@@ -86,6 +86,25 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("markdown link converts to confluence link macro", func(t *testing.T) {
+		got, err := ToStorage([]byte(`[アンカーテキスト](https://example.com/docs)`), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, `<ac:link>`) {
+			t.Fatalf("missing link macro: %q", got)
+		}
+		if !strings.Contains(got, `ri:url ri:value="https://example.com/docs"`) {
+			t.Fatalf("missing link url: %q", got)
+		}
+		if !strings.Contains(got, `<![CDATA[アンカーテキスト]]>`) {
+			t.Fatalf("missing link body: %q", got)
+		}
+		if strings.Contains(got, "<a href=") {
+			t.Fatalf("raw anchor tag remains: %q", got)
+		}
+	})
+
 	t.Run("nested list blank line is tightened", func(t *testing.T) {
 		got, err := ToStorage([]byte("- parent\n\n  - child\n"), "markdown")
 		if err != nil {

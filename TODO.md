@@ -76,7 +76,7 @@
 - [x] 箇条書き（ネスト含む）を edit/view で同等表示にする
   - [x] list 項目間や親子 list 前後で不要な soft 改行を入れない
 - [x] 番号付きリストを正しく変換する
-- [ ] リンク `[text](url)` を Confluence storage link へ変換する
+- [x] リンク `[text](url)` を Confluence storage link へ変換する
 - [ ] 画像 `![alt](url)` を Confluence storage image へ変換する
 - [ ] タスクリストを `<ac:task-list>` で厳密生成する
   - [ ] 許可記法は `- [ ]` と `- [x]` のみ
