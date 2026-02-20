@@ -44,11 +44,11 @@
 
 - [x] `cfl page list [--space-id ID] [--limit N]`
   - [x] `list` `--space-id` `--limit`
-  - [ ] `--cursor` ページング
-    - [ ] IF `--cursor` が未指定 THEN `/pages` リクエストに `cursor` クエリを付与しない
-    - [ ] IF `--cursor` が指定される THEN `/pages` リクエストに `cursor=<value>` を付与する
-    - [ ] IF `--output json` THEN 返却された `next` をそのまま出力し次回の `--cursor` に利用できる
-    - [ ] IF `--cursor` が無効または期限切れで API が 4xx を返す THEN 再取得が必要だと分かるエラーを表示して終了する
+  - [x] `--cursor` ページング
+    - [x] IF `--cursor` が未指定 THEN `/pages` リクエストに `cursor` クエリを付与しない
+    - [x] IF `--cursor` が指定される THEN `/pages` リクエストに `cursor=<value>` を付与する
+    - [x] IF `--output json` THEN 返却された `next` をそのまま出力し次回の `--cursor` に利用できる
+    - [x] IF `--cursor` が無効または期限切れで API が 4xx を返す THEN 再取得が必要だと分かるエラーを表示して終了する
   - [ ] `--status` ページ状態フィルタ
     - [ ] IF `--status` が未指定 THEN `status=current` のみを付与して取得する
     - [ ] IF `--status` が指定される THEN カンマ区切りの値を分割し `status` クエリを複数付与する

@@ -166,6 +166,9 @@ func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {
 		!strings.Contains(gotPagesQuery, "status=current") {
 		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
 	}
+	if strings.Contains(gotPagesQuery, "cursor=") {
+		t.Fatalf("unexpected cursor query: %q", gotPagesQuery)
+	}
 
 	var payload struct {
 		Request struct {
@@ -271,6 +274,52 @@ func TestRunPageListWithConfig_Table_ShowsStatusWhenExplicitStatus(t *testing.T)
 	}
 }
 
+func TestRunPageListWithConfig_JSON_UsesCursor(t *testing.T) {
+	var gotPagesQuery string
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
+		case "/wiki/api/v2/pages":
+			gotPagesQuery = r.URL.RawQuery
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[],"_links":{"next":"cursor-3"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "json")
+
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+
+	var out bytes.Buffer
+	err := RunPageListWithConfig(&out, &PageListOptions{
+		Limit:  10,
+		Cursor: "cursor-2",
+	}, cfg)
+	if err != nil {
+		t.Fatalf("RunPageListWithConfig: %v", err)
+	}
+
+	if !strings.Contains(gotPagesQuery, "cursor=cursor-2") {
+		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
+	}
+
+	var payload struct {
+		Next string `json:"next"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+	if payload.Next != "cursor-3" {
+		t.Fatalf("unexpected next: %q", payload.Next)
+	}
+}
+
 func TestRunPageListWithConfig_SpaceSelectorErrors(t *testing.T) {
 	t.Setenv("CONFLUENCE_API_TOKEN", "token")
 
@@ -304,6 +353,27 @@ func TestRunPageListWithConfig_SpaceSelectorErrors(t *testing.T) {
 
 		err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{SpaceKey: "WORK", Limit: 1}, cfg)
 		if err == nil || !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("invalid cursor returns actionable error", func(t *testing.T) {
+		srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/wiki/api/v2/pages" {
+				http.NotFound(w, r)
+				return
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = w.Write([]byte(`{"message":"invalid cursor"}`))
+		}))
+		cfg := newPageListConfig(srv.URL, "")
+
+		err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{
+			SpaceID: "123",
+			Limit:   1,
+			Cursor:  "bad-cursor",
+		}, cfg)
+		if err == nil || !strings.Contains(err.Error(), "invalid or expired") {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})

@@ -21,6 +21,17 @@ type Client struct {
 	token      string
 }
 
+// HTTPError represents a non-2xx response from Confluence API.
+type HTTPError struct {
+	StatusCode int
+	Status     string
+	Body       string
+}
+
+func (e *HTTPError) Error() string {
+	return fmt.Sprintf("request failed: %s: %s", e.Status, e.Body)
+}
+
 // DefaultHTTPClient is used when no custom client is provided.
 var DefaultHTTPClient = http.DefaultClient
 
@@ -76,7 +87,11 @@ func (c *Client) do(req *http.Request, decode func(*json.Decoder) error) error {
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("request failed: %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return &HTTPError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Body:       strings.TrimSpace(string(body)),
+		}
 	}
 
 	return decode(json.NewDecoder(resp.Body))

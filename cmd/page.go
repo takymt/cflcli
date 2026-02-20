@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -17,6 +18,7 @@ import (
 type PageListOptions struct {
 	SpaceID         string
 	SpaceKey        string
+	Cursor          string
 	Status          string
 	StatusSpecified bool
 	Limit           int
@@ -47,6 +49,7 @@ func newPageListCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
 	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
+	cmd.Flags().StringVar(&opts.Cursor, "cursor", "", "pagination cursor")
 	cmd.Flags().StringVar(&opts.Status, "status", "", "page status filter (comma-separated)")
 	cmd.Flags().IntVar(&opts.Limit, "limit", 25, "number of results per page")
 
@@ -85,8 +88,12 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	result, err := cli.ListPages(spaceID, opts.Limit, "", statuses)
+	result, err := cli.ListPages(spaceID, opts.Limit, opts.Cursor, statuses)
 	if err != nil {
+		var httpErr *client.HTTPError
+		if opts.Cursor != "" && errors.As(err, &httpErr) && httpErr.StatusCode >= 400 && httpErr.StatusCode < 500 {
+			return fmt.Errorf("cursor %q is invalid or expired; rerun without --cursor to get a new cursor: %w", opts.Cursor, err)
+		}
 		return err
 	}
 
