@@ -216,6 +216,78 @@ func TestCreatePage_RequestAndAuth(t *testing.T) {
 	}
 }
 
+func TestUpdatePage_RequestAndAuth(t *testing.T) {
+	var gotBody struct {
+		ID       string `json:"id"`
+		Status   string `json:"status"`
+		Title    string `json:"title"`
+		ParentID string `json:"parentId"`
+		Body     struct {
+			Storage struct {
+				Representation string `json:"representation"`
+				Value          string `json:"value"`
+			} `json:"storage"`
+		} `json:"body"`
+		Version struct {
+			Number int `json:"number"`
+		} `json:"version"`
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Fatalf("method=%q", r.Method)
+		}
+		if r.URL.Path != "/wiki/api/v2/pages/123" {
+			http.NotFound(w, r)
+			return
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "u@example.com" || pass != "token" {
+			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
+		}
+		bodyBytes, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		if err := json.Unmarshal(bodyBytes, &gotBody); err != nil {
+			t.Fatalf("unmarshal body: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"123","title":"Updated Doc","status":"current","spaceId":"SPACE-1"}`))
+	}))
+	defer srv.Close()
+
+	old := DefaultHTTPClient
+	DefaultHTTPClient = srv.Client()
+	t.Cleanup(func() { DefaultHTTPClient = old })
+
+	cli, err := New(
+		context.Background(),
+		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
+		"token",
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	updated, err := cli.UpdatePage("123", "Updated Doc", "<p>Updated</p>", "55", 8)
+	if err != nil {
+		t.Fatalf("UpdatePage: %v", err)
+	}
+	if updated.ID != "123" || updated.Title != "Updated Doc" {
+		t.Fatalf("unexpected updated page: %+v", updated)
+	}
+	if gotBody.ID != "123" || gotBody.Status != "current" || gotBody.Title != "Updated Doc" || gotBody.ParentID != "55" {
+		t.Fatalf("unexpected update payload: %+v", gotBody)
+	}
+	if gotBody.Version.Number != 8 {
+		t.Fatalf("unexpected update version payload: %+v", gotBody.Version)
+	}
+	if gotBody.Body.Storage.Representation != "storage" || gotBody.Body.Storage.Value != "<p>Updated</p>" {
+		t.Fatalf("unexpected update body payload: %+v", gotBody.Body.Storage)
+	}
+}
+
 func TestGetPage_QueryAndAuth(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/wiki/api/v2/pages/123" {

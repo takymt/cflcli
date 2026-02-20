@@ -84,6 +84,47 @@ func (c *Client) CreatePage(spaceID, title, body, parentID string) (*Page, error
 	return &result, nil
 }
 
+// UpdatePage updates a page in storage format.
+func (c *Client) UpdatePage(pageID, title, body, parentID string, nextVersion int) (*Page, error) {
+	pageID = strings.TrimSpace(pageID)
+	if pageID == "" {
+		return nil, fmt.Errorf("page id is required")
+	}
+	title = strings.TrimSpace(title)
+	if title == "" {
+		return nil, fmt.Errorf("title is required")
+	}
+	if nextVersion < 1 {
+		return nil, fmt.Errorf("version must be >= 1")
+	}
+
+	req := model.PageUpdateRequest{
+		ID:     pageID,
+		Status: "current",
+		Title:  title,
+		Body: model.PageCreateBody{
+			Storage: model.BodyType{
+				Representation: "storage",
+				Value:          body,
+			},
+		},
+		Version: model.PageUpdateRequestVersion{
+			Number: nextVersion,
+		},
+	}
+	if trimmedParentID := strings.TrimSpace(parentID); trimmedParentID != "" {
+		req.ParentID = trimmedParentID
+	}
+
+	var result Page
+	if err := c.put("/pages/"+url.PathEscape(pageID), url.Values{}, req, func(decoder *json.Decoder) error {
+		return decoder.Decode(&result)
+	}); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // GetPage gets a page by ID in storage body format.
 func (c *Client) GetPage(pageID string) (*PageDetail, error) {
 	pageID = strings.TrimSpace(pageID)

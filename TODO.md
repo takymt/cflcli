@@ -63,7 +63,7 @@
       - 許可値: `id`, `-id`, `created-date`, `-created-date`, `modified-date`, `-modified-date`, `title`, `-title`
 - [x] `cfl page get <page-id>`
 - [x] `cfl page create --title TITLE --body-file FILE [--parent-id ID]`
-- [ ] `cfl page update <page-id> --title TITLE --body-file FILE --version N`
+- [x] `cfl page update <page-id> --title TITLE --body-file FILE`（versionは自動解決）
 - [ ] `cfl page delete <page-id>`
 
 ## Phase 2: 拡張機能

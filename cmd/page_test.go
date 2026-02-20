@@ -613,6 +613,11 @@ func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
 	var gotSpacesQuery string
 	var gotPayload struct {
 		SpaceID string `json:"spaceId"`
+		Body    struct {
+			Storage struct {
+				Value string `json:"value"`
+			} `json:"storage"`
+		} `json:"body"`
 	}
 
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -640,7 +645,7 @@ func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageCreateOptions{
 		Title:    "New Doc",
-		BodyFile: writeTempBodyFile(t, "<p>Hello</p>"),
+		BodyFile: writeTempBodyFile(t, "Hello **world**"),
 	}
 
 	var out bytes.Buffer
@@ -653,6 +658,9 @@ func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
 	}
 	if gotPayload.SpaceID != "SPACE-1" {
 		t.Fatalf("unexpected payload: %+v", gotPayload)
+	}
+	if !strings.Contains(gotPayload.Body.Storage.Value, "<strong>world</strong>") {
+		t.Fatalf("unexpected markdown conversion: %q", gotPayload.Body.Storage.Value)
 	}
 
 	raw := out.String()
@@ -668,6 +676,11 @@ func TestRunPageCreateWithConfig_JSON_UsesSpaceID(t *testing.T) {
 	var gotPayload struct {
 		SpaceID  string `json:"spaceId"`
 		ParentID string `json:"parentId"`
+		Body     struct {
+			Storage struct {
+				Value string `json:"value"`
+			} `json:"storage"`
+		} `json:"body"`
 	}
 
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -692,10 +705,11 @@ func TestRunPageCreateWithConfig_JSON_UsesSpaceID(t *testing.T) {
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageCreateOptions{
-		Title:    "Child Doc",
-		BodyFile: writeTempBodyFile(t, "<p>child</p>"),
-		ParentID: "55",
-		SpaceID:  "SPACE-99",
+		Title:      "Child Doc",
+		BodyFile:   writeTempBodyFile(t, "<p>child</p>"),
+		BodyFormat: "storage",
+		ParentID:   "55",
+		SpaceID:    "SPACE-99",
 	}
 
 	var out bytes.Buffer
@@ -705,6 +719,9 @@ func TestRunPageCreateWithConfig_JSON_UsesSpaceID(t *testing.T) {
 
 	if gotPayload.SpaceID != "SPACE-99" || gotPayload.ParentID != "55" {
 		t.Fatalf("unexpected payload: %+v", gotPayload)
+	}
+	if gotPayload.Body.Storage.Value != "<p>child</p>" {
+		t.Fatalf("unexpected storage passthrough: %q", gotPayload.Body.Storage.Value)
 	}
 
 	var created struct {
@@ -762,6 +779,15 @@ func TestRunPageCreateWithConfig_Validation(t *testing.T) {
 			},
 			wantErrSub: "mutually exclusive",
 		},
+		{
+			name: "invalid body format",
+			opts: &pageCreateOptions{
+				Title:      "Doc",
+				BodyFile:   writeTempBodyFile(t, "<p>Hello</p>"),
+				BodyFormat: "wiki",
+			},
+			wantErrSub: "invalid body format",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -772,6 +798,110 @@ func TestRunPageCreateWithConfig_Validation(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 		})
+	}
+}
+
+func TestRunPageUpdateWithConfig_JSON_AutoVersion(t *testing.T) {
+	var gotVersion int
+	var gotBodyValue string
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/pages/123":
+			if r.Method == http.MethodGet {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"123","title":"Old","status":"current","spaceId":"SPACE-1","version":{"number":7},"body":{"storage":{"representation":"storage","value":"<p>old</p>"}}}`))
+				return
+			}
+			if r.Method == http.MethodPut {
+				var payload struct {
+					Version struct {
+						Number int `json:"number"`
+					} `json:"version"`
+					Body struct {
+						Storage struct {
+							Value string `json:"value"`
+						} `json:"storage"`
+					} `json:"body"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Fatalf("decode update payload: %v", err)
+				}
+				gotVersion = payload.Version.Number
+				gotBodyValue = payload.Body.Storage.Value
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"123","title":"Updated","status":"current","spaceId":"SPACE-1"}`))
+				return
+			}
+			t.Fatalf("unexpected method: %s", r.Method)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "json")
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageUpdateOptions{
+		PageID:   "123",
+		Title:    "Updated",
+		BodyFile: writeTempBodyFile(t, "updated **body**"),
+	}
+
+	var out bytes.Buffer
+	if err := RunPageUpdateWithConfig(&out, opts, cfg); err != nil {
+		t.Fatalf("RunPageUpdateWithConfig: %v", err)
+	}
+	if gotVersion != 8 {
+		t.Fatalf("version=%d want 8", gotVersion)
+	}
+	if !strings.Contains(gotBodyValue, "<strong>body</strong>") {
+		t.Fatalf("unexpected body conversion: %q", gotBodyValue)
+	}
+
+	var payload struct {
+		ID    string `json:"id"`
+		Title string `json:"title"`
+	}
+	if err := json.Unmarshal(out.Bytes(), &payload); err != nil {
+		t.Fatalf("json unmarshal: %v", err)
+	}
+	if payload.ID != "123" || payload.Title != "Updated" {
+		t.Fatalf("unexpected output: %+v", payload)
+	}
+}
+
+func TestRunPageUpdateWithConfig_Conflict(t *testing.T) {
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/pages/123":
+			if r.Method == http.MethodGet {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"123","title":"Old","status":"current","spaceId":"SPACE-1","version":{"number":7},"body":{"storage":{"representation":"storage","value":"<p>old</p>"}}}`))
+				return
+			}
+			if r.Method == http.MethodPut {
+				w.WriteHeader(http.StatusConflict)
+				_, _ = w.Write([]byte(`{"message":"version conflict"}`))
+				return
+			}
+			t.Fatalf("unexpected method: %s", r.Method)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageUpdateOptions{
+		PageID:   "123",
+		Title:    "Updated",
+		BodyFile: writeTempBodyFile(t, "updated"),
+	}
+
+	err := RunPageUpdateWithConfig(&bytes.Buffer{}, opts, cfg)
+	if err == nil || !strings.Contains(err.Error(), "update conflict") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

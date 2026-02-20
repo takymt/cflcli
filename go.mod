@@ -7,6 +7,7 @@ require (
 	github.com/fatih/color v1.18.0
 	github.com/mattn/go-runewidth v0.0.16
 	github.com/spf13/cobra v1.10.2
+	github.com/yuin/goldmark v1.7.13
 	golang.org/x/term v0.40.0
 )
 

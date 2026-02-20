@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/takymt/cflcli/internal/body"
 	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
 	"github.com/takymt/cflcli/internal/output"
@@ -31,11 +32,20 @@ type pageGetOptions struct {
 }
 
 type pageCreateOptions struct {
-	Title    string
-	BodyFile string
-	ParentID string
-	SpaceID  string
-	SpaceKey string
+	Title      string
+	BodyFile   string
+	BodyFormat string
+	ParentID   string
+	SpaceID    string
+	SpaceKey   string
+}
+
+type pageUpdateOptions struct {
+	PageID     string
+	Title      string
+	BodyFile   string
+	BodyFormat string
+	ParentID   string
 }
 
 var pageListAllowedStatuses = map[string]struct{}{
@@ -57,6 +67,7 @@ var pageListAllowedSorts = map[string]struct{}{
 }
 
 const pageListAllowedSortValues = "id, -id, created-date, -created-date, modified-date, -modified-date, title, -title"
+const pageBodyFormatValues = "markdown, storage"
 
 func newPageCmd() *cobra.Command {
 	pageCmd := &cobra.Command{
@@ -67,6 +78,7 @@ func newPageCmd() *cobra.Command {
 	pageCmd.AddCommand(newPageListCmd())
 	pageCmd.AddCommand(newPageGetCmd())
 	pageCmd.AddCommand(newPageCreateCmd())
+	pageCmd.AddCommand(newPageUpdateCmd())
 
 	return pageCmd
 }
@@ -143,9 +155,39 @@ func newPageCreateCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&opts.Title, "title", "", "page title")
 	cmd.Flags().StringVar(&opts.BodyFile, "body-file", "", "path to storage format body file")
+	cmd.Flags().StringVar(&opts.BodyFormat, "body-format", body.FormatMarkdown, "body file format (markdown | storage)")
 	cmd.Flags().StringVar(&opts.ParentID, "parent-id", "", "parent page id")
 	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
 	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
+
+	return cmd
+}
+
+func newPageUpdateCmd() *cobra.Command {
+	opts := &pageUpdateOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "update <page-id>",
+		Short: "Update page",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("page id is required\nUsage: cfl page update <page-id>")
+			}
+			if len(args) > 1 {
+				return fmt.Errorf("too many arguments\nUsage: cfl page update <page-id>")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.PageID = args[0]
+			return runPageUpdate(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	cmd.Flags().StringVar(&opts.Title, "title", "", "page title")
+	cmd.Flags().StringVar(&opts.BodyFile, "body-file", "", "path to storage format body file")
+	cmd.Flags().StringVar(&opts.BodyFormat, "body-format", body.FormatMarkdown, "body file format (markdown | storage)")
+	cmd.Flags().StringVar(&opts.ParentID, "parent-id", "", "parent page id")
 
 	return cmd
 }
@@ -235,6 +277,14 @@ func runPageCreate(out io.Writer, opts *pageCreateOptions) error {
 	return RunPageCreateWithConfig(out, opts, cfg)
 }
 
+func runPageUpdate(out io.Writer, opts *pageUpdateOptions) error {
+	cfg, err := loadConfig("")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	return RunPageUpdateWithConfig(out, opts, cfg)
+}
+
 // RunPageGetWithConfig runs the page get command with a provided config.
 func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) error {
 	profile, err := resolveProfile(cfg)
@@ -270,10 +320,9 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 	if bodyFile == "" {
 		return fmt.Errorf("body file is required")
 	}
-
-	body, err := os.ReadFile(bodyFile)
+	bodyStorage, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
 	if err != nil {
-		return fmt.Errorf("read body file: %w", err)
+		return err
 	}
 
 	profile, err := resolveProfile(cfg)
@@ -291,7 +340,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return err
 	}
 
-	created, err := cli.CreatePage(spaceID, title, string(body), opts.ParentID)
+	created, err := cli.CreatePage(spaceID, title, bodyStorage, opts.ParentID)
 	if err != nil {
 		return err
 	}
@@ -303,6 +352,65 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
 		return enc.Encode(created)
+	default:
+		return fmt.Errorf("unsupported output format: %s", outputFlag)
+	}
+}
+
+// RunPageUpdateWithConfig runs the page update command with a provided config.
+func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config.Config) error {
+	title := strings.TrimSpace(opts.Title)
+	if title == "" {
+		return fmt.Errorf("title is required")
+	}
+	bodyFile := strings.TrimSpace(opts.BodyFile)
+	if bodyFile == "" {
+		return fmt.Errorf("body file is required")
+	}
+	bodyStorage, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
+	if err != nil {
+		return err
+	}
+
+	profile, err := resolveProfile(cfg)
+	if err != nil {
+		return err
+	}
+
+	cli, err := client.New(context.Background(), profile, os.Getenv("CONFLUENCE_API_TOKEN"))
+	if err != nil {
+		return err
+	}
+
+	current, err := cli.GetPage(opts.PageID)
+	if err != nil {
+		var httpErr *client.HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {
+			return fmt.Errorf("page %q not found", opts.PageID)
+		}
+		return err
+	}
+	if current.Version.Number < 1 {
+		return fmt.Errorf("page %q has invalid current version", opts.PageID)
+	}
+
+	updated, err := cli.UpdatePage(opts.PageID, title, bodyStorage, opts.ParentID, current.Version.Number+1)
+	if err != nil {
+		var httpErr *client.HTTPError
+		if errors.As(err, &httpErr) &&
+			(httpErr.StatusCode == 409 || (httpErr.StatusCode == 400 && strings.Contains(strings.ToLower(httpErr.Body), "version"))) {
+			return fmt.Errorf("update conflict: page %q was modified by another user; fetch latest and retry", opts.PageID)
+		}
+		return err
+	}
+
+	switch outputFlag {
+	case "table":
+		return output.WritePagesTable(out, []client.Page{*updated}, false)
+	case "json":
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(updated)
 	default:
 		return fmt.Errorf("unsupported output format: %s", outputFlag)
 	}
@@ -345,6 +453,33 @@ func resolvePageSpaceID(spaceID, spaceKey string, profile *config.Profile, cli *
 	}
 
 	return cli.ResolveSpaceIDByKey(spaceKey)
+}
+
+func normalizePageBodyFormat(value string) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		return body.FormatMarkdown, nil
+	}
+	format, err := body.NormalizeFormat(value)
+	if err != nil {
+		return "", fmt.Errorf("invalid body format %q; allowed values: %s", value, pageBodyFormatValues)
+	}
+	return format, nil
+}
+
+func loadPageStorageBody(path, format string) (string, error) {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("read body file: %w", err)
+	}
+	normalized, err := normalizePageBodyFormat(format)
+	if err != nil {
+		return "", err
+	}
+	storage, err := body.ToStorage(content, normalized)
+	if err != nil {
+		return "", err
+	}
+	return storage, nil
 }
 
 func resolvePageListStatuses(opts *PageListOptions) ([]string, bool, error) {
