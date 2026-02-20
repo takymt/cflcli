@@ -86,6 +86,22 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("markdown code fence without language defaults to text", func(t *testing.T) {
+		got, err := ToStorage([]byte("```\nconst x = 1;\n```"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, `<ac:structured-macro ac:name="code">`) {
+			t.Fatalf("missing code macro: %q", got)
+		}
+		if !strings.Contains(got, `<ac:parameter ac:name="language">text</ac:parameter>`) {
+			t.Fatalf("missing default text language: %q", got)
+		}
+		if strings.Contains(got, "const x = 1;\n]]>") {
+			t.Fatalf("unexpected trailing newline in code block: %q", got)
+		}
+	})
+
 	t.Run("markdown link converts to confluence link macro", func(t *testing.T) {
 		got, err := ToStorage([]byte(`[アンカーテキスト](https://example.com/docs)`), "markdown")
 		if err != nil {

@@ -84,9 +84,9 @@
 - [x] 引用（`>` とネスト引用 `>>`）を保持する
 - [x] 区切り線 `---` を変換する
 - [x] 強調記法を変換する（italic, bold, strike, inline code, escape）
-- [ ] fenced code block を Confluence code macro に変換する
-  - [ ] language 未指定時は `text`
-  - [ ] code block 末尾の余計な改行を除去して edit 上の行数ずれを防ぐ
+- [x] fenced code block を Confluence code macro に変換する
+  - [x] language 未指定時は `text`
+  - [x] code block 末尾の余計な改行を除去して edit 上の行数ずれを防ぐ
 - [ ] URL 単独行をリンクカード（block card）として変換する
 - [ ] `:emoji_id:` は Confluence 絵文字セット準拠で変換する
 - [ ] 折りたたみ（expand macro）をサポートする
