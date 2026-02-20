@@ -53,3 +53,36 @@ func TestPageListSmoke(t *testing.T) {
 		t.Fatalf("expected at most one result, got %d", len(result.Results))
 	}
 }
+
+func TestPageGetSmoke(t *testing.T) {
+	profile, token := integrationProfile(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	cli, err := client.New(ctx, profile, token)
+	if err != nil {
+		t.Fatalf("client.New: %v", err)
+	}
+
+	spaceID := strings.TrimSpace(os.Getenv("CFL_IT_SPACE_ID"))
+	list, err := cli.ListPages(spaceID, 1, "", []string{"current"}, "id")
+	if err != nil {
+		t.Fatalf("ListPages: %v", err)
+	}
+	if len(list.Results) == 0 {
+		t.Skip("no current pages available for page get smoke test")
+	}
+
+	pageID := list.Results[0].ID
+	page, err := cli.GetPage(pageID)
+	if err != nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if page.ID != pageID {
+		t.Fatalf("id=%q want %q", page.ID, pageID)
+	}
+	if page.Body.Storage.Representation != "" && page.Body.Storage.Representation != "storage" {
+		t.Fatalf("unexpected body representation: %q", page.Body.Storage.Representation)
+	}
+}

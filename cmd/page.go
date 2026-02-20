@@ -25,6 +25,10 @@ type PageListOptions struct {
 	Limit           int
 }
 
+type pageGetOptions struct {
+	PageID string
+}
+
 var pageListAllowedStatuses = map[string]struct{}{
 	"current":  {},
 	"archived": {},
@@ -52,8 +56,33 @@ func newPageCmd() *cobra.Command {
 	}
 
 	pageCmd.AddCommand(newPageListCmd())
+	pageCmd.AddCommand(newPageGetCmd())
 
 	return pageCmd
+}
+
+func newPageGetCmd() *cobra.Command {
+	opts := &pageGetOptions{}
+
+	cmd := &cobra.Command{
+		Use:   "get <page-id>",
+		Short: "Get page body in storage format",
+		Args: func(_ *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return fmt.Errorf("page id is required\nUsage: cfl page get <page-id>")
+			}
+			if len(args) > 1 {
+				return fmt.Errorf("too many arguments\nUsage: cfl page get <page-id>")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			opts.PageID = args[0]
+			return runPageGet(cmd.OutOrStdout(), opts)
+		},
+	}
+
+	return cmd
 }
 
 func newPageListCmd() *cobra.Command {
@@ -157,6 +186,39 @@ func runPageList(out io.Writer, opts *PageListOptions) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 	return RunPageListWithConfig(out, opts, cfg)
+}
+
+func runPageGet(out io.Writer, opts *pageGetOptions) error {
+	cfg, err := loadConfig("")
+	if err != nil {
+		return fmt.Errorf("load config: %w", err)
+	}
+	return RunPageGetWithConfig(out, opts.PageID, cfg)
+}
+
+// RunPageGetWithConfig runs the page get command with a provided config.
+func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) error {
+	profile, err := resolveProfile(cfg)
+	if err != nil {
+		return err
+	}
+
+	cli, err := client.New(context.Background(), profile, os.Getenv("CONFLUENCE_API_TOKEN"))
+	if err != nil {
+		return err
+	}
+
+	page, err := cli.GetPage(pageID)
+	if err != nil {
+		var httpErr *client.HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {
+			return fmt.Errorf("page %q not found", pageID)
+		}
+		return err
+	}
+
+	_, err = io.WriteString(out, page.Body.Storage.Value)
+	return err
 }
 
 func resolveProfile(cfg *config.Config) (*config.Profile, error) {

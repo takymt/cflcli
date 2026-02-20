@@ -61,7 +61,7 @@
     - [x] IF `--sort` が指定される THEN 指定値を `sort` クエリとして付与する
     - [x] IF `--sort` が許可値以外 THEN バリデーションエラーにする
       - 許可値: `id`, `-id`, `created-date`, `-created-date`, `modified-date`, `-modified-date`, `title`, `-title`
-- [ ] `cfl page get <page-id>`
+- [x] `cfl page get <page-id>`
 - [ ] `cfl page create --title TITLE --body-file FILE [--parent-id ID]`
 - [ ] `cfl page update <page-id> --title TITLE --body-file FILE --version N`
 - [ ] `cfl page delete <page-id>`

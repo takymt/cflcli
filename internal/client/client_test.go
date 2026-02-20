@@ -144,3 +144,75 @@ func TestListPages_HTTPError(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestGetPage_QueryAndAuth(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/wiki/api/v2/pages/123" {
+			http.NotFound(w, r)
+			return
+		}
+		if got := r.URL.Query().Get("body-format"); got != "storage" {
+			t.Fatalf("body-format=%q", got)
+		}
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "u@example.com" || pass != "token" {
+			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"123","title":"Doc","status":"current","spaceId":"S1","body":{"storage":{"representation":"storage","value":"<p>Hello</p>"}}}`))
+	}))
+	defer srv.Close()
+
+	old := DefaultHTTPClient
+	DefaultHTTPClient = srv.Client()
+	t.Cleanup(func() { DefaultHTTPClient = old })
+
+	cli, err := New(
+		context.Background(),
+		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
+		"token",
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	page, err := cli.GetPage("123")
+	if err != nil {
+		t.Fatalf("GetPage: %v", err)
+	}
+	if page.ID != "123" || page.Title != "Doc" {
+		t.Fatalf("unexpected page: %+v", page)
+	}
+	if page.Body.Storage.Representation != "storage" || page.Body.Storage.Value != "<p>Hello</p>" {
+		t.Fatalf("unexpected page body: %+v", page.Body.Storage)
+	}
+}
+
+func TestGetPage_HTTPError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte("not found"))
+	}))
+	defer srv.Close()
+
+	old := DefaultHTTPClient
+	DefaultHTTPClient = srv.Client()
+	t.Cleanup(func() { DefaultHTTPClient = old })
+
+	cli, err := New(
+		context.Background(),
+		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
+		"token",
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	_, err = cli.GetPage("999")
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "404 Not Found") || !strings.Contains(err.Error(), "not found") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
