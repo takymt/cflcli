@@ -125,6 +125,16 @@ func (c *Client) UpdatePage(pageID, title, body, parentID string, nextVersion in
 	return &result, nil
 }
 
+// DeletePage deletes a page by ID.
+func (c *Client) DeletePage(pageID string) error {
+	pageID = strings.TrimSpace(pageID)
+	if pageID == "" {
+		return fmt.Errorf("page id is required")
+	}
+
+	return c.del("/pages/"+url.PathEscape(pageID), url.Values{})
+}
+
 // GetPage gets a page by ID in storage body format.
 func (c *Client) GetPage(pageID string) (*PageDetail, error) {
 	pageID = strings.TrimSpace(pageID)

@@ -288,6 +288,45 @@ func TestUpdatePage_RequestAndAuth(t *testing.T) {
 	}
 }
 
+func TestDeletePage_RequestAndAuth(t *testing.T) {
+	var gotPath string
+	var gotMethod string
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "u@example.com" || pass != "token" {
+			t.Fatalf("unexpected auth: ok=%v user=%q", ok, user)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer srv.Close()
+
+	old := DefaultHTTPClient
+	DefaultHTTPClient = srv.Client()
+	t.Cleanup(func() { DefaultHTTPClient = old })
+
+	cli, err := New(
+		context.Background(),
+		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
+		"token",
+	)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	if err := cli.DeletePage("123"); err != nil {
+		t.Fatalf("DeletePage: %v", err)
+	}
+	if gotMethod != http.MethodDelete {
+		t.Fatalf("method=%q want %q", gotMethod, http.MethodDelete)
+	}
+	if gotPath != "/wiki/api/v2/pages/123" {
+		t.Fatalf("path=%q", gotPath)
+	}
+}
+
 func TestGetPage_QueryAndAuth(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/wiki/api/v2/pages/123" {

@@ -108,3 +108,37 @@ func TestPageUpdateSmoke(t *testing.T) {
 		t.Fatalf("id=%q want %q", updated.ID, pageID)
 	}
 }
+
+func TestPageDeleteSmoke(t *testing.T) {
+	if os.Getenv("CFL_IT_ENABLE_DELETE") != "1" {
+		t.Skip("set CFL_IT_ENABLE_DELETE=1 to run page delete integration test")
+	}
+
+	profile, token := integrationProfile(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	cli, err := client.New(ctx, profile, token)
+	if err != nil {
+		t.Fatalf("client.New: %v", err)
+	}
+
+	spaceID := strings.TrimSpace(os.Getenv("CFL_IT_SPACE_ID"))
+	if spaceID == "" {
+		t.Skip("set CFL_IT_SPACE_ID for page delete integration test")
+	}
+
+	title := fmt.Sprintf("cfl-it-delete-%d", time.Now().UnixNano())
+	created, err := cli.CreatePage(spaceID, title, "<p>integration delete smoke</p>", "")
+	if err != nil {
+		t.Fatalf("CreatePage for delete smoke: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatalf("created page id is empty")
+	}
+
+	if err := cli.DeletePage(created.ID); err != nil {
+		t.Fatalf("DeletePage: %v", err)
+	}
+}

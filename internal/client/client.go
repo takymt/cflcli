@@ -153,3 +153,18 @@ func (c *Client) put(path string, query url.Values, payload any, decode func(*js
 
 	return c.do(req, decode)
 }
+
+func (c *Client) del(path string, query url.Values) error {
+	u, err := url.Parse(c.baseURL + path)
+	if err != nil {
+		return err
+	}
+	u.RawQuery = query.Encode()
+
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodDelete, u.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	return c.do(req, func(*json.Decoder) error { return nil })
+}
