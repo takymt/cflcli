@@ -162,22 +162,16 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("url only line converts to block link card", func(t *testing.T) {
+	t.Run("url only line converts to storage anchor tag", func(t *testing.T) {
 		got, err := ToStorage([]byte("https://zenn.dev/zenn/articles/markdown-guide"), "markdown")
 		if err != nil {
 			t.Fatalf("ToStorage: %v", err)
 		}
-		if !strings.Contains(got, `ac:card-appearance="block"`) {
-			t.Fatalf("missing block card appearance: %q", got)
+		if !strings.Contains(got, `<a href="https://zenn.dev/zenn/articles/markdown-guide">https://zenn.dev/zenn/articles/markdown-guide</a>`) {
+			t.Fatalf("missing anchor tag for URL-only line: %q", got)
 		}
-		if !strings.Contains(got, `ri:url ri:value="https://zenn.dev/zenn/articles/markdown-guide"`) {
-			t.Fatalf("missing block card url: %q", got)
-		}
-		if !strings.Contains(got, "<ac:plain-text-link-body><![CDATA[https://zenn.dev/zenn/articles/markdown-guide]]></ac:plain-text-link-body>") {
-			t.Fatalf("missing plain-text link body for block card: %q", got)
-		}
-		if strings.Contains(got, "<a href=") {
-			t.Fatalf("unexpected plain anchor for URL-only line: %q", got)
+		if strings.Contains(got, `ac:card-appearance="block"`) {
+			t.Fatalf("unexpected block card appearance for URL-only line: %q", got)
 		}
 	})
 
@@ -186,8 +180,8 @@ func TestToStorage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ToStorage: %v", err)
 		}
-		if strings.Contains(got, `ac:card-appearance="block"`) {
-			t.Fatalf("unexpected block card in code fence: %q", got)
+		if strings.Contains(got, "<a href=") {
+			t.Fatalf("unexpected anchor tag in code fence: %q", got)
 		}
 		if !strings.Contains(got, `<![CDATA[https://zenn.dev/zenn/articles/markdown-guide]]>`) {
 			t.Fatalf("url in code fence must stay literal: %q", got)
@@ -384,7 +378,7 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 		"<strong>太字</strong>",
 		`<span style="text-decoration: line-through;">打ち消し線</span>`,
 		"<code>code</code>",
-		`ac:card-appearance="block"`,
+		`<a href="https://zenn.dev/zenn/articles/markdown-guide">https://zenn.dev/zenn/articles/markdown-guide</a>`,
 		`<ac:emoticon ac:name="smile" />`,
 		`<ac:emoticon ac:name="thumbsup" />`,
 		`<ac:structured-macro ac:name="code">`,
