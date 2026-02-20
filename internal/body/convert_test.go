@@ -330,10 +330,10 @@ func TestToStorage(t *testing.T) {
 	})
 }
 
-func TestToStorage_Phase11RegressionFixture(t *testing.T) {
+func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 	t.Parallel()
 
-	fixture, err := os.ReadFile("testdata/phase11_regression.md")
+	fixture, err := os.ReadFile("testdata/markdown_to_storage_fixture.md")
 	if err != nil {
 		t.Fatalf("read fixture: %v", err)
 	}
