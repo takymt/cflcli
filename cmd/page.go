@@ -384,7 +384,8 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 
 	switch outputFlag {
 	case "table":
-		return output.WritePagesTable(out, []client.Page{*created}, false)
+		_, err = fmt.Fprintf(out, "Created page %q (id: %q).\n", created.Title, created.ID)
+		return err
 	case "json":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")
@@ -443,7 +444,12 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 
 	switch outputFlag {
 	case "table":
-		return output.WritePagesTable(out, []client.Page{*updated}, false)
+		id := updated.ID
+		if strings.TrimSpace(id) == "" {
+			id = opts.PageID
+		}
+		_, err = fmt.Fprintf(out, "Updated page %q (id: %q).\n", updated.Title, id)
+		return err
 	case "json":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")

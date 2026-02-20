@@ -664,11 +664,8 @@ func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
 	}
 
 	raw := out.String()
-	if !strings.Contains(raw, "ID") || !strings.Contains(raw, "TITLE") || !strings.Contains(raw, "New Doc") {
-		t.Fatalf("unexpected table output: %q", raw)
-	}
-	if strings.Contains(raw, "STATUS") || strings.Contains(raw, "SPACEID") || strings.Contains(raw, "SPACE ID") {
-		t.Fatalf("unexpected table columns: %q", raw)
+	if !strings.Contains(raw, `Created page "New Doc" (id: "10").`) {
+		t.Fatalf("unexpected output: %q", raw)
 	}
 }
 
@@ -868,6 +865,59 @@ func TestRunPageUpdateWithConfig_JSON_AutoVersion(t *testing.T) {
 	}
 	if payload.ID != "123" || payload.Title != "Updated" {
 		t.Fatalf("unexpected output: %+v", payload)
+	}
+}
+
+func TestRunPageUpdateWithConfig_Table_WritesSummary(t *testing.T) {
+	var gotVersion int
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/pages/123":
+			if r.Method == http.MethodGet {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"123","title":"Old","status":"current","spaceId":"SPACE-1","version":{"number":4},"body":{"storage":{"representation":"storage","value":"<p>old</p>"}}}`))
+				return
+			}
+			if r.Method == http.MethodPut {
+				var payload struct {
+					Version struct {
+						Number int `json:"number"`
+					} `json:"version"`
+				}
+				if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+					t.Fatalf("decode update payload: %v", err)
+				}
+				gotVersion = payload.Version.Number
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"123","title":"Updated","status":"current","spaceId":"SPACE-1"}`))
+				return
+			}
+			t.Fatalf("unexpected method: %s", r.Method)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "table")
+	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+
+	cfg := newPageListConfig(srv.URL, "WORK")
+	opts := &pageUpdateOptions{
+		PageID:   "123",
+		Title:    "Updated",
+		BodyFile: writeTempBodyFile(t, "updated"),
+	}
+
+	var out bytes.Buffer
+	if err := RunPageUpdateWithConfig(&out, opts, cfg); err != nil {
+		t.Fatalf("RunPageUpdateWithConfig: %v", err)
+	}
+
+	if gotVersion != 5 {
+		t.Fatalf("version=%d want 5", gotVersion)
+	}
+	if !strings.Contains(out.String(), `Updated page "Updated" (id: "123").`) {
+		t.Fatalf("unexpected output: %q", out.String())
 	}
 }
 
