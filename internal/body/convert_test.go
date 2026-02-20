@@ -173,11 +173,24 @@ func TestToStorage(t *testing.T) {
 		if !strings.Contains(got, `ri:url ri:value="https://zenn.dev/zenn/articles/markdown-guide"`) {
 			t.Fatalf("missing block card url: %q", got)
 		}
-		if strings.Contains(got, "<ac:plain-text-link-body>") {
-			t.Fatalf("unexpected plain-text link body for block card: %q", got)
+		if !strings.Contains(got, "<ac:plain-text-link-body><![CDATA[https://zenn.dev/zenn/articles/markdown-guide]]></ac:plain-text-link-body>") {
+			t.Fatalf("missing plain-text link body for block card: %q", got)
 		}
 		if strings.Contains(got, "<a href=") {
 			t.Fatalf("unexpected plain anchor for URL-only line: %q", got)
+		}
+	})
+
+	t.Run("url only line inside code fence stays code", func(t *testing.T) {
+		got, err := ToStorage([]byte("```txt\nhttps://zenn.dev/zenn/articles/markdown-guide\n```"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if strings.Contains(got, `ac:card-appearance="block"`) {
+			t.Fatalf("unexpected block card in code fence: %q", got)
+		}
+		if !strings.Contains(got, `<![CDATA[https://zenn.dev/zenn/articles/markdown-guide]]>`) {
+			t.Fatalf("url in code fence must stay literal: %q", got)
 		}
 	})
 
@@ -189,11 +202,11 @@ func TestToStorage(t *testing.T) {
 		if !strings.Contains(got, `<ac:emoticon ac:name="smile" />`) {
 			t.Fatalf("missing smile emoji: %q", got)
 		}
-		if !strings.Contains(got, `<ac:emoticon ac:name="thumbs-up" />`) {
-			t.Fatalf("missing thumbs-up emoji: %q", got)
+		if !strings.Contains(got, `<ac:emoticon ac:name="thumbsup" />`) {
+			t.Fatalf("missing thumbsup emoji: %q", got)
 		}
-		if !strings.Contains(got, ":unknown_emoji:") {
-			t.Fatalf("unknown emoji should remain literal: %q", got)
+		if !strings.Contains(got, `<ac:emoticon ac:name="unknown_emoji" />`) {
+			t.Fatalf("unknown emoji must be converted as-is: %q", got)
 		}
 	})
 
@@ -373,7 +386,7 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 		"<code>code</code>",
 		`ac:card-appearance="block"`,
 		`<ac:emoticon ac:name="smile" />`,
-		`<ac:emoticon ac:name="thumbs-up" />`,
+		`<ac:emoticon ac:name="thumbsup" />`,
 		`<ac:structured-macro ac:name="code">`,
 		`<ac:parameter ac:name="language">js</ac:parameter>`,
 		`<ac:structured-macro ac:name="expand">`,

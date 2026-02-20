@@ -29,31 +29,14 @@ var (
 	listItemPattern    = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
 	taskLinePattern    = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
 	expandStartPattern = regexp.MustCompile(`^:::\s*details(?:\s+(.*))?\s*$`)
+	urlOnlyLinePattern = regexp.MustCompile(`^https?://[^\s]+$`)
 	hrTagPattern       = regexp.MustCompile(`(?i)<hr\s*/?>`)
-	linkCardPattern    = regexp.MustCompile(`(?s)<p>\s*<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>\s*</p>`)
 	imageTagPattern    = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
 	strikeTagPattern   = regexp.MustCompile(`(?s)<del>(.*?)</del>`)
 	srcAttrPattern     = regexp.MustCompile(`\ssrc="([^"]*)"`)
 	altAttrPattern     = regexp.MustCompile(`\salt="([^"]*)"`)
-	htmlTagPattern     = regexp.MustCompile(`(?s)<[^>]+>`)
 	emojiPattern       = regexp.MustCompile(`:([a-z0-9_+-]+):`)
 )
-
-var confluenceEmojiNames = map[string]string{
-	"smile":       "smile",
-	"sad":         "sad",
-	"cheeky":      "cheeky",
-	"laugh":       "laugh",
-	"wink":        "wink",
-	"thumbsup":    "thumbs-up",
-	"thumbsdown":  "thumbs-down",
-	"thumbs-up":   "thumbs-up",
-	"thumbs-down": "thumbs-down",
-	"information": "information",
-	"warning":     "warning",
-	"tick":        "tick",
-	"cross":       "cross",
-}
 
 type taskItem struct {
 	Complete bool
@@ -69,6 +52,11 @@ type expandPlaceholder struct {
 	Token string
 	Title string
 	Body  string
+}
+
+type linkCardPlaceholder struct {
+	Token string
+	URL   string
 }
 
 // NormalizeFormat validates and normalizes body format.
@@ -100,13 +88,13 @@ func ToStorage(content []byte, format string) (string, error) {
 }
 
 func convertMarkdownToStorage(markdown string) (string, error) {
-	markdown, taskPlaceholders, expandPlaceholders := preprocessMarkdown(markdown)
+	markdown, taskPlaceholders, expandPlaceholders, linkCardPlaceholders := preprocessMarkdown(markdown)
 	html, err := markdownToHTML(markdown)
 	if err != nil {
 		return "", err
 	}
 
-	storage := htmlToConfluenceStorage(html)
+	storage := htmlToConfluenceStorage(html, linkCardPlaceholders)
 	storage = restoreTaskListPlaceholders(storage, taskPlaceholders)
 	storage, err = restoreExpandPlaceholders(storage, expandPlaceholders)
 	if err != nil {
@@ -115,11 +103,12 @@ func convertMarkdownToStorage(markdown string) (string, error) {
 	return applyEditModeCompatibility(storage), nil
 }
 
-func preprocessMarkdown(markdown string) (string, []taskListPlaceholder, []expandPlaceholder) {
+func preprocessMarkdown(markdown string) (string, []taskListPlaceholder, []expandPlaceholder, []linkCardPlaceholder) {
 	normalized := normalizeListSpacing(markdown)
 	normalized, expandPlaceholders := extractExpandBlocks(normalized)
 	normalized, taskPlaceholders := extractTaskLists(normalized)
-	return normalized, taskPlaceholders, expandPlaceholders
+	normalized, linkCardPlaceholders := extractLinkCards(normalized)
+	return normalized, taskPlaceholders, expandPlaceholders, linkCardPlaceholders
 }
 
 func markdownToHTML(markdown string) (string, error) {
@@ -130,9 +119,8 @@ func markdownToHTML(markdown string) (string, error) {
 	return out.String(), nil
 }
 
-func htmlToConfluenceStorage(value string) string {
-	storage := convertURLOnlyParagraphToLinkCard(value)
-	storage = convertImageTags(storage)
+func htmlToConfluenceStorage(value string, linkCards []linkCardPlaceholder) string {
+	storage := convertImageTags(value)
 	storage = codeBlockPattern.ReplaceAllStringFunc(storage, func(match string) string {
 		submatches := codeBlockPattern.FindStringSubmatch(match)
 		if len(submatches) != 3 {
@@ -156,28 +144,9 @@ func htmlToConfluenceStorage(value string) string {
 	})
 	storage = hrTagPattern.ReplaceAllString(storage, "<hr />")
 	storage = strikeTagPattern.ReplaceAllString(storage, `<span style="text-decoration: line-through;">$1</span>`)
+	storage = restoreLinkCardPlaceholders(storage, linkCards)
 	storage = convertEmojiShortcodes(storage)
 	return storage
-}
-
-func convertURLOnlyParagraphToLinkCard(value string) string {
-	return linkCardPattern.ReplaceAllStringFunc(value, func(match string) string {
-		submatches := linkCardPattern.FindStringSubmatch(match)
-		if len(submatches) != 3 {
-			return match
-		}
-
-		url := strings.TrimSpace(stdhtml.UnescapeString(submatches[1]))
-		text := strings.TrimSpace(htmlTagPattern.ReplaceAllString(submatches[2], ""))
-		text = stdhtml.UnescapeString(text)
-		if url == "" || text == "" || url != text {
-			return match
-		}
-
-		return `<ac:link ac:card-appearance="block"><ri:url ri:value="` +
-			stdhtml.EscapeString(url) +
-			`" /></ac:link>`
-	})
 }
 
 func convertImageTags(value string) string {
@@ -255,16 +224,57 @@ func convertEmojiShortcodes(value string) string {
 				if len(submatches) != 2 {
 					return match
 				}
-				name, ok := confluenceEmojiNames[submatches[1]]
-				if !ok {
-					return match
-				}
-				return `<ac:emoticon ac:name="` + name + `" />`
+				return `<ac:emoticon ac:name="` + submatches[1] + `" />`
 			}))
 			i = end
 		}
 	}
 	return b.String()
+}
+
+func extractLinkCards(markdown string) (string, []linkCardPlaceholder) {
+	lines := strings.Split(markdown, "\n")
+	normalized := make([]string, 0, len(lines))
+	placeholders := make([]linkCardPlaceholder, 0)
+
+	inFence := false
+	fenceMarker := ""
+
+	for _, line := range lines {
+		trimmedLeft := strings.TrimLeft(line, " \t")
+		if strings.HasPrefix(trimmedLeft, "```") || strings.HasPrefix(trimmedLeft, "~~~") {
+			marker := trimmedLeft[:3]
+			if !inFence {
+				inFence = true
+				fenceMarker = marker
+			} else if marker == fenceMarker {
+				inFence = false
+				fenceMarker = ""
+			}
+			normalized = append(normalized, line)
+			continue
+		}
+
+		if inFence {
+			normalized = append(normalized, line)
+			continue
+		}
+
+		trimmed := strings.TrimSpace(line)
+		if !urlOnlyLinePattern.MatchString(trimmed) {
+			normalized = append(normalized, line)
+			continue
+		}
+
+		token := fmt.Sprintf("@@CFL_LINK_CARD_%d@@", len(placeholders)+1)
+		placeholders = append(placeholders, linkCardPlaceholder{
+			Token: token,
+			URL:   trimmed,
+		})
+		normalized = append(normalized, token)
+	}
+
+	return strings.Join(normalized, "\n"), placeholders
 }
 
 func extractTaskLists(markdown string) (string, []taskListPlaceholder) {
@@ -377,6 +387,15 @@ func restoreTaskListPlaceholders(storage string, placeholders []taskListPlacehol
 	return storage
 }
 
+func restoreLinkCardPlaceholders(storage string, placeholders []linkCardPlaceholder) string {
+	for _, placeholder := range placeholders {
+		card := buildLinkCardMacro(placeholder.URL)
+		storage = strings.ReplaceAll(storage, "<p>"+placeholder.Token+"</p>", card)
+		storage = strings.ReplaceAll(storage, placeholder.Token, card)
+	}
+	return storage
+}
+
 func restoreExpandPlaceholders(storage string, placeholders []expandPlaceholder) (string, error) {
 	for _, placeholder := range placeholders {
 		bodyStorage, err := convertMarkdownToStorage(placeholder.Body)
@@ -419,6 +438,16 @@ func buildTaskListMacro(items []taskItem) string {
 	return b.String()
 }
 
+func buildLinkCardMacro(url string) string {
+	escapedURL := stdhtml.EscapeString(url)
+	cardBody := strings.ReplaceAll(url, "]]>", "]]]]><![CDATA[>")
+	return `<ac:link ac:card-appearance="block"><ri:url ri:value="` +
+		escapedURL +
+		`" /><ac:plain-text-link-body><![CDATA[` +
+		cardBody +
+		`]]></ac:plain-text-link-body></ac:link>`
+}
+
 func renderInlineTaskBody(text string) string {
 	if strings.TrimSpace(text) == "" {
 		return ""
@@ -436,7 +465,7 @@ func renderInlineTaskBody(text string) string {
 	if inline == "" {
 		return stdhtml.EscapeString(text)
 	}
-	return htmlToConfluenceStorage(inline)
+	return htmlToConfluenceStorage(inline, nil)
 }
 
 func trimTrailingCodeFenceNewline(code string) string {
