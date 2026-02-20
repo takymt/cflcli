@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -550,4 +551,19 @@ func TestRunPageListWithConfig_SpaceSelectorErrors(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
+}
+
+func TestPageListSortFlagErrorShowsAllowedValues(t *testing.T) {
+	rootCmd := NewRootCmd()
+	rootCmd.SetOut(io.Discard)
+	rootCmd.SetErr(io.Discard)
+	rootCmd.SetArgs([]string{"page", "list", "--sort"})
+
+	err := rootCmd.Execute()
+	if err == nil {
+		t.Fatalf("expected error")
+	}
+	if !strings.Contains(err.Error(), "allowed values: "+pageListAllowedSortValues) {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }

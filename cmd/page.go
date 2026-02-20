@@ -43,6 +43,8 @@ var pageListAllowedSorts = map[string]struct{}{
 	"-title":         {},
 }
 
+const pageListAllowedSortValues = "id, -id, created-date, -created-date, modified-date, -modified-date, title, -title"
+
 func newPageCmd() *cobra.Command {
 	pageCmd := &cobra.Command{
 		Use:   "page",
@@ -72,6 +74,12 @@ func newPageListCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Status, "status", "", "page status filter (comma-separated)")
 	cmd.Flags().StringVar(&opts.Sort, "sort", "", "sort order")
 	cmd.Flags().IntVar(&opts.Limit, "limit", 25, "number of results per page")
+	cmd.SetFlagErrorFunc(func(_ *cobra.Command, err error) error {
+		if strings.Contains(err.Error(), "flag needs an argument: --sort") {
+			return fmt.Errorf("flag needs an argument: --sort; allowed values: %s", pageListAllowedSortValues)
+		}
+		return err
+	})
 
 	originalRunE := cmd.RunE
 	cmd.RunE = func(cmd *cobra.Command, args []string) error {
@@ -214,7 +222,7 @@ func resolvePageListSort(opts *PageListOptions) (string, error) {
 		return "", nil
 	}
 	if _, ok := pageListAllowedSorts[sort]; !ok {
-		return "", fmt.Errorf("invalid sort %q; allowed values: id, -id, created-date, -created-date, modified-date, -modified-date, title, -title", sort)
+		return "", fmt.Errorf("invalid sort %q; allowed values: %s", sort, pageListAllowedSortValues)
 	}
 	return sort, nil
 }
