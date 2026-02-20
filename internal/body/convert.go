@@ -30,6 +30,7 @@ var (
 	taskLinePattern  = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
 	hrTagPattern     = regexp.MustCompile(`(?i)<hr\s*/?>`)
 	anchorTagPattern = regexp.MustCompile(`(?s)<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>`)
+	linkCardPattern  = regexp.MustCompile(`(?s)<p>\s*<ac:link><ri:url ri:value="([^"]+)" /><ac:plain-text-link-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-link-body></ac:link>\s*</p>`)
 	imageTagPattern  = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
 	srcAttrPattern   = regexp.MustCompile(`\ssrc="([^"]*)"`)
 	altAttrPattern   = regexp.MustCompile(`\salt="([^"]*)"`)
@@ -97,6 +98,7 @@ func markdownToHTML(markdown string) (string, error) {
 
 func htmlToConfluenceStorage(value string) string {
 	storage := convertAnchorTags(value)
+	storage = convertURLOnlyParagraphToLinkCard(storage)
 	storage = convertImageTags(storage)
 	storage = codeBlockPattern.ReplaceAllStringFunc(storage, func(match string) string {
 		submatches := codeBlockPattern.FindStringSubmatch(match)
@@ -121,6 +123,25 @@ func htmlToConfluenceStorage(value string) string {
 	})
 	storage = hrTagPattern.ReplaceAllString(storage, "<hr />")
 	return storage
+}
+
+func convertURLOnlyParagraphToLinkCard(value string) string {
+	return linkCardPattern.ReplaceAllStringFunc(value, func(match string) string {
+		submatches := linkCardPattern.FindStringSubmatch(match)
+		if len(submatches) != 3 {
+			return match
+		}
+
+		url := strings.TrimSpace(stdhtml.UnescapeString(submatches[1]))
+		text := strings.TrimSpace(stdhtml.UnescapeString(submatches[2]))
+		if url == "" || text == "" || url != text {
+			return match
+		}
+
+		return `<ac:link ac:card-appearance="block"><ri:url ri:value="` +
+			stdhtml.EscapeString(url) +
+			`" /></ac:link>`
+	})
 }
 
 func convertAnchorTags(value string) string {

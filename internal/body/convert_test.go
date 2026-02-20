@@ -167,6 +167,22 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("url only line converts to block link card", func(t *testing.T) {
+		got, err := ToStorage([]byte("https://zenn.dev/zenn/articles/markdown-guide"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, `ac:card-appearance="block"`) {
+			t.Fatalf("missing block card appearance: %q", got)
+		}
+		if !strings.Contains(got, `ri:url ri:value="https://zenn.dev/zenn/articles/markdown-guide"`) {
+			t.Fatalf("missing block card url: %q", got)
+		}
+		if strings.Contains(got, "<ac:plain-text-link-body>") {
+			t.Fatalf("unexpected plain-text link body for block card: %q", got)
+		}
+	})
+
 	t.Run("nested list blank line is tightened", func(t *testing.T) {
 		got, err := ToStorage([]byte("- parent\n\n  - child\n"), "markdown")
 		if err != nil {
