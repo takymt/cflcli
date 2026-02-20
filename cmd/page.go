@@ -351,11 +351,11 @@ func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) erro
 func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config.Config) error {
 	title := strings.TrimSpace(opts.Title)
 	if title == "" {
-		return fmt.Errorf("title is required")
+		return fmt.Errorf("--title is required")
 	}
 	bodyFile := strings.TrimSpace(opts.BodyFile)
 	if bodyFile == "" {
-		return fmt.Errorf("body file is required")
+		return fmt.Errorf("--body-file is required")
 	}
 	bodyStorage, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
 	if err != nil {
@@ -398,11 +398,11 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config.Config) error {
 	title := strings.TrimSpace(opts.Title)
 	if title == "" {
-		return fmt.Errorf("title is required")
+		return fmt.Errorf("--title is required")
 	}
 	bodyFile := strings.TrimSpace(opts.BodyFile)
 	if bodyFile == "" {
-		return fmt.Errorf("body file is required")
+		return fmt.Errorf("--body-file is required")
 	}
 	bodyStorage, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
 	if err != nil {
@@ -542,7 +542,7 @@ func normalizePageBodyFormat(value string) (string, error) {
 	}
 	format, err := body.NormalizeFormat(value)
 	if err != nil {
-		return "", fmt.Errorf("invalid body format %q; allowed values: %s", value, pageBodyFormatValues)
+		return "", fmt.Errorf("invalid --body-format %q; allowed values: %s", value, pageBodyFormatValues)
 	}
 	return format, nil
 }

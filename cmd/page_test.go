@@ -752,14 +752,14 @@ func TestRunPageCreateWithConfig_Validation(t *testing.T) {
 			opts: &pageCreateOptions{
 				BodyFile: writeTempBodyFile(t, "<p>Hello</p>"),
 			},
-			wantErrSub: "title is required",
+			wantErrSub: "--title is required",
 		},
 		{
 			name: "missing body file",
 			opts: &pageCreateOptions{
 				Title: "Doc",
 			},
-			wantErrSub: "body file is required",
+			wantErrSub: "--body-file is required",
 		},
 		{
 			name: "body file read error",
@@ -786,7 +786,7 @@ func TestRunPageCreateWithConfig_Validation(t *testing.T) {
 				BodyFile:   writeTempBodyFile(t, "<p>Hello</p>"),
 				BodyFormat: "wiki",
 			},
-			wantErrSub: "invalid body format",
+			wantErrSub: "invalid --body-format",
 		},
 	}
 
