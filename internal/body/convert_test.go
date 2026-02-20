@@ -45,19 +45,6 @@ func TestNormalizeFormat(t *testing.T) {
 func TestToStorage(t *testing.T) {
 	t.Parallel()
 
-	t.Run("markdown strikethrough", func(t *testing.T) {
-		got, err := ToStorage([]byte("~~hoge~~"), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if strings.Contains(got, "~~hoge~~") {
-			t.Fatalf("unexpected literal strike syntax: %q", got)
-		}
-		if !strings.Contains(got, `<span style="text-decoration: line-through;">hoge</span>`) {
-			t.Fatalf("missing converted strike span: %q", got)
-		}
-	})
-
 	t.Run("markdown code fence converts to confluence code macro", func(t *testing.T) {
 		got, err := ToStorage([]byte("```go\nfmt.Println(\"hi\")\n```"), "markdown")
 		if err != nil {
@@ -90,78 +77,6 @@ func TestToStorage(t *testing.T) {
 		}
 		if strings.Contains(got, "const x = 1;\n]]>") {
 			t.Fatalf("unexpected trailing newline in code block: %q", got)
-		}
-	})
-
-	t.Run("markdown link converts to storage anchor tag", func(t *testing.T) {
-		got, err := ToStorage([]byte(`[アンカーテキスト](https://developer.atlassian.com/cloud/confluence/)`), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if !strings.Contains(got, `<a href="https://developer.atlassian.com/cloud/confluence/">アンカーテキスト</a>`) {
-			t.Fatalf("missing storage anchor tag: %q", got)
-		}
-		if strings.Contains(got, "<ac:link>") {
-			t.Fatalf("unexpected ac:link macro for normal markdown link: %q", got)
-		}
-	})
-
-	t.Run("markdown image converts to confluence image", func(t *testing.T) {
-		got, err := ToStorage([]byte(`![alt-text](https://developer.atlassian.com/favicon.ico)`), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if !strings.Contains(got, `<ac:image`) {
-			t.Fatalf("missing image tag: %q", got)
-		}
-		if !strings.Contains(got, `ac:alt="alt-text"`) {
-			t.Fatalf("missing image alt: %q", got)
-		}
-		if !strings.Contains(got, `ri:url ri:value="https://developer.atlassian.com/favicon.ico"`) {
-			t.Fatalf("missing image url: %q", got)
-		}
-		if strings.Contains(got, "<img ") {
-			t.Fatalf("raw img tag remains: %q", got)
-		}
-	})
-
-	t.Run("markdown task list converts to confluence task list", func(t *testing.T) {
-		input := strings.Join([]string{
-			"- [ ] タスク1",
-			"- [x] タスク2",
-			"- [×] これはタスクリストにしない",
-		}, "\n")
-		got, err := ToStorage([]byte(input), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if !strings.Contains(got, "<ac:task-list>") {
-			t.Fatalf("missing task list macro: %q", got)
-		}
-		if strings.Count(got, "<ac:task-status>") != 2 {
-			t.Fatalf("unexpected task count: %q", got)
-		}
-		if !strings.Contains(got, "<ac:task-status>incomplete</ac:task-status>") {
-			t.Fatalf("missing incomplete task status: %q", got)
-		}
-		if !strings.Contains(got, "<ac:task-status>complete</ac:task-status>") {
-			t.Fatalf("missing complete task status: %q", got)
-		}
-		if !strings.Contains(got, "これはタスクリストにしない") {
-			t.Fatalf("non task item was removed: %q", got)
-		}
-	})
-
-	t.Run("url only line converts to storage anchor tag", func(t *testing.T) {
-		got, err := ToStorage([]byte("https://zenn.dev/zenn/articles/markdown-guide"), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if !strings.Contains(got, `<a href="https://zenn.dev/zenn/articles/markdown-guide" data-card-appearance="inline">https://zenn.dev/zenn/articles/markdown-guide</a>`) {
-			t.Fatalf("missing anchor tag for URL-only line: %q", got)
-		}
-		if strings.Contains(got, `ac:card-appearance="block"`) {
-			t.Fatalf("unexpected block card appearance for URL-only line: %q", got)
 		}
 	})
 
@@ -331,9 +246,13 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 
 	wantContains := []string{
 		"<h1>見出し1</h1>",
+		`<span style="text-decoration: line-through;">打ち消し線</span>`,
 		"<a href=\"https://developer.atlassian.com/cloud/confluence/\">アンカーテキスト</a>",
 		"<ac:image ac:alt=\"alt-text\"><ri:url ri:value=\"https://developer.atlassian.com/favicon.ico\" /></ac:image>",
 		"<ac:task-list>",
+		"<ac:task-status>incomplete</ac:task-status>",
+		"<ac:task-status>complete</ac:task-status>",
+		`<a href="https://zenn.dev/zenn/articles/markdown-guide" data-card-appearance="inline">https://zenn.dev/zenn/articles/markdown-guide</a>`,
 		`<ac:structured-macro ac:name="code">`,
 		`<ac:parameter ac:name="language">js</ac:parameter>`,
 		`<ac:structured-macro ac:name="expand">`,
