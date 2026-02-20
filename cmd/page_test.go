@@ -458,7 +458,7 @@ func TestRunPageListWithConfig_JSON_UsesCursor(t *testing.T) {
 }
 
 func TestRunPageListWithConfig_JSON_UsesSort(t *testing.T) {
-	var gotPagesQuery string
+	var gotSort string
 
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -466,7 +466,7 @@ func TestRunPageListWithConfig_JSON_UsesSort(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
 		case "/wiki/api/v2/pages":
-			gotPagesQuery = r.URL.RawQuery
+			gotSort = r.URL.Query().Get("sort")
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[],"_links":{"next":"cursor-3"}}`))
 		default:
@@ -488,8 +488,8 @@ func TestRunPageListWithConfig_JSON_UsesSort(t *testing.T) {
 		t.Fatalf("RunPageListWithConfig: %v", err)
 	}
 
-	if !strings.Contains(gotPagesQuery, "sort=-created-date") {
-		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
+	if gotSort != "-created-date" {
+		t.Fatalf("sort=%q want %q", gotSort, "-created-date")
 	}
 }
 

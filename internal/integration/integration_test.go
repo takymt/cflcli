@@ -45,27 +45,6 @@ func TestPageListSmoke(t *testing.T) {
 	}
 
 	spaceID := strings.TrimSpace(os.Getenv("CFL_IT_SPACE_ID"))
-	result, err := cli.ListPages(spaceID, 1, "", []string{"current"}, "")
-	if err != nil {
-		t.Fatalf("ListPages: %v", err)
-	}
-	if len(result.Results) > 1 {
-		t.Fatalf("expected at most one result, got %d", len(result.Results))
-	}
-}
-
-func TestPageListSortSmoke(t *testing.T) {
-	profile, token := integrationProfile(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	cli, err := client.New(ctx, profile, token)
-	if err != nil {
-		t.Fatalf("client.New: %v", err)
-	}
-
-	spaceID := strings.TrimSpace(os.Getenv("CFL_IT_SPACE_ID"))
 	result, err := cli.ListPages(spaceID, 1, "", []string{"current"}, "id")
 	if err != nil {
 		t.Fatalf("ListPages with sort=id: %v", err)
