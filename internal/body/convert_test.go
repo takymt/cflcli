@@ -81,6 +81,9 @@ func TestToStorage(t *testing.T) {
 		if !strings.Contains(got, `<![CDATA[fmt.Println("hi")`) {
 			t.Fatalf("missing code body: %q", got)
 		}
+		if strings.Contains(got, "fmt.Println(\"hi\")\n]]>") {
+			t.Fatalf("unexpected trailing newline in code block: %q", got)
+		}
 	})
 
 	t.Run("nested list blank line is tightened", func(t *testing.T) {

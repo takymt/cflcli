@@ -74,6 +74,7 @@ func htmlToConfluenceStorage(value string) string {
 		}
 
 		code := html.UnescapeString(submatches[2])
+		code = trimTrailingCodeFenceNewline(code)
 		code = strings.ReplaceAll(code, "]]>", "]]]]><![CDATA[>")
 
 		return fmt.Sprintf(
@@ -91,6 +92,16 @@ func htmlToConfluenceStorage(value string) string {
 	storage = strings.ReplaceAll(storage, "</ol>\n</li>", "</ol></li>")
 
 	return storage
+}
+
+func trimTrailingCodeFenceNewline(code string) string {
+	if strings.HasSuffix(code, "\r\n") {
+		return strings.TrimSuffix(code, "\r\n")
+	}
+	if strings.HasSuffix(code, "\n") {
+		return strings.TrimSuffix(code, "\n")
+	}
+	return code
 }
 
 func normalizeListSpacing(markdown string) string {
