@@ -249,16 +249,16 @@ func TestToStorage(t *testing.T) {
 			"memo",
 			":::",
 			"",
-			":::error",
-			"error",
-			":::",
-			"",
 			":::success",
 			"success",
 			":::",
 			"",
 			":::warn",
 			"warn",
+			":::",
+			"",
+			":::error",
+			"error",
 			":::",
 		}, "\n")
 		got, err := ToStorage([]byte(input), "markdown")
@@ -269,14 +269,20 @@ func TestToStorage(t *testing.T) {
 		if !strings.Contains(got, `<ac:structured-macro ac:name="info"><ac:rich-text-body><p>info</p>`) {
 			t.Fatalf("missing info macro: %q", got)
 		}
-		if !strings.Contains(got, `<ac:structured-macro ac:name="note"><ac:rich-text-body><p>memo</p>`) {
-			t.Fatalf("missing note macro for memo: %q", got)
-		}
-		if strings.Count(got, `<ac:structured-macro ac:name="warning">`) != 2 {
-			t.Fatalf("expected two warning macros for error/warn: %q", got)
+		if !strings.Contains(got, `<ac:adf-extension><ac:adf-node type="panel"><ac:adf-attribute key="panel-type">note</ac:adf-attribute><ac:adf-content><p>memo</p>`) {
+			t.Fatalf("missing note panel adf-extension for memo: %q", got)
 		}
 		if !strings.Contains(got, `<ac:structured-macro ac:name="tip"><ac:rich-text-body><p>success</p>`) {
 			t.Fatalf("missing tip macro for success: %q", got)
+		}
+		if !strings.Contains(got, `<ac:structured-macro ac:name="note"><ac:rich-text-body><p>warn</p>`) {
+			t.Fatalf("missing note macro for warn: %q", got)
+		}
+		if strings.Count(got, `<ac:structured-macro ac:name="warning">`) != 1 {
+			t.Fatalf("expected one warning macro for error: %q", got)
+		}
+		if !strings.Contains(got, `<ac:structured-macro ac:name="warning"><ac:rich-text-body><p>error</p>`) {
+			t.Fatalf("missing warning macro for error: %q", got)
 		}
 	})
 
@@ -426,6 +432,11 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 		`<ac:parameter ac:name="language">js</ac:parameter>`,
 		`<ac:structured-macro ac:name="expand">`,
 		`<ac:parameter ac:name="expanded">false</ac:parameter>`,
+		`<ac:structured-macro ac:name="info"><ac:rich-text-body><p>情報</p>`,
+		`<ac:adf-extension><ac:adf-node type="panel"><ac:adf-attribute key="panel-type">note</ac:adf-attribute><ac:adf-content><p>メモ</p>`,
+		`<ac:structured-macro ac:name="tip"><ac:rich-text-body><p>成功</p>`,
+		`<ac:structured-macro ac:name="note"><ac:rich-text-body><p>警告</p>`,
+		`<ac:structured-macro ac:name="warning"><ac:rich-text-body><p>エラー</p>`,
 		"<u>underline via raw html</u>",
 	}
 

@@ -58,6 +58,7 @@ type expandPlaceholder struct {
 type admonitionPlaceholder struct {
 	Token     string
 	MacroName string
+	PanelType string
 	Body      string
 }
 
@@ -352,7 +353,7 @@ func extractAdmonitionBlocks(markdown string) (string, []admonitionPlaceholder) 
 			continue
 		}
 
-		macroName, ok := mapAdmonitionToMacroName(matches[1])
+		macroName, panelType, ok := mapAdmonitionToMacroName(matches[1])
 		if !ok {
 			normalized = append(normalized, lines[i])
 			i++
@@ -377,6 +378,7 @@ func extractAdmonitionBlocks(markdown string) (string, []admonitionPlaceholder) 
 		placeholders = append(placeholders, admonitionPlaceholder{
 			Token:     token,
 			MacroName: macroName,
+			PanelType: panelType,
 			Body:      strings.Join(lines[bodyStart:bodyEnd], "\n"),
 		})
 		normalized = append(normalized, token)
@@ -423,11 +425,16 @@ func restoreAdmonitionPlaceholders(storage string, placeholders []admonitionPlac
 			return "", err
 		}
 
-		macro := `<ac:structured-macro ac:name="` +
-			stdhtml.EscapeString(placeholder.MacroName) +
-			`"><ac:rich-text-body>` +
-			bodyStorage +
-			`</ac:rich-text-body></ac:structured-macro>`
+		var macro string
+		if placeholder.PanelType != "" {
+			macro = buildADFPanelExtension(placeholder.PanelType, bodyStorage)
+		} else {
+			macro = `<ac:structured-macro ac:name="` +
+				stdhtml.EscapeString(placeholder.MacroName) +
+				`"><ac:rich-text-body>` +
+				bodyStorage +
+				`</ac:rich-text-body></ac:structured-macro>`
+		}
 		storage = strings.ReplaceAll(storage, "<p>"+placeholder.Token+"</p>", macro)
 		storage = strings.ReplaceAll(storage, placeholder.Token, macro)
 	}
@@ -454,19 +461,37 @@ func restoreExpandPlaceholders(storage string, placeholders []expandPlaceholder)
 	return storage, nil
 }
 
-func mapAdmonitionToMacroName(name string) (string, bool) {
+func mapAdmonitionToMacroName(name string) (macroName string, panelType string, ok bool) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "info":
-		return "info", true
-	case "memo", "note":
-		return "note", true
-	case "warn", "warning", "error":
-		return "warning", true
+		return "info", "", true
+	case "memo":
+		return "", "note", true
+	case "note":
+		return "note", "", true
+	case "warn":
+		return "note", "", true
+	case "warning":
+		return "warning", "", true
+	case "error":
+		return "warning", "", true
 	case "success", "tip":
-		return "tip", true
+		return "tip", "", true
 	default:
-		return "", false
+		return "", "", false
 	}
+}
+
+func buildADFPanelExtension(panelType, bodyStorage string) string {
+	escapedType := stdhtml.EscapeString(panelType)
+	return `<ac:adf-extension><ac:adf-node type="panel">` +
+		`<ac:adf-attribute key="panel-type">` + escapedType + `</ac:adf-attribute>` +
+		`<ac:adf-content>` + bodyStorage + `</ac:adf-content>` +
+		`</ac:adf-node><ac:adf-fallback>` +
+		`<ac:structured-macro ac:name="` + escapedType + `"><ac:rich-text-body>` +
+		bodyStorage +
+		`</ac:rich-text-body></ac:structured-macro>` +
+		`</ac:adf-fallback></ac:adf-extension>`
 }
 
 func buildTaskListMacro(items []taskItem) string {
