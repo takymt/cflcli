@@ -49,13 +49,13 @@
     - [x] IF `--cursor` が指定される THEN `/pages` リクエストに `cursor=<value>` を付与する
     - [x] IF `--output json` THEN 返却された `next` をそのまま出力し次回の `--cursor` に利用できる
     - [x] IF `--cursor` が無効または期限切れで API が 4xx を返す THEN 再取得が必要だと分かるエラーを表示して終了する
-  - [ ] `--status` ページ状態フィルタ
-    - [ ] IF `--status` が未指定 THEN `status=current` のみを付与して取得する
-    - [ ] IF `--status` が指定される THEN カンマ区切りの値を分割し `status` クエリを複数付与する
-    - [ ] IF `--status` が許可値以外または空要素を含む THEN バリデーションエラーにする
+  - [x] `--status` ページ状態フィルタ
+    - [x] IF `--status` が未指定 THEN `status=current` のみを付与して取得する
+    - [x] IF `--status` が指定される THEN カンマ区切りの値を分割し `status` クエリを複数付与する
+    - [x] IF `--status` が許可値以外または空要素を含む THEN バリデーションエラーにする
       - 許可値: `current`, `archived`, `deleted`, `trashed`
-    - [ ] IF `--status` を明示指定して `--output table` THEN `STATUS` 列を表示する
-    - [ ] IF `--status` 未指定で `--output table` THEN `STATUS` 列を表示しない
+    - [x] IF `--status` を明示指定して `--output table` THEN `STATUS` 列を表示する
+    - [x] IF `--status` 未指定で `--output table` THEN `STATUS` 列を表示しない
   - [ ] `--sort` 並び順
     - [ ] IF `--sort` が未指定 THEN `/pages` リクエストに `sort` クエリを付与しない
     - [ ] IF `--sort` が指定される THEN 指定値を `sort` クエリとして付与する

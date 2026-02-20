@@ -52,4 +52,16 @@ func TestWritePagesTable(t *testing.T) {
 			t.Fatalf("missing status values: %q", raw)
 		}
 	})
+
+	t.Run("without status", func(t *testing.T) {
+		var out bytes.Buffer
+		if err := WritePagesTable(&out, pages, false); err != nil {
+			t.Fatalf("WritePagesTable: %v", err)
+		}
+
+		raw := out.String()
+		if strings.Contains(raw, "STATUS") {
+			t.Fatalf("unexpected status header: %q", raw)
+		}
+	})
 }

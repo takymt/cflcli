@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -121,6 +122,83 @@ func TestResolveProfile(t *testing.T) {
 			t.Fatalf("expected error")
 		}
 	})
+}
+
+func TestResolvePageListStatuses(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		opts       *PageListOptions
+		want       []string
+		wantShow   bool
+		wantErrSub string
+	}{
+		{
+			name:     "default current when status is not specified",
+			opts:     &PageListOptions{},
+			want:     []string{"current"},
+			wantShow: false,
+		},
+		{
+			name: "single valid status",
+			opts: &PageListOptions{
+				StatusSpecified: true,
+				Status:          "archived",
+			},
+			want:     []string{"archived"},
+			wantShow: true,
+		},
+		{
+			name: "multiple valid statuses with spaces",
+			opts: &PageListOptions{
+				StatusSpecified: true,
+				Status:          " current , archived ",
+			},
+			want:     []string{"current", "archived"},
+			wantShow: true,
+		},
+		{
+			name: "empty status element",
+			opts: &PageListOptions{
+				StatusSpecified: true,
+				Status:          "current,,archived",
+			},
+			wantErrSub: "must not be empty",
+		},
+		{
+			name: "invalid status value",
+			opts: &PageListOptions{
+				StatusSpecified: true,
+				Status:          "draft",
+			},
+			wantErrSub: "invalid status",
+		},
+	}
+
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, gotShow, err := resolvePageListStatuses(tc.opts)
+			if tc.wantErrSub != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErrSub) {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolvePageListStatuses: %v", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("statuses=%v want %v", got, tc.want)
+			}
+			if gotShow != tc.wantShow {
+				t.Fatalf("showStatus=%v want %v", gotShow, tc.wantShow)
+			}
+		})
+	}
 }
 
 func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {

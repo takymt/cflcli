@@ -24,6 +24,13 @@ type PageListOptions struct {
 	Limit           int
 }
 
+var pageListAllowedStatuses = map[string]struct{}{
+	"current":  {},
+	"archived": {},
+	"deleted":  {},
+	"trashed":  {},
+}
+
 func newPageCmd() *cobra.Command {
 	pageCmd := &cobra.Command{
 		Use:   "page",
@@ -171,6 +178,9 @@ func resolvePageListStatuses(opts *PageListOptions) ([]string, bool, error) {
 		status := strings.TrimSpace(raw)
 		if status == "" {
 			return nil, false, fmt.Errorf("status must not be empty")
+		}
+		if _, ok := pageListAllowedStatuses[status]; !ok {
+			return nil, false, fmt.Errorf("invalid status %q; allowed values: current, archived, deleted, trashed", status)
 		}
 		statuses = append(statuses, status)
 	}
