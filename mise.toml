@@ -32,7 +32,7 @@ run = "rm -rf cfl dist"
 run = ["mise run build", "mise run fmt", "mise run lint", "mise run test"]
 
 [tasks.bump]
-run = "gobump patch -w ."
+run = "gobump patch -w ./cmd"
 
 [tasks.hooks]
 run = "lefthook install"
