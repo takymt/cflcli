@@ -29,6 +29,7 @@ var (
 	listItemPattern    = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
 	taskLinePattern    = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
 	expandStartPattern = regexp.MustCompile(`^:::\s*details(?:\s+(.*))?\s*$`)
+	inlineCardPattern  = regexp.MustCompile(`(?s)<p>\s*<a href="([^"]+)">([^<]+)</a>\s*</p>`)
 	hrTagPattern       = regexp.MustCompile(`(?i)<hr\s*/?>`)
 	imageTagPattern    = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
 	strikeTagPattern   = regexp.MustCompile(`(?s)<del>(.*?)</del>`)
@@ -113,7 +114,8 @@ func markdownToHTML(markdown string) (string, error) {
 }
 
 func htmlToConfluenceStorage(value string) string {
-	storage := convertImageTags(value)
+	storage := addInlineCardAppearanceToAutolinkParagraphs(value)
+	storage = convertImageTags(storage)
 	storage = codeBlockPattern.ReplaceAllStringFunc(storage, func(match string) string {
 		submatches := codeBlockPattern.FindStringSubmatch(match)
 		if len(submatches) != 3 {
@@ -139,6 +141,27 @@ func htmlToConfluenceStorage(value string) string {
 	storage = strikeTagPattern.ReplaceAllString(storage, `<span style="text-decoration: line-through;">$1</span>`)
 	storage = convertEmojiShortcodes(storage)
 	return storage
+}
+
+func addInlineCardAppearanceToAutolinkParagraphs(value string) string {
+	return inlineCardPattern.ReplaceAllStringFunc(value, func(match string) string {
+		submatches := inlineCardPattern.FindStringSubmatch(match)
+		if len(submatches) != 3 {
+			return match
+		}
+
+		url := strings.TrimSpace(stdhtml.UnescapeString(submatches[1]))
+		text := strings.TrimSpace(stdhtml.UnescapeString(submatches[2]))
+		if url == "" || text == "" || url != text {
+			return match
+		}
+
+		return `<p><a href="` +
+			stdhtml.EscapeString(url) +
+			`" data-card-appearance="inline">` +
+			stdhtml.EscapeString(text) +
+			`</a></p>`
+	})
 }
 
 func convertImageTags(value string) string {

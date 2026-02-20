@@ -167,7 +167,7 @@ func TestToStorage(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ToStorage: %v", err)
 		}
-		if !strings.Contains(got, `<a href="https://zenn.dev/zenn/articles/markdown-guide">https://zenn.dev/zenn/articles/markdown-guide</a>`) {
+		if !strings.Contains(got, `<a href="https://zenn.dev/zenn/articles/markdown-guide" data-card-appearance="inline">https://zenn.dev/zenn/articles/markdown-guide</a>`) {
 			t.Fatalf("missing anchor tag for URL-only line: %q", got)
 		}
 		if strings.Contains(got, `ac:card-appearance="block"`) {
@@ -378,7 +378,7 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 		"<strong>太字</strong>",
 		`<span style="text-decoration: line-through;">打ち消し線</span>`,
 		"<code>code</code>",
-		`<a href="https://zenn.dev/zenn/articles/markdown-guide">https://zenn.dev/zenn/articles/markdown-guide</a>`,
+		`<a href="https://zenn.dev/zenn/articles/markdown-guide" data-card-appearance="inline">https://zenn.dev/zenn/articles/markdown-guide</a>`,
 		`<ac:emoticon ac:name="smile" />`,
 		`<ac:emoticon ac:name="thumbsup" />`,
 		`<ac:structured-macro ac:name="code">`,
