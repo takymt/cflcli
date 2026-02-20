@@ -29,9 +29,10 @@ var (
 	listItemPattern    = regexp.MustCompile(`^([ \t]*)(?:[-*+]|\d+\.)\s+.+$`)
 	taskLinePattern    = regexp.MustCompile(`^([ \t]*)[-*+]\s+\[([ x])\]\s+(.*)$`)
 	expandStartPattern = regexp.MustCompile(`^:::\s*details(?:\s+(.*))?\s*$`)
+	quoteLinePattern   = regexp.MustCompile(`^([ \t]*)(>+)\s?(.*)$`)
 	hrTagPattern       = regexp.MustCompile(`(?i)<hr\s*/?>`)
 	anchorTagPattern   = regexp.MustCompile(`(?s)<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>`)
-	linkCardPattern    = regexp.MustCompile(`(?s)<p>\s*<ac:link><ri:url ri:value="([^"]+)" /><ac:plain-text-link-body><!\[CDATA\[(.*?)\]\]></ac:plain-text-link-body></ac:link>\s*</p>`)
+	linkCardPattern    = regexp.MustCompile(`(?s)<p>\s*<a\s+href="([^"]+)"(?:\s+[^>]*)?>(.*?)</a>\s*</p>`)
 	imageTagPattern    = regexp.MustCompile(`(?s)<img\s+[^>]*>`)
 	srcAttrPattern     = regexp.MustCompile(`\ssrc="([^"]*)"`)
 	altAttrPattern     = regexp.MustCompile(`\salt="([^"]*)"`)
@@ -115,6 +116,7 @@ func convertMarkdownToStorage(markdown string) (string, error) {
 
 func preprocessMarkdown(markdown string) (string, []taskListPlaceholder, []expandPlaceholder) {
 	normalized := normalizeListSpacing(markdown)
+	normalized = normalizeBlockquoteDepth(normalized)
 	normalized, expandPlaceholders := extractExpandBlocks(normalized)
 	normalized, taskPlaceholders := extractTaskLists(normalized)
 	return normalized, taskPlaceholders, expandPlaceholders
@@ -129,8 +131,8 @@ func markdownToHTML(markdown string) (string, error) {
 }
 
 func htmlToConfluenceStorage(value string) string {
-	storage := convertAnchorTags(value)
-	storage = convertURLOnlyParagraphToLinkCard(storage)
+	storage := convertURLOnlyParagraphToLinkCard(value)
+	storage = convertAnchorTags(storage)
 	storage = convertImageTags(storage)
 	storage = codeBlockPattern.ReplaceAllStringFunc(storage, func(match string) string {
 		submatches := codeBlockPattern.FindStringSubmatch(match)
@@ -166,7 +168,8 @@ func convertURLOnlyParagraphToLinkCard(value string) string {
 		}
 
 		url := strings.TrimSpace(stdhtml.UnescapeString(submatches[1]))
-		text := strings.TrimSpace(stdhtml.UnescapeString(submatches[2]))
+		text := strings.TrimSpace(htmlTagPattern.ReplaceAllString(submatches[2], ""))
+		text = stdhtml.UnescapeString(text)
 		if url == "" || text == "" || url != text {
 			return match
 		}
@@ -194,9 +197,9 @@ func convertAnchorTags(value string) string {
 
 		return `<ac:link><ri:url ri:value="` +
 			stdhtml.EscapeString(url) +
-			`" /><ac:plain-text-link-body><![CDATA[` +
-			text +
-			`]]></ac:plain-text-link-body></ac:link>`
+			`" /><ac:link-body>` +
+			stdhtml.EscapeString(text) +
+			`</ac:link-body></ac:link>`
 	})
 }
 
@@ -491,6 +494,27 @@ func normalizeListSpacing(markdown string) string {
 		normalized = append(normalized, line)
 	}
 
+	return strings.Join(normalized, "\n")
+}
+
+func normalizeBlockquoteDepth(markdown string) string {
+	lines := strings.Split(markdown, "\n")
+	normalized := make([]string, 0, len(lines))
+	for _, line := range lines {
+		matches := quoteLinePattern.FindStringSubmatch(line)
+		if len(matches) != 4 {
+			normalized = append(normalized, line)
+			continue
+		}
+
+		indent := matches[1]
+		content := strings.TrimSpace(matches[3])
+		if content == "" {
+			normalized = append(normalized, indent+">")
+			continue
+		}
+		normalized = append(normalized, indent+"> "+content)
+	}
 	return strings.Join(normalized, "\n")
 }
 

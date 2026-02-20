@@ -11,9 +11,9 @@
 1. First
 2. Second
 
-[アンカーテキスト](https://example.com/docs)
+[アンカーテキスト](https://developer.atlassian.com/cloud/confluence/)
 
-![alt-text](https://example.com/image.png)
+![alt-text](https://developer.atlassian.com/favicon.ico)
 *キャプション*
 _キャプション(underscore)_
 

@@ -104,17 +104,17 @@ func TestToStorage(t *testing.T) {
 	})
 
 	t.Run("markdown link converts to confluence link macro", func(t *testing.T) {
-		got, err := ToStorage([]byte(`[アンカーテキスト](https://example.com/docs)`), "markdown")
+		got, err := ToStorage([]byte(`[アンカーテキスト](https://developer.atlassian.com/cloud/confluence/)`), "markdown")
 		if err != nil {
 			t.Fatalf("ToStorage: %v", err)
 		}
 		if !strings.Contains(got, `<ac:link>`) {
 			t.Fatalf("missing link macro: %q", got)
 		}
-		if !strings.Contains(got, `ri:url ri:value="https://example.com/docs"`) {
+		if !strings.Contains(got, `ri:url ri:value="https://developer.atlassian.com/cloud/confluence/"`) {
 			t.Fatalf("missing link url: %q", got)
 		}
-		if !strings.Contains(got, `<![CDATA[アンカーテキスト]]>`) {
+		if !strings.Contains(got, `<ac:link-body>アンカーテキスト</ac:link-body>`) {
 			t.Fatalf("missing link body: %q", got)
 		}
 		if strings.Contains(got, "<a href=") {
@@ -123,7 +123,7 @@ func TestToStorage(t *testing.T) {
 	})
 
 	t.Run("markdown image converts to confluence image", func(t *testing.T) {
-		got, err := ToStorage([]byte(`![alt-text](https://example.com/image.png)`), "markdown")
+		got, err := ToStorage([]byte(`![alt-text](https://developer.atlassian.com/favicon.ico)`), "markdown")
 		if err != nil {
 			t.Fatalf("ToStorage: %v", err)
 		}
@@ -133,7 +133,7 @@ func TestToStorage(t *testing.T) {
 		if !strings.Contains(got, `ac:alt="alt-text"`) {
 			t.Fatalf("missing image alt: %q", got)
 		}
-		if !strings.Contains(got, `ri:url ri:value="https://example.com/image.png"`) {
+		if !strings.Contains(got, `ri:url ri:value="https://developer.atlassian.com/favicon.ico"`) {
 			t.Fatalf("missing image url: %q", got)
 		}
 		if strings.Contains(got, "<img ") {
@@ -232,6 +232,19 @@ func TestToStorage(t *testing.T) {
 		}
 		if !strings.Contains(got, "<p>折りたたみ本文1\n折りたたみ本文2</p>") {
 			t.Fatalf("missing expand body: %q", got)
+		}
+	})
+
+	t.Run("nested quote depth is flattened for edit compatibility", func(t *testing.T) {
+		got, err := ToStorage([]byte("> 親引用\n>> 子引用"), "markdown")
+		if err != nil {
+			t.Fatalf("ToStorage: %v", err)
+		}
+		if !strings.Contains(got, "<blockquote>") {
+			t.Fatalf("missing blockquote: %q", got)
+		}
+		if strings.Contains(got, "<blockquote>\n<blockquote>") || strings.Contains(got, "<blockquote><blockquote>") {
+			t.Fatalf("nested blockquote must be flattened: %q", got)
 		}
 	})
 
@@ -350,8 +363,8 @@ func TestToStorage_MarkdownToStorageFixture(t *testing.T) {
 		"<h4>見出し4</h4>",
 		"<ul>",
 		"<ol>",
-		"<ac:link><ri:url ri:value=\"https://example.com/docs\" />",
-		"<ac:image ac:alt=\"alt-text\"><ri:url ri:value=\"https://example.com/image.png\" /></ac:image>",
+		"<ac:link><ri:url ri:value=\"https://developer.atlassian.com/cloud/confluence/\" />",
+		"<ac:image ac:alt=\"alt-text\"><ri:url ri:value=\"https://developer.atlassian.com/favicon.ico\" /></ac:image>",
 		"<ac:task-list>",
 		"<ac:task-status>incomplete</ac:task-status>",
 		"<ac:task-status>complete</ac:task-status>",
