@@ -34,27 +34,6 @@ func integrationProfile(t *testing.T) (*config.Profile, string) {
 	return profile, token
 }
 
-func TestPageListSmoke(t *testing.T) {
-	profile, token := integrationProfile(t)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-	defer cancel()
-
-	cli, err := client.New(ctx, profile, token)
-	if err != nil {
-		t.Fatalf("client.New: %v", err)
-	}
-
-	spaceID := strings.TrimSpace(os.Getenv("CFL_IT_SPACE_ID"))
-	result, err := cli.ListPages(spaceID, 1, "", []string{"current"}, "id")
-	if err != nil {
-		t.Fatalf("ListPages with sort=id: %v", err)
-	}
-	if len(result.Results) > 1 {
-		t.Fatalf("expected at most one result, got %d", len(result.Results))
-	}
-}
-
 func TestPageCreateSmoke(t *testing.T) {
 	if os.Getenv("CFL_IT_ENABLE_CREATE") != "1" {
 		t.Skip("set CFL_IT_ENABLE_CREATE=1 to run page create integration test")

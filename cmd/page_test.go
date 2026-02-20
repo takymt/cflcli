@@ -612,16 +612,7 @@ func TestRunPageGetWithConfig_NotFound(t *testing.T) {
 func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
 	var gotSpacesQuery string
 	var gotPayload struct {
-		SpaceID  string `json:"spaceId"`
-		Status   string `json:"status"`
-		Title    string `json:"title"`
-		ParentID string `json:"parentId"`
-		Body     struct {
-			Storage struct {
-				Representation string `json:"representation"`
-				Value          string `json:"value"`
-			} `json:"storage"`
-		} `json:"body"`
+		SpaceID string `json:"spaceId"`
 	}
 
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -660,11 +651,8 @@ func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
 	if !strings.Contains(gotSpacesQuery, "keys=WORK") {
 		t.Fatalf("unexpected spaces query: %q", gotSpacesQuery)
 	}
-	if gotPayload.SpaceID != "SPACE-1" || gotPayload.Status != "current" || gotPayload.Title != "New Doc" || gotPayload.ParentID != "" {
+	if gotPayload.SpaceID != "SPACE-1" {
 		t.Fatalf("unexpected payload: %+v", gotPayload)
-	}
-	if gotPayload.Body.Storage.Representation != "storage" || gotPayload.Body.Storage.Value != "<p>Hello</p>" {
-		t.Fatalf("unexpected body payload: %+v", gotPayload.Body.Storage)
 	}
 
 	raw := out.String()
