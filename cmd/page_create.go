@@ -67,10 +67,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 	if err != nil {
 		return err
 	}
-	assetsRoot, err := resolveAssetsRootFlagDefault(opts.AssetsRoot, repoCfg, repoConfigPath)
-	if err != nil {
-		return err
-	}
+	assetsRoot := resolveAssetsRootFlagDefault(opts.AssetsRoot, repoCfg, repoConfigPath)
 	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, assetsRoot)
 	if err != nil {
 		return err
@@ -98,7 +95,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return err
 	}
 
-	spaceID, err := resolvePageSpaceIDWithRepoDefaults(opts.SpaceID, opts.SpaceKey, repoCfg, repoConfigPath, profile, cli)
+	spaceID, err := resolvePageSpaceIDWithRepoDefaults(opts.SpaceID, opts.SpaceKey, repoCfg, profile, cli)
 	if err != nil {
 		return err
 	}

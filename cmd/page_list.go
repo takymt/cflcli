@@ -93,7 +93,7 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	repoCfg, repoConfigPath, err := discoverRepoConfig("")
+	repoCfg, _, err := discoverRepoConfig("")
 	if err != nil {
 		return err
 	}
@@ -109,7 +109,7 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	spaceID, err := resolvePageSpaceIDWithRepoDefaults(opts.SpaceID, opts.SpaceKey, repoCfg, repoConfigPath, profile, cli)
+	spaceID, err := resolvePageSpaceIDWithRepoDefaults(opts.SpaceID, opts.SpaceKey, repoCfg, profile, cli)
 	if err != nil {
 		return err
 	}

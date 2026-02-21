@@ -55,14 +55,13 @@ func resolveProfile(cfg *config.Config) (*config.Profile, error) {
 }
 
 func resolvePageSpaceID(spaceID, spaceKey string, profile *config.Profile, cli *client.Client) (string, error) {
-	return resolvePageSpaceIDWithRepoDefaults(spaceID, spaceKey, nil, "", profile, cli)
+	return resolvePageSpaceIDWithRepoDefaults(spaceID, spaceKey, nil, profile, cli)
 }
 
 func resolvePageSpaceIDWithRepoDefaults(
 	spaceID,
 	spaceKey string,
 	repoCfg *config.RepoConfig,
-	repoConfigPath string,
 	profile *config.Profile,
 	cli *client.Client,
 ) (string, error) {
@@ -78,7 +77,7 @@ func resolvePageSpaceIDWithRepoDefaults(
 		return cli.ResolveSpaceIDByKey(spaceKey)
 	}
 
-	repoSpaceID, repoSpaceKey, err := resolveRepoSpaceSelectors(repoCfg, repoConfigPath)
+	repoSpaceID, repoSpaceKey, err := resolveRepoSpaceSelectors(repoCfg)
 	if err != nil {
 		return "", err
 	}
@@ -166,37 +165,33 @@ func applyRepoDomain(profile *config.Profile, repoCfg *config.RepoConfig) *confi
 	return &merged
 }
 
-func resolveRepoSpaceSelectors(repoCfg *config.RepoConfig, repoConfigPath string) (string, string, error) {
+func resolveRepoSpaceSelectors(repoCfg *config.RepoConfig) (string, string, error) {
 	if repoCfg == nil {
 		return "", "", nil
 	}
 	spaceID := strings.TrimSpace(repoCfg.SpaceID)
 	spaceKey := strings.TrimSpace(repoCfg.SpaceKey)
 	if spaceID != "" && spaceKey != "" {
-		source := "repo config"
-		if strings.TrimSpace(repoConfigPath) != "" {
-			source = fmt.Sprintf("repo config %q", repoConfigPath)
-		}
-		return "", "", fmt.Errorf("%s sets both space_id and space_key; specify only one", source)
+		return "", "", fmt.Errorf("repo config sets both space_id and space_key; specify only one")
 	}
 	return spaceID, spaceKey, nil
 }
 
-func resolveAssetsRootFlagDefault(assetsRoot string, repoCfg *config.RepoConfig, repoConfigPath string) (string, error) {
+func resolveAssetsRootFlagDefault(assetsRoot string, repoCfg *config.RepoConfig, repoConfigPath string) string {
 	if strings.TrimSpace(assetsRoot) != "" || repoCfg == nil {
-		return assetsRoot, nil
+		return assetsRoot
 	}
 	contentRoot := strings.TrimSpace(repoCfg.ContentRoot)
 	if contentRoot == "" {
-		return assetsRoot, nil
+		return assetsRoot
 	}
 	if filepath.IsAbs(contentRoot) {
-		return contentRoot, nil
+		return contentRoot
 	}
 	if strings.TrimSpace(repoConfigPath) == "" {
-		return contentRoot, nil
+		return contentRoot
 	}
-	return filepath.Join(filepath.Dir(repoConfigPath), contentRoot), nil
+	return filepath.Join(filepath.Dir(repoConfigPath), contentRoot)
 }
 
 func resolvePageTitle(flagTitle, frontMatterTitle string) string {

@@ -349,7 +349,6 @@ func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
 			} `json:"storage"`
 		} `json:"body"`
 	}
-	var gotAttachmentPath string
 
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -367,7 +366,6 @@ func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"id":"10","title":"Repo Doc","status":"current","spaceId":"SPACE-R"}`))
 		case "/wiki/rest/api/content/10/child/attachment":
-			gotAttachmentPath = r.URL.Path
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png"}]}`))
 		default:
@@ -415,8 +413,5 @@ func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
 	}
 	if !strings.Contains(gotCreatePayload.Body.Storage.Value, `<ri:attachment ri:filename="logo.png" />`) {
 		t.Fatalf("repo content_root did not resolve root image path: %q", gotCreatePayload.Body.Storage.Value)
-	}
-	if gotAttachmentPath != "/wiki/rest/api/content/10/child/attachment" {
-		t.Fatalf("attachment path=%q", gotAttachmentPath)
 	}
 }

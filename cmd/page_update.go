@@ -74,10 +74,7 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 	if err != nil {
 		return err
 	}
-	assetsRoot, err := resolveAssetsRootFlagDefault(opts.AssetsRoot, repoCfg, repoConfigPath)
-	if err != nil {
-		return err
-	}
+	assetsRoot := resolveAssetsRootFlagDefault(opts.AssetsRoot, repoCfg, repoConfigPath)
 	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, assetsRoot)
 	if err != nil {
 		return err

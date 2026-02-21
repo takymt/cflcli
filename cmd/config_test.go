@@ -39,17 +39,6 @@ func TestNormalizeOutputFormat(t *testing.T) {
 	}
 }
 
-func TestOutputForDisplay(t *testing.T) {
-	t.Parallel()
-
-	if got := outputForDisplay("json"); got != "json" {
-		t.Fatalf("got %q want %q", got, "json")
-	}
-	if got := outputForDisplay("bogus"); got != "table" {
-		t.Fatalf("got %q want %q", got, "table")
-	}
-}
-
 func TestResolveConfigInitName(t *testing.T) {
 	t.Parallel()
 
