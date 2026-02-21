@@ -91,7 +91,7 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	runtime, err := newPageRuntime(cfg, "")
+	runtime, err := newPageRuntime(cfg)
 	if err != nil {
 		return err
 	}

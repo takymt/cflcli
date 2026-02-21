@@ -48,7 +48,7 @@ func runPageGet(out io.Writer, opts *pageGetOptions) error {
 
 // RunPageGetWithConfig runs the page get command with a provided config.
 func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) error {
-	runtime, err := newPageRuntime(cfg, "")
+	runtime, err := newPageRuntime(cfg)
 	if err != nil {
 		return err
 	}

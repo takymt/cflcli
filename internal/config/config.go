@@ -10,11 +10,12 @@ import (
 
 // Profile represents a Confluence connection profile.
 type Profile struct {
-	Name     string `toml:"name"`
-	Domain   string `toml:"domain"`
-	User     string `toml:"user"`
-	SpaceKey string `toml:"space_key"`
-	Output   string `toml:"output"`
+	Name        string `toml:"name"`
+	Domain      string `toml:"domain"`
+	User        string `toml:"user"`
+	SpaceKey    string `toml:"space_key"`
+	ContentRoot string `toml:"content_root"`
+	Output      string `toml:"output"`
 }
 
 // Config represents the top-level configuration file.

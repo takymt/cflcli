@@ -60,11 +60,11 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return fmt.Errorf("--body-file is required")
 	}
 
-	runtime, err := newPageRuntime(cfg, bodyFile)
+	runtime, err := newPageRuntime(cfg)
 	if err != nil {
 		return err
 	}
-	assetsRoot := config.ResolveContentRoot(opts.AssetsRoot, runtime.RepoConfig, runtime.RepoConfigPath)
+	assetsRoot := resolveAssetsRoot(opts.AssetsRoot, runtime.Profile)
 	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, assetsRoot)
 	if err != nil {
 		return err

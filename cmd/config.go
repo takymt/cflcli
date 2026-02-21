@@ -4,8 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/fatih/color"
@@ -25,19 +23,19 @@ func newConfigCmd() *cobra.Command {
 	configCmd.AddCommand(newConfigUseCmd())
 	configCmd.AddCommand(newConfigListCmd())
 	configCmd.AddCommand(newConfigShowCmd())
-	configCmd.AddCommand(newConfigRepoCmd())
 	configCmd.AddCommand(newConfigDeleteCmd())
 
 	return configCmd
 }
 
 type configInitOptions struct {
-	name       string
-	domain     string
-	user       string
-	spaceKey   string
-	output     string
-	configPath string
+	name        string
+	domain      string
+	user        string
+	spaceKey    string
+	contentRoot string
+	output      string
+	configPath  string
 
 	defaultProfileName string
 	updateExisting     bool
@@ -71,17 +69,19 @@ func newConfigInitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
 	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
 	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
+	cmd.Flags().StringVar(&opts.contentRoot, "content-root", "", "default assets root for /-prefixed markdown image paths")
 	cmd.Flags().StringVar(&opts.output, "profile-output", "", "default output format for this profile (json | table)")
 
 	return cmd
 }
 
 type configEditOptions struct {
-	domain     string
-	user       string
-	spaceKey   string
-	output     string
-	configPath string
+	domain      string
+	user        string
+	spaceKey    string
+	contentRoot string
+	output      string
+	configPath  string
 }
 
 type configUseOptions struct {
@@ -135,6 +135,7 @@ func newConfigEditCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
 	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
 	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
+	cmd.Flags().StringVar(&opts.contentRoot, "content-root", "", "default assets root for /-prefixed markdown image paths")
 	cmd.Flags().StringVar(&opts.output, "profile-output", "", "default output format for this profile (json | table)")
 
 	return cmd
@@ -177,6 +178,7 @@ func runConfigEdit(in io.Reader, out io.Writer, name string, opts *configEditOpt
 		domain:             opts.domain,
 		user:               opts.user,
 		spaceKey:           opts.spaceKey,
+		contentRoot:        opts.contentRoot,
 		output:             opts.output,
 		configPath:         opts.configPath,
 		defaultProfileName: name,
@@ -249,6 +251,14 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 		return fmt.Errorf("--space-key is required")
 	}
 
+	contentRoot := opts.contentRoot
+	if contentRoot == "" {
+		contentRoot, err = prompt(reader, out, "Content Root (optional)", defaultProfile.ContentRoot)
+		if err != nil {
+			return err
+		}
+	}
+
 	profileOutput := opts.output
 	if profileOutput == "" {
 		profileOutput, err = prompt(reader, out, "Output (json|table)", defaultOutputFormat(defaultProfile.Output))
@@ -262,11 +272,12 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 	}
 
 	profile := &config.Profile{
-		Name:     name,
-		Domain:   domain,
-		User:     user,
-		SpaceKey: spaceKey,
-		Output:   profileOutput,
+		Name:        name,
+		Domain:      domain,
+		User:        user,
+		SpaceKey:    spaceKey,
+		ContentRoot: strings.TrimSpace(contentRoot),
+		Output:      profileOutput,
 	}
 
 	if opts.updateExisting {
@@ -357,39 +368,6 @@ type configShowOptions struct {
 	configPath string
 }
 
-type configRepoInitOptions struct {
-	configPath string
-	path       string
-	force      bool
-}
-
-func newConfigRepoCmd() *cobra.Command {
-	repoCmd := &cobra.Command{
-		Use:   "repo",
-		Short: "Manage repository config",
-	}
-
-	repoCmd.AddCommand(newConfigRepoInitCmd())
-	return repoCmd
-}
-
-func newConfigRepoInitCmd() *cobra.Command {
-	opts := &configRepoInitOptions{}
-
-	cmd := &cobra.Command{
-		Use:   "init",
-		Short: "Create cfl.toml in current directory",
-		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runConfigRepoInit(cmd.OutOrStdout(), opts)
-		},
-	}
-
-	cmd.Flags().StringVar(&opts.path, "path", "", "output file path (default: ./cfl.toml)")
-	cmd.Flags().BoolVar(&opts.force, "force", false, "overwrite existing file")
-	return cmd
-}
-
 func newConfigShowCmd() *cobra.Command {
 	opts := &configShowOptions{}
 
@@ -416,61 +394,30 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 		return nil
 	}
 
-	repoCfg, repoConfigPath, err := config.DiscoverRepoConfig("")
-	if err != nil {
-		return err
-	}
-
-	repoDomain := ""
-	repoSpaceID := ""
-	repoSpaceKey := ""
-	if repoCfg != nil {
-		repoDomain = strings.TrimSpace(repoCfg.Domain)
-		repoSpaceID, repoSpaceKey, err = config.ResolveRepoSpaceSelectors(repoCfg)
-		if err != nil {
-			return err
-		}
-	}
-
 	domain := strings.TrimSpace(p.Domain)
-	domainSource := ""
-	if repoDomain != "" {
-		domain = repoDomain
-		domainSource = " (source: repo)"
-	}
 	if domain == "" {
 		domain = "(unset)"
 	}
-
-	space := "space_key=" + strings.TrimSpace(p.SpaceKey)
-	spaceSource := ""
-	if strings.TrimSpace(p.SpaceKey) == "" {
-		space = "(unset)"
-	}
-	if repoSpaceID != "" {
-		space = "space_id=" + repoSpaceID
-		spaceSource = " (source: repo)"
-	} else if repoSpaceKey != "" {
-		space = "space_key=" + repoSpaceKey
-		spaceSource = " (source: repo)"
-	}
-
 	user := strings.TrimSpace(p.User)
 	if user == "" {
 		user = "(unset)"
 	}
-	repoConfig := "(not found)"
-	if strings.TrimSpace(repoConfigPath) != "" {
-		repoConfig = repoConfigPath
+	spaceKey := strings.TrimSpace(p.SpaceKey)
+	if spaceKey == "" {
+		spaceKey = "(unset)"
+	}
+	contentRoot := strings.TrimSpace(p.ContentRoot)
+	if contentRoot == "" {
+		contentRoot = "(unset)"
 	}
 
 	rows := [][]string{
 		{"Name:", p.Name},
-		{"Domain:", domain + domainSource},
+		{"Domain:", domain},
 		{"User:", user},
-		{"Space:", space + spaceSource},
+		{"Space Key:", spaceKey},
+		{"Content Root:", contentRoot},
 		{"Output:", outputForDisplay(p.Output)},
-		{"Repo Config:", repoConfig},
 	}
 
 	widths := tableColumnWidths(rows)
@@ -478,68 +425,6 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 		_, _ = fmt.Fprintln(out, formatTableRow(row, widths, 1))
 	}
 	return nil
-}
-
-func runConfigRepoInit(out io.Writer, opts *configRepoInitOptions) error {
-	path := strings.TrimSpace(opts.path)
-	if path == "" {
-		path = "cfl.toml"
-	}
-
-	info, err := os.Stat(path)
-	switch {
-	case err == nil:
-		if info.IsDir() {
-			return fmt.Errorf("repo config path %q is a directory", path)
-		}
-		if !opts.force {
-			return fmt.Errorf("repo config %q already exists; rerun with --force to overwrite", path)
-		}
-	case os.IsNotExist(err):
-		// proceed
-	case err != nil:
-		return fmt.Errorf("stat repo config %q: %w", path, err)
-	}
-
-	cfg, err := loadConfig(opts.configPath)
-	if err != nil {
-		return fmt.Errorf("load config: %w", err)
-	}
-	profile := cfg.CurrentProfile()
-
-	domain := ""
-	spaceKey := ""
-	if profile != nil {
-		domain = strings.TrimSpace(profile.Domain)
-		spaceKey = strings.TrimSpace(profile.SpaceKey)
-	}
-
-	content := renderRepoConfigTemplate(domain, spaceKey)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("create repo config directory: %w", err)
-	}
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		return fmt.Errorf("write repo config: %w", err)
-	}
-
-	_, _ = fmt.Fprintf(out, "Repo config %q created.\n", path)
-	return nil
-}
-
-func renderRepoConfigTemplate(domain, spaceKey string) string {
-	return strings.Join([]string{
-		"# cfl repository config",
-		"# Values are optional; non-empty values override profile defaults.",
-		`domain = "` + domain + `"`,
-		`space_key = "` + spaceKey + `"`,
-		"",
-		"# Use one of space_key or space_id.",
-		`# space_id = "123456"`,
-		"",
-		"# Base directory for /-prefixed markdown asset paths.",
-		`# content_root = "assets"`,
-		"",
-	}, "\n")
 }
 
 type configDeleteOptions struct {

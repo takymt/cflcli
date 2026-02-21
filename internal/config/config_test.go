@@ -12,11 +12,12 @@ func TestConfig_SaveToLoadFrom_RoundTrip(t *testing.T) {
 		Current: "work",
 		Profiles: []Profile{
 			{
-				Name:     "work",
-				Domain:   "example.atlassian.net",
-				User:     "user@example.com",
-				SpaceKey: "DOC",
-				Output:   "json",
+				Name:        "work",
+				Domain:      "example.atlassian.net",
+				User:        "user@example.com",
+				SpaceKey:    "DOC",
+				ContentRoot: "/tmp/assets",
+				Output:      "json",
 			},
 		},
 	}
@@ -32,6 +33,9 @@ func TestConfig_SaveToLoadFrom_RoundTrip(t *testing.T) {
 	}
 	if loaded.Current != "work" || len(loaded.Profiles) != 1 || loaded.Profiles[0].Name != "work" {
 		t.Fatalf("unexpected loaded config: %+v", loaded)
+	}
+	if loaded.Profiles[0].ContentRoot != "/tmp/assets" {
+		t.Fatalf("content_root=%q", loaded.Profiles[0].ContentRoot)
 	}
 }
 

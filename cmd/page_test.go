@@ -14,9 +14,6 @@ import (
 func setupPageListServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 
-	// Isolate cwd so incidental cfl.toml in repo root does not affect tests.
-	chdir(t, t.TempDir())
-
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 
@@ -52,29 +49,4 @@ func writeTempBodyFile(t *testing.T, content string) string {
 		t.Fatalf("write body file: %v", err)
 	}
 	return path
-}
-
-func writeRepoConfig(t *testing.T, dir, content string) string {
-	t.Helper()
-
-	path := filepath.Join(dir, "cfl.toml")
-	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
-		t.Fatalf("write repo config: %v", err)
-	}
-	return path
-}
-
-func chdir(t *testing.T, dir string) {
-	t.Helper()
-
-	original, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("Getwd: %v", err)
-	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("Chdir(%q): %v", dir, err)
-	}
-	t.Cleanup(func() {
-		_ = os.Chdir(original)
-	})
 }

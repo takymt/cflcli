@@ -55,23 +55,15 @@ func resolveProfile(cfg *config.Config) (*config.Profile, error) {
 }
 
 type pageRuntime struct {
-	Profile        *config.Profile
-	Client         *client.Client
-	RepoConfig     *config.RepoConfig
-	RepoConfigPath string
+	Profile *config.Profile
+	Client  *client.Client
 }
 
-func newPageRuntime(cfg *config.Config, repoSearchStart string) (*pageRuntime, error) {
-	repoCfg, repoCfgPath, err := config.DiscoverRepoConfig(repoSearchStart)
-	if err != nil {
-		return nil, err
-	}
-
+func newPageRuntime(cfg *config.Config) (*pageRuntime, error) {
 	profile, err := resolveProfile(cfg)
 	if err != nil {
 		return nil, err
 	}
-	profile = config.ApplyRepoDomain(profile, repoCfg)
 
 	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
 	if err != nil {
@@ -79,10 +71,8 @@ func newPageRuntime(cfg *config.Config, repoSearchStart string) (*pageRuntime, e
 	}
 
 	return &pageRuntime{
-		Profile:        profile,
-		Client:         cli,
-		RepoConfig:     repoCfg,
-		RepoConfigPath: repoCfgPath,
+		Profile: profile,
+		Client:  cli,
 	}, nil
 }
 
@@ -99,21 +89,17 @@ func (runtime *pageRuntime) resolveSpaceID(spaceID, spaceKey string) (string, er
 		return runtime.Client.ResolveSpaceIDByKey(spaceKey)
 	}
 
-	repoSpaceID, repoSpaceKey, err := config.ResolveRepoSpaceSelectors(runtime.RepoConfig)
-	if err != nil {
-		return "", err
-	}
-	if repoSpaceID != "" {
-		return repoSpaceID, nil
-	}
-	if repoSpaceKey != "" {
-		return runtime.Client.ResolveSpaceIDByKey(repoSpaceKey)
-	}
-
 	if strings.TrimSpace(runtime.Profile.SpaceKey) == "" {
-		return "", fmt.Errorf("--space-id or --space-key is required; alternatively set repo space_id/space_key in cfl.toml or profile space_key")
+		return "", fmt.Errorf("--space-id or --space-key is required; or configure space_key in profile")
 	}
 	return runtime.Client.ResolveSpaceIDByKey(strings.TrimSpace(runtime.Profile.SpaceKey))
+}
+
+func resolveAssetsRoot(explicitRoot string, profile *config.Profile) string {
+	if strings.TrimSpace(explicitRoot) != "" || profile == nil {
+		return explicitRoot
+	}
+	return strings.TrimSpace(profile.ContentRoot)
 }
 
 func normalizePageBodyFormat(value string) (string, error) {

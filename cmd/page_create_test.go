@@ -3,12 +3,13 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/takymt/cflcli/internal/config"
 )
 
 func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
@@ -170,7 +171,7 @@ func TestRunPageCreateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 	}
 }
 
-func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
+func TestRunPageCreateWithConfig_UsesProfileContentRoot(t *testing.T) {
 	var gotSpacesQuery string
 	var gotCreatePayload struct {
 		SpaceID string `json:"spaceId"`
@@ -187,7 +188,7 @@ func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
 		case "/wiki/api/v2/spaces":
 			gotSpacesQuery = r.URL.RawQuery
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-R","key":"REPO"}]}`))
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-P","key":"PROFILE"}]}`))
 		case "/wiki/api/v2/pages":
 			if r.Method != http.MethodPost {
 				t.Fatalf("method=%q", r.Method)
@@ -196,7 +197,7 @@ func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
 				t.Fatalf("decode create payload: %v", err)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"10","title":"Repo Doc","status":"current","spaceId":"SPACE-R"}`))
+			_, _ = w.Write([]byte(`{"id":"10","title":"Profile Doc","status":"current","spaceId":"SPACE-P"}`))
 		case attachmentPath:
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png"}]}`))
@@ -207,13 +208,10 @@ func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
 	setOutputMode(t, "table")
 	t.Setenv("CFL_API_TOKEN", "token")
 
-	repoDir := t.TempDir()
-	writeRepoConfig(t, repoDir, fmt.Sprintf(
-		"domain = %q\nspace_key = \"REPO\"\ncontent_root = \"assets\"\n",
-		srv.URL,
-	))
-	bodyFile := filepath.Join(repoDir, "docs", "page.md")
-	imageFile := filepath.Join(repoDir, "assets", "images", "logo.png")
+	root := t.TempDir()
+	bodyFile := filepath.Join(root, "docs", "page.md")
+	contentRoot := filepath.Join(root, "assets")
+	imageFile := filepath.Join(contentRoot, "images", "logo.png")
 	if err := os.MkdirAll(filepath.Dir(bodyFile), 0o755); err != nil {
 		t.Fatalf("MkdirAll(body): %v", err)
 	}
@@ -227,9 +225,20 @@ func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
 		t.Fatalf("WriteFile(image): %v", err)
 	}
 
-	cfg := newPageListConfig("profile.example.atlassian.net", "PROFILE")
+	cfg := &config.Config{
+		Current: "work",
+		Profiles: []config.Profile{
+			{
+				Name:        "work",
+				Domain:      srv.URL,
+				User:        "user@example.com",
+				SpaceKey:    "PROFILE",
+				ContentRoot: contentRoot,
+			},
+		},
+	}
 	opts := &pageCreateOptions{
-		Title:    "Repo Doc",
+		Title:    "Profile Doc",
 		BodyFile: bodyFile,
 	}
 	var out bytes.Buffer
@@ -237,13 +246,13 @@ func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
 		t.Fatalf("RunPageCreateWithConfig: %v", err)
 	}
 
-	if !strings.Contains(gotSpacesQuery, "keys=REPO") {
+	if !strings.Contains(gotSpacesQuery, "keys=PROFILE") {
 		t.Fatalf("unexpected spaces query: %q", gotSpacesQuery)
 	}
-	if gotCreatePayload.SpaceID != "SPACE-R" {
-		t.Fatalf("spaceId=%q want %q", gotCreatePayload.SpaceID, "SPACE-R")
+	if gotCreatePayload.SpaceID != "SPACE-P" {
+		t.Fatalf("spaceId=%q want %q", gotCreatePayload.SpaceID, "SPACE-P")
 	}
 	if !strings.Contains(gotCreatePayload.Body.Storage.Value, `<ri:attachment ri:filename="logo.png" />`) {
-		t.Fatalf("repo content_root did not resolve root image path: %q", gotCreatePayload.Body.Storage.Value)
+		t.Fatalf("profile content_root did not resolve root image path: %q", gotCreatePayload.Body.Storage.Value)
 	}
 }

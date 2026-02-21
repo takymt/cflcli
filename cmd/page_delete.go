@@ -55,7 +55,7 @@ func RunPageDeleteWithConfig(out io.Writer, pageID string, cfg *config.Config) e
 		return fmt.Errorf("<page-id> is required")
 	}
 
-	runtime, err := newPageRuntime(cfg, "")
+	runtime, err := newPageRuntime(cfg)
 	if err != nil {
 		return err
 	}
