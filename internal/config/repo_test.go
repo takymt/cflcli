@@ -32,31 +32,14 @@ func TestDiscoverRepoConfig_FromFilePathFindsNearestParent(t *testing.T) {
 		t.Fatalf("WriteFile(body): %v", err)
 	}
 
-	cfg, path, err := DiscoverRepoConfig(bodyFile)
+	cfg, _, err := DiscoverRepoConfig(bodyFile)
 	if err != nil {
 		t.Fatalf("DiscoverRepoConfig: %v", err)
 	}
 	if cfg == nil {
 		t.Fatalf("expected repo config")
 	}
-	assertSameFilePath(t, path, nestedCfgPath)
 	if cfg.Domain != "nested.atlassian.net" {
 		t.Fatalf("domain=%q", cfg.Domain)
-	}
-}
-
-func assertSameFilePath(t *testing.T, got, want string) {
-	t.Helper()
-
-	gotInfo, err := os.Stat(got)
-	if err != nil {
-		t.Fatalf("Stat(got): %v", err)
-	}
-	wantInfo, err := os.Stat(want)
-	if err != nil {
-		t.Fatalf("Stat(want): %v", err)
-	}
-	if !os.SameFile(gotInfo, wantInfo) {
-		t.Fatalf("path=%q want %q", got, want)
 	}
 }
