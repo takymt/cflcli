@@ -101,7 +101,7 @@ func TestLoadPageStorageBody_MarkdownMermaidProducesAttachmentAsset(t *testing.T
 		}, nil
 	})
 
-	input, err := loadPageStorageBody(bodyFile, "markdown", "")
+	input, err := loadPageStorageBody(bodyFile, "markdown", "", false)
 	if err != nil {
 		t.Fatalf("loadPageStorageBody: %v", err)
 	}
@@ -144,8 +144,42 @@ func TestLoadPageStorageBody_MarkdownMermaidRenderError(t *testing.T) {
 		}, nil
 	})
 
-	_, err := loadPageStorageBody(bodyFile, "markdown", "")
+	_, err := loadPageStorageBody(bodyFile, "markdown", "", false)
 	if err == nil || !strings.Contains(err.Error(), "render mermaid block 1") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadPageStorageBody_MarkdownNoRenderMermaidKeepsCodeBlock(t *testing.T) {
+	bodyFile := writeTempBodyFile(t, strings.Join([]string{
+		"# Diagram",
+		"",
+		"```mermaid",
+		"flowchart TD",
+		"  A --> B",
+		"```",
+	}, "\n"))
+
+	setMermaidRendererFactory(t, func() (mermaid.SVGRenderer, error) {
+		return &fakeMermaidRenderer{
+			renderFn: func(context.Context, string) ([]byte, error) {
+				return nil, fmt.Errorf("renderer must not be called when --no-render-mermaid is enabled")
+			},
+		}, nil
+	})
+
+	input, err := loadPageStorageBody(bodyFile, "markdown", "", true)
+	if err != nil {
+		t.Fatalf("loadPageStorageBody: %v", err)
+	}
+
+	if len(input.LocalImageAssets) != 0 {
+		t.Fatalf("LocalImageAssets len=%d want 0", len(input.LocalImageAssets))
+	}
+	if !strings.Contains(input.StorageBody, `<ac:structured-macro ac:name="code">`) {
+		t.Fatalf("storage body must keep code macro: %q", input.StorageBody)
+	}
+	if !strings.Contains(input.StorageBody, `<ac:parameter ac:name="language">mermaid</ac:parameter>`) {
+		t.Fatalf("storage body must keep mermaid code language: %q", input.StorageBody)
 	}
 }

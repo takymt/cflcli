@@ -120,7 +120,7 @@ func normalizePageBodyFormat(value string) (string, error) {
 	return format, nil
 }
 
-func loadPageStorageBody(path, format, assetsRoot string) (*pageBodyInput, error) {
+func loadPageStorageBody(path, format, assetsRoot string, noRenderMermaid bool) (*pageBodyInput, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read body file: %w", err)
@@ -142,17 +142,19 @@ func loadPageStorageBody(path, format, assetsRoot string) (*pageBodyInput, error
 		frontMatterParentID = parsedParentID
 		content = bodyContent
 
-		renderedMarkdown, renderedCleanup, renderErr := mermaid.RenderMarkdownFences(
-			context.Background(),
-			content,
-			filepath.Dir(path),
-			newMermaidRenderer,
-		)
-		if renderErr != nil {
-			return nil, renderErr
+		if !noRenderMermaid {
+			renderedMarkdown, renderedCleanup, renderErr := mermaid.RenderMarkdownFences(
+				context.Background(),
+				content,
+				filepath.Dir(path),
+				newMermaidRenderer,
+			)
+			if renderErr != nil {
+				return nil, renderErr
+			}
+			content = renderedMarkdown
+			cleanup = renderedCleanup
 		}
-		content = renderedMarkdown
-		cleanup = renderedCleanup
 	}
 
 	localImageAssets := []attachment.Asset{}

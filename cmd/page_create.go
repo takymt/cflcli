@@ -13,13 +13,14 @@ import (
 )
 
 type pageCreateOptions struct {
-	Title      string
-	BodyFile   string
-	BodyFormat string
-	AssetsRoot string
-	ParentID   string
-	SpaceID    string
-	SpaceKey   string
+	Title           string
+	BodyFile        string
+	BodyFormat      string
+	NoRenderMermaid bool
+	AssetsRoot      string
+	ParentID        string
+	SpaceID         string
+	SpaceKey        string
 }
 
 func newPageCreateCmd() *cobra.Command {
@@ -37,6 +38,7 @@ func newPageCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Title, "title", "", "page title")
 	cmd.Flags().StringVar(&opts.BodyFile, "body-file", "", "path to storage format body file")
 	cmd.Flags().StringVar(&opts.BodyFormat, "body-format", body.FormatMarkdown, "body file format (markdown | storage)")
+	cmd.Flags().BoolVar(&opts.NoRenderMermaid, "no-render-mermaid", false, "disable Mermaid fenced code block rendering")
 	cmd.Flags().StringVar(&opts.AssetsRoot, "assets-root", "", "base directory for /-prefixed markdown asset paths (default: body file directory)")
 	cmd.Flags().StringVar(&opts.ParentID, "parent-id", "", "parent page id")
 	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
@@ -65,7 +67,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return err
 	}
 	assetsRoot := resolveAssetsRoot(opts.AssetsRoot, runtime.Profile)
-	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, assetsRoot)
+	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, assetsRoot, opts.NoRenderMermaid)
 	if err != nil {
 		return err
 	}

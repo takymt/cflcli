@@ -142,6 +142,8 @@ Behavior:
 - If `--parent-id` is not set, `parent-id` from frontmatter is used.
 - If both flag and frontmatter are set for the same field, command returns an error.
 - Frontmatter block is removed before body conversion.
+- Mermaid fenced blocks are rendered to image attachments by default.
+- `--no-render-mermaid` keeps Mermaid fenced blocks as code blocks.
 
 Accepted keys for parent id: `parent-id`, `parent_id`, `parentid`.
 
