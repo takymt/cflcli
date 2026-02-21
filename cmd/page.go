@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/takymt/cflcli/internal/body"
 	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
+	"github.com/takymt/cflcli/internal/mermaid"
 )
 
 type pageBodyInput struct {
@@ -19,9 +21,14 @@ type pageBodyInput struct {
 	FrontMatterTitle    string
 	FrontMatterParentID string
 	LocalImageAssets    []attachment.Asset
+	cleanup             func() error
 }
 
 const pageBodyFormatValues = "markdown, storage"
+
+var newMermaidRenderer = func() (mermaid.SVGRenderer, error) {
+	return mermaid.NewRenderer()
+}
 
 func newPageCmd() *cobra.Command {
 	pageCmd := &cobra.Command{
@@ -125,6 +132,7 @@ func loadPageStorageBody(path, format, assetsRoot string) (*pageBodyInput, error
 
 	frontMatterTitle := ""
 	frontMatterParentID := ""
+	var cleanup func() error
 	if normalized == body.FormatMarkdown {
 		parsedTitle, parsedParentID, bodyContent, parseErr := parseMarkdownFrontMatter(content)
 		if parseErr != nil {
@@ -133,16 +141,34 @@ func loadPageStorageBody(path, format, assetsRoot string) (*pageBodyInput, error
 		frontMatterTitle = parsedTitle
 		frontMatterParentID = parsedParentID
 		content = bodyContent
+
+		renderedMarkdown, renderedCleanup, renderErr := mermaid.RenderMarkdownFences(
+			context.Background(),
+			content,
+			filepath.Dir(path),
+			newMermaidRenderer,
+		)
+		if renderErr != nil {
+			return nil, renderErr
+		}
+		content = renderedMarkdown
+		cleanup = renderedCleanup
 	}
 
 	localImageAssets := []attachment.Asset{}
 	storage, err := body.ToStorage(content, normalized)
 	if err != nil {
+		if cleanup != nil {
+			_ = cleanup()
+		}
 		return nil, err
 	}
 	if normalized == body.FormatMarkdown {
 		storage, localImageAssets, err = attachment.ResolveMarkdownImageAssets(storage, path, assetsRoot)
 		if err != nil {
+			if cleanup != nil {
+				_ = cleanup()
+			}
 			return nil, err
 		}
 	}
@@ -152,7 +178,17 @@ func loadPageStorageBody(path, format, assetsRoot string) (*pageBodyInput, error
 		FrontMatterTitle:    frontMatterTitle,
 		FrontMatterParentID: frontMatterParentID,
 		LocalImageAssets:    localImageAssets,
+		cleanup:             cleanup,
 	}, nil
+}
+
+func (input *pageBodyInput) Cleanup() error {
+	if input == nil || input.cleanup == nil {
+		return nil
+	}
+	err := input.cleanup()
+	input.cleanup = nil
+	return err
 }
 
 func resolveTitle(flagTitle, frontMatterTitle string) string {

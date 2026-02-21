@@ -130,7 +130,7 @@
 
 ### Mermaid 画像化
 
-- [ ] mermaid fenced code block を画像化する（内蔵レンダラ）
+- [x] mermaid fenced code block を画像化する（内蔵レンダラ）
 - [ ] `cfl page create/update` に `--no-render-mermaid` オプションを追加する
   - [ ] デフォルトでは mermaid 画像化を有効にする
   - [ ] IF `--no-render-mermaid` 指定時 THEN mermaid は code block として保持する

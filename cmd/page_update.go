@@ -77,6 +77,7 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 	if err != nil {
 		return err
 	}
+	defer func() { _ = bodyInput.Cleanup() }()
 	title := resolveTitle(opts.Title, bodyInput.FrontMatterTitle)
 	if err := validateTitleSources(opts.Title, bodyInput.FrontMatterTitle); err != nil {
 		return err

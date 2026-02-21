@@ -69,6 +69,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 	if err != nil {
 		return err
 	}
+	defer func() { _ = bodyInput.Cleanup() }()
 	title := resolveTitle(opts.Title, bodyInput.FrontMatterTitle)
 	if err := validateTitleSources(opts.Title, bodyInput.FrontMatterTitle); err != nil {
 		return err
