@@ -18,6 +18,7 @@ type pageCreateOptions struct {
 	Title      string
 	BodyFile   string
 	BodyFormat string
+	AssetsRoot string
 	ParentID   string
 	SpaceID    string
 	SpaceKey   string
@@ -38,6 +39,7 @@ func newPageCreateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Title, "title", "", "page title")
 	cmd.Flags().StringVar(&opts.BodyFile, "body-file", "", "path to storage format body file")
 	cmd.Flags().StringVar(&opts.BodyFormat, "body-format", body.FormatMarkdown, "body file format (markdown | storage)")
+	cmd.Flags().StringVar(&opts.AssetsRoot, "assets-root", "", "base directory for /-prefixed markdown asset paths (default: body file directory)")
 	cmd.Flags().StringVar(&opts.ParentID, "parent-id", "", "parent page id")
 	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
 	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
@@ -59,7 +61,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 	if bodyFile == "" {
 		return fmt.Errorf("--body-file is required")
 	}
-	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat)
+	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, opts.AssetsRoot)
 	if err != nil {
 		return err
 	}
@@ -93,6 +95,9 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 	created, err := cli.CreatePage(spaceID, title, bodyInput.StorageBody, parentID)
 	if err != nil {
 		return err
+	}
+	if err := uploadPageLocalImageAssets(cli, created.ID, bodyInput.LocalImageAssets); err != nil {
+		return fmt.Errorf("upload local image assets for page %q: %w", created.ID, err)
 	}
 
 	switch outputFlag {
