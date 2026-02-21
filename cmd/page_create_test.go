@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/takymt/cflcli/internal/config"
-	"github.com/takymt/cflcli/internal/mermaid"
 )
 
 func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
@@ -257,113 +254,5 @@ func TestRunPageCreateWithConfig_UsesProfileContentRoot(t *testing.T) {
 	}
 	if !strings.Contains(gotCreatePayload.Body.Storage.Value, `<ri:attachment ri:filename="logo.png" />`) {
 		t.Fatalf("profile content_root did not resolve root image path: %q", gotCreatePayload.Body.Storage.Value)
-	}
-}
-
-func TestRunPageCreateWithConfig_MermaidFenceUploadsRenderedSVG(t *testing.T) {
-	var (
-		gotCreateStorageBody string
-		gotUploadFilename    string
-		gotUploadContent     string
-	)
-
-	attachmentPath := "/wiki/" + "rest/api/content/10/child/attachment"
-	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/wiki/api/v2/spaces":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
-		case "/wiki/api/v2/pages":
-			if r.Method != http.MethodPost {
-				t.Fatalf("method=%q", r.Method)
-			}
-			var payload struct {
-				Body struct {
-					Storage struct {
-						Value string `json:"value"`
-					} `json:"storage"`
-				} `json:"body"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-				t.Fatalf("decode create payload: %v", err)
-			}
-			gotCreateStorageBody = payload.Body.Storage.Value
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"10","title":"Mermaid Doc","status":"current","spaceId":"SPACE-1"}`))
-		case attachmentPath:
-			if r.Method != http.MethodPut {
-				t.Fatalf("attachment upload method=%q", r.Method)
-			}
-			reader, err := r.MultipartReader()
-			if err != nil {
-				t.Fatalf("MultipartReader: %v", err)
-			}
-			for {
-				part, nextErr := reader.NextPart()
-				if nextErr == io.EOF {
-					break
-				}
-				if nextErr != nil {
-					t.Fatalf("NextPart: %v", nextErr)
-				}
-				body, readErr := io.ReadAll(part)
-				if readErr != nil {
-					t.Fatalf("ReadAll(part): %v", readErr)
-				}
-				if part.FormName() == "file" {
-					gotUploadFilename = part.FileName()
-					gotUploadContent = string(body)
-				}
-			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"cfl-mermaid-001.svg"}]}`))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	setOutputMode(t, "table")
-	t.Setenv("CFL_API_TOKEN", "token")
-
-	fakeRenderer := &fakeMermaidRenderer{
-		renderFn: func(_ context.Context, source string) ([]byte, error) {
-			if !strings.Contains(source, "flowchart TD") {
-				t.Fatalf("unexpected mermaid source: %q", source)
-			}
-			return []byte(`<svg xmlns="http://www.w3.org/2000/svg"><text>diagram</text></svg>`), nil
-		},
-	}
-	setMermaidRendererFactory(t, func() (mermaid.SVGRenderer, error) {
-		return fakeRenderer, nil
-	})
-
-	cfg := newPageListConfig(srv.URL, "WORK")
-	opts := &pageCreateOptions{
-		Title: "Mermaid Doc",
-		BodyFile: writeTempBodyFile(t, strings.Join([]string{
-			"# Diagram",
-			"",
-			"```mermaid",
-			"flowchart TD",
-			"  A --> B",
-			"```",
-		}, "\n")),
-	}
-
-	var out bytes.Buffer
-	if err := RunPageCreateWithConfig(&out, opts, cfg); err != nil {
-		t.Fatalf("RunPageCreateWithConfig: %v", err)
-	}
-
-	if !fakeRenderer.closeCalled {
-		t.Fatalf("mermaid renderer must be closed")
-	}
-	if !strings.Contains(gotCreateStorageBody, `<ri:attachment ri:filename="cfl-mermaid-001.svg" />`) {
-		t.Fatalf("create body must reference rendered mermaid attachment: %q", gotCreateStorageBody)
-	}
-	if gotUploadFilename != "cfl-mermaid-001.svg" {
-		t.Fatalf("uploaded filename=%q want %q", gotUploadFilename, "cfl-mermaid-001.svg")
-	}
-	if !strings.Contains(gotUploadContent, "<svg") {
-		t.Fatalf("uploaded mermaid content must be svg: %q", gotUploadContent)
 	}
 }

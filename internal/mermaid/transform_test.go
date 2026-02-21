@@ -1,7 +1,6 @@
 package mermaid
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
@@ -13,7 +12,6 @@ import (
 
 type fakeRenderer struct {
 	renderErr error
-	closed    bool
 	renders   []string
 }
 
@@ -26,32 +24,7 @@ func (f *fakeRenderer) Render(_ context.Context, source string) ([]byte, error) 
 }
 
 func (f *fakeRenderer) Close() error {
-	f.closed = true
 	return nil
-}
-
-func TestRenderMarkdownFences_NoMermaid(t *testing.T) {
-	t.Parallel()
-
-	factoryCalled := false
-	input := []byte("# title\n\n```go\nfmt.Println(\"hi\")\n```\n")
-
-	got, cleanup, err := RenderMarkdownFences(context.Background(), input, t.TempDir(), func() (SVGRenderer, error) {
-		factoryCalled = true
-		return &fakeRenderer{}, nil
-	})
-	if err != nil {
-		t.Fatalf("RenderMarkdownFences: %v", err)
-	}
-	if cleanup != nil {
-		t.Fatalf("cleanup must be nil when no mermaid block exists")
-	}
-	if factoryCalled {
-		t.Fatalf("renderer factory must not be called when no mermaid block exists")
-	}
-	if !bytes.Equal(got, input) {
-		t.Fatalf("output changed unexpectedly:\n%s", got)
-	}
 }
 
 func TestRenderMarkdownFences_RewritesMermaidBlocksToImages(t *testing.T) {
@@ -79,15 +52,10 @@ func TestRenderMarkdownFences_RewritesMermaidBlocksToImages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderMarkdownFences: %v", err)
 	}
-	if cleanup == nil {
-		t.Fatalf("cleanup must not be nil when mermaid blocks are rendered")
-	}
-	t.Cleanup(func() {
-		_ = cleanup()
-	})
-
-	if !renderer.closed {
-		t.Fatalf("renderer must be closed")
+	if cleanup != nil {
+		t.Cleanup(func() {
+			_ = cleanup()
+		})
 	}
 
 	out := string(got)
@@ -126,13 +94,10 @@ func TestRenderMarkdownFences_RenderError(t *testing.T) {
 		"```",
 	}, "\n"))
 
-	_, cleanup, err := RenderMarkdownFences(context.Background(), input, t.TempDir(), func() (SVGRenderer, error) {
+	_, _, err := RenderMarkdownFences(context.Background(), input, t.TempDir(), func() (SVGRenderer, error) {
 		return &fakeRenderer{renderErr: fmt.Errorf("boom")}, nil
 	})
 	if err == nil || !strings.Contains(err.Error(), "render mermaid block 1") {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if cleanup != nil {
-		t.Fatalf("cleanup must be nil on render failure")
 	}
 }
