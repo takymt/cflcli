@@ -57,10 +57,16 @@ func RunPageDeleteWithConfig(out io.Writer, pageID string, cfg *config.Config) e
 		return fmt.Errorf("<page-id> is required")
 	}
 
+	repoCfg, _, err := discoverRepoConfig("")
+	if err != nil {
+		return err
+	}
+
 	profile, err := resolveProfile(cfg)
 	if err != nil {
 		return err
 	}
+	profile = applyRepoDomain(profile, repoCfg)
 
 	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
 	if err != nil {

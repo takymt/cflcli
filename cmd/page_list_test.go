@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"reflect"
@@ -532,6 +533,56 @@ func TestPageListSortFlagErrorShowsAllowedValues(t *testing.T) {
 		t.Fatalf("expected error")
 	}
 	if !strings.Contains(err.Error(), "allowed values: "+pageListAllowedSortValues) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunPageListWithConfig_UsesRepoConfigSpaceIDAndDomain(t *testing.T) {
+	var gotPagesQuery string
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			t.Fatalf("unexpected spaces lookup when repo config has space_id")
+		case "/wiki/api/v2/pages":
+			gotPagesQuery = r.URL.RawQuery
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"77","title":"RepoDoc","status":"current","spaceId":"SPACE-77"}],"_links":{}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "table")
+	t.Setenv("CFL_API_TOKEN", "token")
+
+	repoDir := t.TempDir()
+	writeRepoConfig(t, repoDir, fmt.Sprintf("domain = %q\nspace_id = \"SPACE-77\"\n", srv.URL))
+	chdir(t, repoDir)
+
+	cfg := newPageListConfig("profile.example.atlassian.net", "PROFILE")
+	var out bytes.Buffer
+	err := RunPageListWithConfig(&out, &PageListOptions{Limit: 1}, cfg)
+	if err != nil {
+		t.Fatalf("RunPageListWithConfig: %v", err)
+	}
+	if !strings.Contains(gotPagesQuery, "space-id=SPACE-77") {
+		t.Fatalf("unexpected pages query: %q", gotPagesQuery)
+	}
+	if !strings.Contains(out.String(), "RepoDoc") {
+		t.Fatalf("unexpected table output: %q", out.String())
+	}
+}
+
+func TestRunPageListWithConfig_RepoConfigSpaceSelectorsAreMutuallyExclusive(t *testing.T) {
+	t.Setenv("CFL_API_TOKEN", "token")
+
+	repoDir := t.TempDir()
+	writeRepoConfig(t, repoDir, "domain = \"example.atlassian.net\"\nspace_id = \"SPACE-1\"\nspace_key = \"WORK\"\n")
+	chdir(t, repoDir)
+
+	cfg := newPageListConfig("example.atlassian.net", "PROFILE")
+	err := RunPageListWithConfig(&bytes.Buffer{}, &PageListOptions{Limit: 1}, cfg)
+	if err == nil || !strings.Contains(err.Error(), "space_id and space_key") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

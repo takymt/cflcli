@@ -50,10 +50,16 @@ func runPageGet(out io.Writer, opts *pageGetOptions) error {
 
 // RunPageGetWithConfig runs the page get command with a provided config.
 func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) error {
+	repoCfg, _, err := discoverRepoConfig("")
+	if err != nil {
+		return err
+	}
+
 	profile, err := resolveProfile(cfg)
 	if err != nil {
 		return err
 	}
+	profile = applyRepoDomain(profile, repoCfg)
 
 	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
 	if err != nil {

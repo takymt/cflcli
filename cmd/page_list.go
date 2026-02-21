@@ -93,17 +93,23 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
+	repoCfg, repoConfigPath, err := discoverRepoConfig("")
+	if err != nil {
+		return err
+	}
+
 	profile, err := resolveProfile(cfg)
 	if err != nil {
 		return err
 	}
+	profile = applyRepoDomain(profile, repoCfg)
 
 	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
 	if err != nil {
 		return err
 	}
 
-	spaceID, err := resolvePageSpaceID(opts.SpaceID, opts.SpaceKey, profile, cli)
+	spaceID, err := resolvePageSpaceIDWithRepoDefaults(opts.SpaceID, opts.SpaceKey, repoCfg, repoConfigPath, profile, cli)
 	if err != nil {
 		return err
 	}

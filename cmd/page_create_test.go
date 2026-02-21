@@ -3,7 +3,9 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -334,5 +336,87 @@ func TestRunPageCreateWithConfig_InvalidFrontMatter(t *testing.T) {
 	err := RunPageCreateWithConfig(&bytes.Buffer{}, opts, cfg)
 	if err == nil || !strings.Contains(err.Error(), "invalid frontmatter") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunPageCreateWithConfig_UsesRepoConfigDefaults(t *testing.T) {
+	var gotSpacesQuery string
+	var gotCreatePayload struct {
+		SpaceID string `json:"spaceId"`
+		Body    struct {
+			Storage struct {
+				Value string `json:"value"`
+			} `json:"storage"`
+		} `json:"body"`
+	}
+	var gotAttachmentPath string
+
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			gotSpacesQuery = r.URL.RawQuery
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-R","key":"REPO"}]}`))
+		case "/wiki/api/v2/pages":
+			if r.Method != http.MethodPost {
+				t.Fatalf("method=%q", r.Method)
+			}
+			if err := json.NewDecoder(r.Body).Decode(&gotCreatePayload); err != nil {
+				t.Fatalf("decode create payload: %v", err)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"10","title":"Repo Doc","status":"current","spaceId":"SPACE-R"}`))
+		case "/wiki/rest/api/content/10/child/attachment":
+			gotAttachmentPath = r.URL.Path
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png"}]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	setOutputMode(t, "table")
+	t.Setenv("CFL_API_TOKEN", "token")
+
+	repoDir := t.TempDir()
+	writeRepoConfig(t, repoDir, fmt.Sprintf(
+		"domain = %q\nspace_key = \"REPO\"\ncontent_root = \"assets\"\n",
+		srv.URL,
+	))
+	bodyFile := filepath.Join(repoDir, "docs", "page.md")
+	imageFile := filepath.Join(repoDir, "assets", "images", "logo.png")
+	if err := os.MkdirAll(filepath.Dir(bodyFile), 0o755); err != nil {
+		t.Fatalf("MkdirAll(body): %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(imageFile), 0o755); err != nil {
+		t.Fatalf("MkdirAll(image): %v", err)
+	}
+	if err := os.WriteFile(bodyFile, []byte("![logo](/images/logo.png)"), 0o600); err != nil {
+		t.Fatalf("WriteFile(body): %v", err)
+	}
+	if err := os.WriteFile(imageFile, []byte("PNGDATA"), 0o600); err != nil {
+		t.Fatalf("WriteFile(image): %v", err)
+	}
+
+	cfg := newPageListConfig("profile.example.atlassian.net", "PROFILE")
+	opts := &pageCreateOptions{
+		Title:    "Repo Doc",
+		BodyFile: bodyFile,
+	}
+	var out bytes.Buffer
+	if err := RunPageCreateWithConfig(&out, opts, cfg); err != nil {
+		t.Fatalf("RunPageCreateWithConfig: %v", err)
+	}
+
+	if !strings.Contains(gotSpacesQuery, "keys=REPO") {
+		t.Fatalf("unexpected spaces query: %q", gotSpacesQuery)
+	}
+	if gotCreatePayload.SpaceID != "SPACE-R" {
+		t.Fatalf("spaceId=%q want %q", gotCreatePayload.SpaceID, "SPACE-R")
+	}
+	if !strings.Contains(gotCreatePayload.Body.Storage.Value, `<ri:attachment ri:filename="logo.png" />`) {
+		t.Fatalf("repo content_root did not resolve root image path: %q", gotCreatePayload.Body.Storage.Value)
+	}
+	if gotAttachmentPath != "/wiki/rest/api/content/10/child/attachment" {
+		t.Fatalf("attachment path=%q", gotAttachmentPath)
 	}
 }

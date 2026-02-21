@@ -69,7 +69,16 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 	if bodyFile == "" {
 		return fmt.Errorf("--body-file is required")
 	}
-	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, opts.AssetsRoot)
+
+	repoCfg, repoConfigPath, err := discoverRepoConfig(bodyFile)
+	if err != nil {
+		return err
+	}
+	assetsRoot, err := resolveAssetsRootFlagDefault(opts.AssetsRoot, repoCfg, repoConfigPath)
+	if err != nil {
+		return err
+	}
+	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, assetsRoot)
 	if err != nil {
 		return err
 	}
@@ -89,6 +98,7 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 	if err != nil {
 		return err
 	}
+	profile = applyRepoDomain(profile, repoCfg)
 
 	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
 	if err != nil {
