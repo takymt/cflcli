@@ -112,21 +112,21 @@
 
 ### create/update の Markdown アセット解決
 
-- [ ] `cfl page create/update` の `--body-format markdown` にアセット解決ステップを追加する
-  - [ ] `--body-format storage` は既存どおり変換対象外にする
-- [ ] `--assets-root` オプションを追加する（default: `--body-file` のディレクトリ）
-  - [ ] IF 画像パスが `http://` または `https://` THEN 既存どおり URL 画像として扱う
-  - [ ] IF 画像パスが `./` `../` または bare path THEN `--body-file` のディレクトリ基準で解決する
-  - [ ] IF 画像パスが `/` 始まり THEN OS ルートではなく `--assets-root` 基準で解決する
-  - [ ] IF 解決先ファイルが存在しない THEN エラーで終了する
+- [x] `cfl page create/update` の `--body-format markdown` にアセット解決ステップを追加する
+  - [x] `--body-format storage` は既存どおり変換対象外にする
+- [x] `--assets-root` オプションを追加する（default: `--body-file` のディレクトリ）
+  - [x] IF 画像パスが `http://` または `https://` THEN 既存どおり URL 画像として扱う
+  - [x] IF 画像パスが `./` `../` または bare path THEN `--body-file` のディレクトリ基準で解決する
+  - [x] IF 画像パスが `/` 始まり THEN OS ルートではなく `--assets-root` 基準で解決する
+  - [x] IF 解決先ファイルが存在しない THEN エラーで終了する
 
 ### ローカル画像 -> Confluence 添付
 
-- [ ] ローカル画像を page 添付へアップロードできるようにする（Confluence REST API v1 attachments）
-- [ ] 本文は URL 画像ではなく `ri:attachment` 参照へ変換する
-- [ ] 添付ファイル名は元ファイル名（basename）を維持する
-  - [ ] IF 同一 Markdown 内で basename が衝突する THEN エラーで終了する
-  - [ ] IF 既存添付に同名がある THEN 新規追加ではなく添付の新バージョン更新として扱う
+- [x] ローカル画像を page 添付へアップロードできるようにする（Confluence REST API v1 attachments）
+- [x] 本文は URL 画像ではなく `ri:attachment` 参照へ変換する
+- [x] 添付ファイル名は元ファイル名（basename）を維持する
+  - [x] IF 同一 Markdown 内で basename が衝突する THEN エラーで終了する
+  - [x] IF 既存添付に同名がある THEN 新規追加ではなく添付の新バージョン更新として扱う
 
 ### Mermaid 画像化
 
