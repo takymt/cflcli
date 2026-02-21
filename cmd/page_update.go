@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/takymt/cflcli/internal/attachment"
 	"github.com/takymt/cflcli/internal/body"
 	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
@@ -93,7 +94,7 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 	if err != nil {
 		return err
 	}
-	if err := uploadPageLocalImageAssets(cli, opts.PageID, bodyInput.LocalImageAssets); err != nil {
+	if err := attachment.UploadPageAssets(cli, opts.PageID, bodyInput.LocalImageAssets); err != nil {
 		return fmt.Errorf("upload local image assets for page %q: %w", opts.PageID, err)
 	}
 
