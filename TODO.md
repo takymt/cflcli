@@ -136,6 +136,17 @@
   - [x] IF `--no-render-mermaid` 指定時 THEN mermaid は code block として保持する
 - [x] 生成画像を page 添付にアップロードし、本文を `ri:attachment` 参照へ変換する
 
+## Phase 1.4: Storage -> Markdown と冪等性
+
+### Storage -> Markdown 変換
+
+- [ ] Confluence storage format (XHTML) を Markdown に変換する
+
+### 変換冪等性
+
+- [ ] `markdown -> storage -> markdown -> storage` の冪等性を検討する
+- [ ] 冪等性検証用の受け入れケースを定義する
+
 ## Phase 2: 拡張機能
 
 ### ページ補助操作
@@ -161,25 +172,11 @@
 - [ ] `cfl attachment download <attachment-id> --output <path>`
 - [ ] `cfl attachment delete <attachment-id>`
 
-### ブログ記事
-
-- [ ] `cfl blog list [--space-id ID]`
-- [ ] `cfl blog get <blog-id>`
-- [ ] `cfl blog create --space-id ID --title TITLE --body-file FILE`
-- [ ] `cfl blog update <blog-id> --title TITLE --body-file FILE --version N`
-- [ ] `cfl blog delete <blog-id>`
-
 ### コメント
 
 - [ ] `cfl comment list --page-id <page-id>`
 - [ ] `cfl comment create --page-id <page-id> --body "テキスト"`
 - [ ] `cfl comment delete <comment-id>`
-
-### リッチ表記
-
-- [ ] Markdown → Confluence storage format (XHTML) 変換
-- [ ] Markdown → ADF (Atlassian Document Format) 変換
-- [ ] 画像・テーブル等のリッチ表現対応
 
 ### git 同期
 
