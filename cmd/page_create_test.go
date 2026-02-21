@@ -181,24 +181,59 @@ func TestRunPageCreateWithConfig_UsesProfileContentRoot(t *testing.T) {
 			} `json:"storage"`
 		} `json:"body"`
 	}
+	var gotUpdatePayload struct {
+		ID      string `json:"id"`
+		Title   string `json:"title"`
+		SpaceID string `json:"spaceId"`
+		Version struct {
+			Number int `json:"number"`
+		} `json:"version"`
+		Body struct {
+			Storage struct {
+				Value string `json:"value"`
+			} `json:"storage"`
+		} `json:"body"`
+	}
+	var requestOrder []string
 	attachmentPath := "/wiki/" + "rest/api/content/10/child/attachment"
 
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/wiki/api/v2/spaces":
+			requestOrder = append(requestOrder, "spaces.get")
 			gotSpacesQuery = r.URL.RawQuery
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-P","key":"PROFILE"}]}`))
 		case "/wiki/api/v2/pages":
-			if r.Method != http.MethodPost {
-				t.Fatalf("method=%q", r.Method)
+			if r.Method == http.MethodPost {
+				requestOrder = append(requestOrder, "pages.post")
+				if err := json.NewDecoder(r.Body).Decode(&gotCreatePayload); err != nil {
+					t.Fatalf("decode create payload: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"10","title":"Profile Doc","status":"current","spaceId":"SPACE-P"}`))
+				return
 			}
-			if err := json.NewDecoder(r.Body).Decode(&gotCreatePayload); err != nil {
-				t.Fatalf("decode create payload: %v", err)
+			t.Fatalf("method=%q", r.Method)
+		case "/wiki/api/v2/pages/10":
+			if r.Method == http.MethodGet {
+				requestOrder = append(requestOrder, "pages.get")
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"10","title":"Profile Doc","status":"current","spaceId":"SPACE-P","version":{"number":1},"body":{"storage":{"representation":"storage","value":"<p>initial</p>"}}}`))
+				return
 			}
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"10","title":"Profile Doc","status":"current","spaceId":"SPACE-P"}`))
+			if r.Method == http.MethodPut {
+				requestOrder = append(requestOrder, "pages.put")
+				if err := json.NewDecoder(r.Body).Decode(&gotUpdatePayload); err != nil {
+					t.Fatalf("decode update payload: %v", err)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"10","title":"Profile Doc","status":"current","spaceId":"SPACE-P"}`))
+				return
+			}
+			t.Fatalf("method=%q", r.Method)
 		case attachmentPath:
+			requestOrder = append(requestOrder, "attachment.put")
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png"}]}`))
 		default:
@@ -252,7 +287,22 @@ func TestRunPageCreateWithConfig_UsesProfileContentRoot(t *testing.T) {
 	if gotCreatePayload.SpaceID != "SPACE-P" {
 		t.Fatalf("spaceId=%q want %q", gotCreatePayload.SpaceID, "SPACE-P")
 	}
-	if !strings.Contains(gotCreatePayload.Body.Storage.Value, `<ri:attachment ri:filename="logo.png" />`) {
-		t.Fatalf("profile content_root did not resolve root image path: %q", gotCreatePayload.Body.Storage.Value)
+	if gotCreatePayload.Body.Storage.Value != initialCreateBody {
+		t.Fatalf("create body must use placeholder when local assets exist: %q", gotCreatePayload.Body.Storage.Value)
+	}
+	if gotUpdatePayload.ID != "10" {
+		t.Fatalf("update id=%q want %q", gotUpdatePayload.ID, "10")
+	}
+	if gotUpdatePayload.Version.Number != 2 {
+		t.Fatalf("update version=%d want 2", gotUpdatePayload.Version.Number)
+	}
+	if !strings.Contains(gotUpdatePayload.Body.Storage.Value, `<ri:attachment ri:filename="logo.png" />`) {
+		t.Fatalf("update body must include attachment reference: %q", gotUpdatePayload.Body.Storage.Value)
+	}
+
+	gotSequence := strings.Join(requestOrder, " -> ")
+	wantSequence := "spaces.get -> pages.post -> attachment.put -> pages.get -> pages.put"
+	if gotSequence != wantSequence {
+		t.Fatalf("request order=%q want %q", gotSequence, wantSequence)
 	}
 }

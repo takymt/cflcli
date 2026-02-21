@@ -12,6 +12,8 @@ import (
 	"github.com/takymt/cflcli/internal/config"
 )
 
+const initialCreateBody = "<p>initial placeholder</p>"
+
 type pageCreateOptions struct {
 	Title           string
 	BodyFile        string
@@ -89,12 +91,34 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return err
 	}
 
-	created, err := runtime.Client.CreatePage(spaceID, title, bodyInput.StorageBody, parentID)
+	createBody := bodyInput.StorageBody
+	if len(bodyInput.LocalImageAssets) > 0 {
+		// Attachments require page ID first, so create with a temporary body
+		// and update to the final body after upload.
+		createBody = initialCreateBody
+	}
+
+	created, err := runtime.Client.CreatePage(spaceID, title, createBody, parentID)
 	if err != nil {
 		return err
 	}
 	if err := attachment.UploadPageAssets(runtime.Client, created.ID, bodyInput.LocalImageAssets); err != nil {
 		return fmt.Errorf("upload local image assets for page %q: %w", created.ID, err)
+	}
+	if len(bodyInput.LocalImageAssets) > 0 {
+		current, err := runtime.Client.GetPage(created.ID)
+		if err != nil {
+			return err
+		}
+		if current.Version.Number < 1 {
+			return fmt.Errorf("page %q has invalid current version", created.ID)
+		}
+
+		updated, err := runtime.Client.UpdatePage(created.ID, title, bodyInput.StorageBody, parentID, current.Version.Number+1)
+		if err != nil {
+			return err
+		}
+		created = updated
 	}
 
 	switch outputFlag {
