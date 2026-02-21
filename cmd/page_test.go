@@ -14,6 +14,9 @@ import (
 func setupPageListServer(t *testing.T, handler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 
+	// Isolate cwd so incidental cfl.toml in repo root does not affect tests.
+	chdir(t, t.TempDir())
+
 	srv := httptest.NewServer(handler)
 	t.Cleanup(srv.Close)
 

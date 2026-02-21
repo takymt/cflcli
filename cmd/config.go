@@ -433,26 +433,26 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 	}
 
 	domain := strings.TrimSpace(p.Domain)
-	domainSource := "profile"
+	domainSource := ""
 	if repoDomain != "" {
 		domain = repoDomain
-		domainSource = "repo"
+		domainSource = " (source: repo)"
 	}
 	if domain == "" {
 		domain = "(unset)"
 	}
 
 	space := "space_key=" + strings.TrimSpace(p.SpaceKey)
-	spaceSource := "profile"
+	spaceSource := ""
 	if strings.TrimSpace(p.SpaceKey) == "" {
 		space = "(unset)"
 	}
 	if repoSpaceID != "" {
 		space = "space_id=" + repoSpaceID
-		spaceSource = "repo"
+		spaceSource = " (source: repo)"
 	} else if repoSpaceKey != "" {
 		space = "space_key=" + repoSpaceKey
-		spaceSource = "repo"
+		spaceSource = " (source: repo)"
 	}
 
 	user := strings.TrimSpace(p.User)
@@ -465,11 +465,11 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 	}
 
 	rows := [][]string{
-		{"Name:", fmt.Sprintf("%s (source: profile)", p.Name)},
-		{"Domain:", fmt.Sprintf("%s (source: %s)", domain, domainSource)},
-		{"User:", fmt.Sprintf("%s (source: profile)", user)},
-		{"Space:", fmt.Sprintf("%s (source: %s)", space, spaceSource)},
-		{"Output:", fmt.Sprintf("%s (source: profile)", outputForDisplay(p.Output))},
+		{"Name:", p.Name},
+		{"Domain:", domain + domainSource},
+		{"User:", user},
+		{"Space:", space + spaceSource},
+		{"Output:", outputForDisplay(p.Output)},
 		{"Repo Config:", repoConfig},
 	}
 
