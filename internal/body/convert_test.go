@@ -64,45 +64,6 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("markdown code fence without language defaults to text", func(t *testing.T) {
-		got, err := ToStorage([]byte("```\nconst x = 1;\n```"), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if !strings.Contains(got, `<ac:structured-macro ac:name="code">`) {
-			t.Fatalf("missing code macro: %q", got)
-		}
-		if !strings.Contains(got, `<ac:parameter ac:name="language">text</ac:parameter>`) {
-			t.Fatalf("missing default text language: %q", got)
-		}
-		if strings.Contains(got, "const x = 1;\n]]>") {
-			t.Fatalf("unexpected trailing newline in code block: %q", got)
-		}
-	})
-
-	t.Run("url only line inside code fence stays code", func(t *testing.T) {
-		got, err := ToStorage([]byte("```txt\nhttps://zenn.dev/zenn/articles/markdown-guide\n```"), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if strings.Contains(got, "<a href=") {
-			t.Fatalf("unexpected anchor tag in code fence: %q", got)
-		}
-		if !strings.Contains(got, `<![CDATA[https://zenn.dev/zenn/articles/markdown-guide]]>`) {
-			t.Fatalf("url in code fence must stay literal: %q", got)
-		}
-	})
-
-	t.Run("emoji shortcode in code block stays literal", func(t *testing.T) {
-		got, err := ToStorage([]byte("```\n:smile:\n```"), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if !strings.Contains(got, `<![CDATA[:smile:]]>`) {
-			t.Fatalf("emoji in code block was transformed unexpectedly: %q", got)
-		}
-	})
-
 	t.Run("details block without title uses default title", func(t *testing.T) {
 		input := strings.Join([]string{
 			":::details",

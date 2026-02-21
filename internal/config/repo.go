@@ -19,6 +19,54 @@ type RepoConfig struct {
 	ContentRoot string `toml:"content_root"`
 }
 
+// ApplyRepoDomain returns a copy of profile with repo domain override, when provided.
+func ApplyRepoDomain(profile *Profile, repoCfg *RepoConfig) *Profile {
+	if profile == nil {
+		return nil
+	}
+	merged := *profile
+	if repoCfg == nil {
+		return &merged
+	}
+	if domain := strings.TrimSpace(repoCfg.Domain); domain != "" {
+		merged.Domain = domain
+	}
+	return &merged
+}
+
+// ResolveRepoSpaceSelectors returns normalized space selectors from repo config.
+// space_id and space_key are mutually exclusive when both are set.
+func ResolveRepoSpaceSelectors(repoCfg *RepoConfig) (string, string, error) {
+	if repoCfg == nil {
+		return "", "", nil
+	}
+	spaceID := strings.TrimSpace(repoCfg.SpaceID)
+	spaceKey := strings.TrimSpace(repoCfg.SpaceKey)
+	if spaceID != "" && spaceKey != "" {
+		return "", "", fmt.Errorf("repo config sets both space_id and space_key; specify only one")
+	}
+	return spaceID, spaceKey, nil
+}
+
+// ResolveContentRoot resolves the effective root path for /-prefixed content paths.
+// explicitRoot has priority over repo content_root.
+func ResolveContentRoot(explicitRoot string, repoCfg *RepoConfig, repoConfigPath string) string {
+	if strings.TrimSpace(explicitRoot) != "" || repoCfg == nil {
+		return explicitRoot
+	}
+	contentRoot := strings.TrimSpace(repoCfg.ContentRoot)
+	if contentRoot == "" {
+		return explicitRoot
+	}
+	if filepath.IsAbs(contentRoot) {
+		return contentRoot
+	}
+	if strings.TrimSpace(repoConfigPath) == "" {
+		return contentRoot
+	}
+	return filepath.Join(filepath.Dir(repoConfigPath), contentRoot)
+}
+
 // DiscoverRepoConfig searches for cfl.toml from startPath up to filesystem root.
 // If startPath is empty, the current working directory is used.
 // Returns nil config and empty path when not found.

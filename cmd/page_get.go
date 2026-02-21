@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/client"
@@ -50,23 +48,12 @@ func runPageGet(out io.Writer, opts *pageGetOptions) error {
 
 // RunPageGetWithConfig runs the page get command with a provided config.
 func RunPageGetWithConfig(out io.Writer, pageID string, cfg *config.Config) error {
-	repoCfg, _, err := discoverRepoConfig("")
+	runtime, err := newPageRuntime(cfg, "")
 	if err != nil {
 		return err
 	}
 
-	profile, err := resolveProfile(cfg)
-	if err != nil {
-		return err
-	}
-	profile = applyRepoDomain(profile, repoCfg)
-
-	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
-	if err != nil {
-		return err
-	}
-
-	page, err := cli.GetPage(pageID)
+	page, err := runtime.Client.GetPage(pageID)
 	if err != nil {
 		var httpErr *client.HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {

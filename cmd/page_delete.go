@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -57,23 +55,12 @@ func RunPageDeleteWithConfig(out io.Writer, pageID string, cfg *config.Config) e
 		return fmt.Errorf("<page-id> is required")
 	}
 
-	repoCfg, _, err := discoverRepoConfig("")
+	runtime, err := newPageRuntime(cfg, "")
 	if err != nil {
 		return err
 	}
 
-	profile, err := resolveProfile(cfg)
-	if err != nil {
-		return err
-	}
-	profile = applyRepoDomain(profile, repoCfg)
-
-	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
-	if err != nil {
-		return err
-	}
-
-	if err := cli.DeletePage(pageID); err != nil {
+	if err := runtime.Client.DeletePage(pageID); err != nil {
 		var httpErr *client.HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {
 			return fmt.Errorf("page %q not found", pageID)

@@ -1,9 +1,9 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -54,8 +54,36 @@ func resolveProfile(cfg *config.Config) (*config.Profile, error) {
 	return profile, nil
 }
 
-func resolvePageSpaceID(spaceID, spaceKey string, profile *config.Profile, cli *client.Client) (string, error) {
-	return resolvePageSpaceIDWithRepoDefaults(spaceID, spaceKey, nil, profile, cli)
+type pageRuntime struct {
+	Profile        *config.Profile
+	Client         *client.Client
+	RepoConfig     *config.RepoConfig
+	RepoConfigPath string
+}
+
+func newPageRuntime(cfg *config.Config, repoSearchStart string) (*pageRuntime, error) {
+	repoCfg, repoCfgPath, err := config.DiscoverRepoConfig(repoSearchStart)
+	if err != nil {
+		return nil, err
+	}
+
+	profile, err := resolveProfile(cfg)
+	if err != nil {
+		return nil, err
+	}
+	profile = config.ApplyRepoDomain(profile, repoCfg)
+
+	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
+	if err != nil {
+		return nil, err
+	}
+
+	return &pageRuntime{
+		Profile:        profile,
+		Client:         cli,
+		RepoConfig:     repoCfg,
+		RepoConfigPath: repoCfgPath,
+	}, nil
 }
 
 func resolvePageSpaceIDWithRepoDefaults(
@@ -77,7 +105,7 @@ func resolvePageSpaceIDWithRepoDefaults(
 		return cli.ResolveSpaceIDByKey(spaceKey)
 	}
 
-	repoSpaceID, repoSpaceKey, err := resolveRepoSpaceSelectors(repoCfg)
+	repoSpaceID, repoSpaceKey, err := config.ResolveRepoSpaceSelectors(repoCfg)
 	if err != nil {
 		return "", err
 	}
@@ -145,53 +173,6 @@ func loadPageStorageBody(path, format, assetsRoot string) (*pageBodyInput, error
 		FrontMatterParentID: frontMatterParentID,
 		LocalImageAssets:    localImageAssets,
 	}, nil
-}
-
-func discoverRepoConfig(startPath string) (*config.RepoConfig, string, error) {
-	return config.DiscoverRepoConfig(startPath)
-}
-
-func applyRepoDomain(profile *config.Profile, repoCfg *config.RepoConfig) *config.Profile {
-	if profile == nil {
-		return nil
-	}
-	merged := *profile
-	if repoCfg == nil {
-		return &merged
-	}
-	if domain := strings.TrimSpace(repoCfg.Domain); domain != "" {
-		merged.Domain = domain
-	}
-	return &merged
-}
-
-func resolveRepoSpaceSelectors(repoCfg *config.RepoConfig) (string, string, error) {
-	if repoCfg == nil {
-		return "", "", nil
-	}
-	spaceID := strings.TrimSpace(repoCfg.SpaceID)
-	spaceKey := strings.TrimSpace(repoCfg.SpaceKey)
-	if spaceID != "" && spaceKey != "" {
-		return "", "", fmt.Errorf("repo config sets both space_id and space_key; specify only one")
-	}
-	return spaceID, spaceKey, nil
-}
-
-func resolveAssetsRootFlagDefault(assetsRoot string, repoCfg *config.RepoConfig, repoConfigPath string) string {
-	if strings.TrimSpace(assetsRoot) != "" || repoCfg == nil {
-		return assetsRoot
-	}
-	contentRoot := strings.TrimSpace(repoCfg.ContentRoot)
-	if contentRoot == "" {
-		return assetsRoot
-	}
-	if filepath.IsAbs(contentRoot) {
-		return contentRoot
-	}
-	if strings.TrimSpace(repoConfigPath) == "" {
-		return contentRoot
-	}
-	return filepath.Join(filepath.Dir(repoConfigPath), contentRoot)
 }
 
 func resolvePageTitle(flagTitle, frontMatterTitle string) string {

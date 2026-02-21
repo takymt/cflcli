@@ -1,11 +1,9 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -93,23 +91,18 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	repoCfg, _, err := discoverRepoConfig("")
+	runtime, err := newPageRuntime(cfg, "")
 	if err != nil {
 		return err
 	}
 
-	profile, err := resolveProfile(cfg)
-	if err != nil {
-		return err
-	}
-	profile = applyRepoDomain(profile, repoCfg)
-
-	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
-	if err != nil {
-		return err
-	}
-
-	spaceID, err := resolvePageSpaceIDWithRepoDefaults(opts.SpaceID, opts.SpaceKey, repoCfg, profile, cli)
+	spaceID, err := resolvePageSpaceIDWithRepoDefaults(
+		opts.SpaceID,
+		opts.SpaceKey,
+		runtime.RepoConfig,
+		runtime.Profile,
+		runtime.Client,
+	)
 	if err != nil {
 		return err
 	}
@@ -124,7 +117,7 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	result, err := cli.ListPages(spaceID, opts.Limit, opts.Cursor, statuses, sort)
+	result, err := runtime.Client.ListPages(spaceID, opts.Limit, opts.Cursor, statuses, sort)
 	if err != nil {
 		var httpErr *client.HTTPError
 		if opts.Cursor != "" && errors.As(err, &httpErr) && httpErr.StatusCode >= 400 && httpErr.StatusCode < 500 {

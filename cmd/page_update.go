@@ -1,12 +1,10 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -70,11 +68,11 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 		return fmt.Errorf("--body-file is required")
 	}
 
-	repoCfg, repoConfigPath, err := discoverRepoConfig(bodyFile)
+	runtime, err := newPageRuntime(cfg, bodyFile)
 	if err != nil {
 		return err
 	}
-	assetsRoot := resolveAssetsRootFlagDefault(opts.AssetsRoot, repoCfg, repoConfigPath)
+	assetsRoot := config.ResolveContentRoot(opts.AssetsRoot, runtime.RepoConfig, runtime.RepoConfigPath)
 	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, assetsRoot)
 	if err != nil {
 		return err
@@ -91,21 +89,11 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 		return fmt.Errorf("--title is required")
 	}
 
-	profile, err := resolveProfile(cfg)
-	if err != nil {
-		return err
-	}
-	profile = applyRepoDomain(profile, repoCfg)
-
-	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
-	if err != nil {
-		return err
-	}
-	if err := attachment.UploadPageAssets(cli, opts.PageID, bodyInput.LocalImageAssets); err != nil {
+	if err := attachment.UploadPageAssets(runtime.Client, opts.PageID, bodyInput.LocalImageAssets); err != nil {
 		return fmt.Errorf("upload local image assets for page %q: %w", opts.PageID, err)
 	}
 
-	current, err := cli.GetPage(opts.PageID)
+	current, err := runtime.Client.GetPage(opts.PageID)
 	if err != nil {
 		var httpErr *client.HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == 404 {
@@ -117,7 +105,7 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 		return fmt.Errorf("page %q has invalid current version", opts.PageID)
 	}
 
-	updated, err := cli.UpdatePage(opts.PageID, title, bodyInput.StorageBody, parentID, current.Version.Number+1)
+	updated, err := runtime.Client.UpdatePage(opts.PageID, title, bodyInput.StorageBody, parentID, current.Version.Number+1)
 	if err != nil {
 		var httpErr *client.HTTPError
 		if errors.As(err, &httpErr) &&

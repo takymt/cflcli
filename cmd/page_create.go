@@ -1,17 +1,14 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/attachment"
 	"github.com/takymt/cflcli/internal/body"
-	"github.com/takymt/cflcli/internal/client"
 	"github.com/takymt/cflcli/internal/config"
 )
 
@@ -63,11 +60,11 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return fmt.Errorf("--body-file is required")
 	}
 
-	repoCfg, repoConfigPath, err := discoverRepoConfig(bodyFile)
+	runtime, err := newPageRuntime(cfg, bodyFile)
 	if err != nil {
 		return err
 	}
-	assetsRoot := resolveAssetsRootFlagDefault(opts.AssetsRoot, repoCfg, repoConfigPath)
+	assetsRoot := config.ResolveContentRoot(opts.AssetsRoot, runtime.RepoConfig, runtime.RepoConfigPath)
 	bodyInput, err := loadPageStorageBody(bodyFile, opts.BodyFormat, assetsRoot)
 	if err != nil {
 		return err
@@ -84,27 +81,22 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return fmt.Errorf("--title is required")
 	}
 
-	profile, err := resolveProfile(cfg)
-	if err != nil {
-		return err
-	}
-	profile = applyRepoDomain(profile, repoCfg)
-
-	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
-	if err != nil {
-		return err
-	}
-
-	spaceID, err := resolvePageSpaceIDWithRepoDefaults(opts.SpaceID, opts.SpaceKey, repoCfg, profile, cli)
+	spaceID, err := resolvePageSpaceIDWithRepoDefaults(
+		opts.SpaceID,
+		opts.SpaceKey,
+		runtime.RepoConfig,
+		runtime.Profile,
+		runtime.Client,
+	)
 	if err != nil {
 		return err
 	}
 
-	created, err := cli.CreatePage(spaceID, title, bodyInput.StorageBody, parentID)
+	created, err := runtime.Client.CreatePage(spaceID, title, bodyInput.StorageBody, parentID)
 	if err != nil {
 		return err
 	}
-	if err := attachment.UploadPageAssets(cli, created.ID, bodyInput.LocalImageAssets); err != nil {
+	if err := attachment.UploadPageAssets(runtime.Client, created.ID, bodyInput.LocalImageAssets); err != nil {
 		return fmt.Errorf("upload local image assets for page %q: %w", created.ID, err)
 	}
 
