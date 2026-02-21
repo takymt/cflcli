@@ -136,15 +136,6 @@
   - [x] IF `--no-render-mermaid` 指定時 THEN mermaid は code block として保持する
 - [x] 生成画像を page 添付にアップロードし、本文を `ri:attachment` 参照へ変換する
 
-### テストと受け入れ
-
-- [ ] unit tests を追加する（`internal/body`, `cmd`）
-- [ ] integration tests を追加する（`internal/integration`）
-- [ ] 回帰確認を追加する
-  - [ ] URL 画像の既存挙動を維持する
-  - [ ] `--body-format storage` の既存挙動を維持する
-  - [ ] Markdown 変換 fixture の既存挙動を維持する
-
 ## Phase 2: 拡張機能
 
 ### ページ補助操作
