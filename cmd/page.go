@@ -111,7 +111,7 @@ func (runtime *pageRuntime) resolveSpaceID(spaceID, spaceKey string) (string, er
 	}
 
 	if strings.TrimSpace(runtime.Profile.SpaceKey) == "" {
-		return "", fmt.Errorf("--space-id or --space-key is required; or configure space_key in profile")
+		return "", fmt.Errorf("--space-id or --space-key is required; alternatively set repo space_id/space_key in cfl.toml or profile space_key")
 	}
 	return runtime.Client.ResolveSpaceIDByKey(strings.TrimSpace(runtime.Profile.SpaceKey))
 }
