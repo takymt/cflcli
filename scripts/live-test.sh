@@ -23,7 +23,7 @@ Options:
   -h, --help            Show this help
 
 Environment:
-  CONFLUENCE_API_TOKEN  Required API token
+  CFL_API_TOKEN  Required API token
   CFL_LIVE_DOMAIN       Same as --domain
   CFL_LIVE_USER         Same as --user
   CFL_LIVE_SPACE_ID     Same as --space-id
@@ -34,34 +34,34 @@ USAGE
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --domain)
-      DOMAIN="$2"
-      shift
-      ;;
-    --user)
-      USER="$2"
-      shift
-      ;;
-    --space-id)
-      SPACE_ID="$2"
-      shift
-      ;;
-    --limit)
-      LIMIT="$2"
-      shift
-      ;;
-    --allow-nontest)
-      ALLOW_NONTEST=true
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    *)
-      echo "Unknown arg: $1" >&2
-      usage >&2
-      exit 2
-      ;;
+  --domain)
+    DOMAIN="$2"
+    shift
+    ;;
+  --user)
+    USER="$2"
+    shift
+    ;;
+  --space-id)
+    SPACE_ID="$2"
+    shift
+    ;;
+  --limit)
+    LIMIT="$2"
+    shift
+    ;;
+  --allow-nontest)
+    ALLOW_NONTEST=true
+    ;;
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  *)
+    echo "Unknown arg: $1" >&2
+    usage >&2
+    exit 2
+    ;;
   esac
   shift
 done
@@ -70,20 +70,20 @@ is_test_account() {
   local a
   a=$(echo "$1" | tr 'A-Z' 'a-z')
   case "$a" in
-    *test*|*bot*|*sandbox*|*qa*|*staging*|*dev*|*@example.com)
-      return 0
-      ;;
+  *test* | *bot* | *sandbox* | *qa* | *staging* | *dev* | *@example.com)
+    return 0
+    ;;
   esac
   case "$a" in
-    *+*)
-      return 0
-      ;;
+  *+*)
+    return 0
+    ;;
   esac
   return 1
 }
 
-if [ -z "$DOMAIN" ] || [ -z "$USER" ] || [ -z "${CONFLUENCE_API_TOKEN:-}" ]; then
-  echo "CFL_LIVE_DOMAIN, CFL_LIVE_USER, and CONFLUENCE_API_TOKEN are required." >&2
+if [ -z "$DOMAIN" ] || [ -z "$USER" ] || [ -z "${CFL_API_TOKEN:-}" ]; then
+  echo "CFL_LIVE_DOMAIN, CFL_LIVE_USER, and CFL_API_TOKEN are required." >&2
   exit 1
 fi
 

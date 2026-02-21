@@ -19,10 +19,10 @@ func integrationProfile(t *testing.T) (*config.Profile, string) {
 
 	domain := strings.TrimSpace(os.Getenv("CFL_IT_DOMAIN"))
 	user := strings.TrimSpace(os.Getenv("CFL_IT_USER"))
-	token := strings.TrimSpace(os.Getenv("CONFLUENCE_API_TOKEN"))
+	token := strings.TrimSpace(os.Getenv("CFL_API_TOKEN"))
 
 	if domain == "" || user == "" || token == "" {
-		t.Skip("set CFL_IT_DOMAIN, CFL_IT_USER, and CONFLUENCE_API_TOKEN for integration tests")
+		t.Skip("set CFL_IT_DOMAIN, CFL_IT_USER, and CFL_API_TOKEN for integration tests")
 	}
 
 	profile := &config.Profile{

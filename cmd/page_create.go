@@ -83,7 +83,7 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 		return err
 	}
 
-	cli, err := client.New(context.Background(), profile, os.Getenv("CONFLUENCE_API_TOKEN"))
+	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
 	if err != nil {
 		return err
 	}

@@ -35,10 +35,10 @@ mise run build
 `cfl` uses Basic Auth with:
 
 - user email from the selected profile
-- API token from `CONFLUENCE_API_TOKEN`
+- API token from `CFL_API_TOKEN`
 
 ```bash
-export CONFLUENCE_API_TOKEN="your_api_token"
+export CFL_API_TOKEN="your_api_token"
 ```
 
 ## Configuration

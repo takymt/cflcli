@@ -51,7 +51,7 @@ func New(ctx context.Context, profile *config.Profile, token string) (*Client, e
 		return nil, fmt.Errorf("profile user is required")
 	}
 	if token == "" {
-		return nil, fmt.Errorf("CONFLUENCE_API_TOKEN is required")
+		return nil, fmt.Errorf("CFL_API_TOKEN is required")
 	}
 
 	base := strings.TrimSuffix(profile.Domain, "/")

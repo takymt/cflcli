@@ -62,7 +62,7 @@ func RunPageDeleteWithConfig(out io.Writer, pageID string, cfg *config.Config) e
 		return err
 	}
 
-	cli, err := client.New(context.Background(), profile, os.Getenv("CONFLUENCE_API_TOKEN"))
+	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
 	if err != nil {
 		return err
 	}

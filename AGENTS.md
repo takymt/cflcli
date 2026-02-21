@@ -16,7 +16,7 @@ A CLI tool for Confluence Cloud using REST API v2.
 ## Configuration
 
 - Path: `$XDG_CONFIG_HOME/cflcli/config.toml` (default: `~/.config/cflcli/config.toml`)
-- API token: environment variable `CONFLUENCE_API_TOKEN` (preferred), fallback to config file with file permission warning
+- API token: environment variable `CFL_API_TOKEN` (preferred), fallback to config file with file permission warning
 - Multiple named profiles supported; `current` field tracks active profile
 
 ```toml

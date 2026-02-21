@@ -20,7 +20,7 @@ func TestRunPageDeleteWithConfig_Table(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	setOutputMode(t, "table")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 
@@ -46,7 +46,7 @@ func TestRunPageDeleteWithConfig_JSON(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	setOutputMode(t, "json")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 
@@ -76,7 +76,7 @@ func TestRunPageDeleteWithConfig_NotFound(t *testing.T) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"message":"not found"}`))
 	}))
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 

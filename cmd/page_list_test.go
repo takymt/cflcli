@@ -248,7 +248,7 @@ func TestRunPageListWithConfig_JSON_ResolvesSpaceKey(t *testing.T) {
 	}))
 	setOutputMode(t, "json")
 
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 
@@ -314,7 +314,7 @@ func TestRunPageListWithConfig_Table_UsesProfileSpaceKey(t *testing.T) {
 	}))
 	setOutputMode(t, "table")
 
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 
@@ -357,7 +357,7 @@ func TestRunPageListWithConfig_Table_ShowsStatusWhenExplicitStatus(t *testing.T)
 	}))
 	setOutputMode(t, "table")
 
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 
@@ -398,7 +398,7 @@ func TestRunPageListWithConfig_JSON_UsesCursor(t *testing.T) {
 	}))
 	setOutputMode(t, "json")
 
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 
@@ -444,7 +444,7 @@ func TestRunPageListWithConfig_JSON_UsesSort(t *testing.T) {
 	}))
 	setOutputMode(t, "json")
 
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 
@@ -463,7 +463,7 @@ func TestRunPageListWithConfig_JSON_UsesSort(t *testing.T) {
 }
 
 func TestRunPageListWithConfig_SpaceSelectorErrors(t *testing.T) {
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	t.Run("space-id and space-key are mutually exclusive", func(t *testing.T) {
 		cfg := &config.Config{

@@ -98,7 +98,7 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	cli, err := client.New(context.Background(), profile, os.Getenv("CONFLUENCE_API_TOKEN"))
+	cli, err := client.New(context.Background(), profile, os.Getenv("CFL_API_TOKEN"))
 	if err != nil {
 		return err
 	}

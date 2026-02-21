@@ -17,7 +17,7 @@ func TestRunPageGetWithConfig_WritesStorageBody(t *testing.T) {
 		_, _ = w.Write([]byte(`{"id":"123","title":"Doc","status":"current","spaceId":"SPACE-1","body":{"storage":{"representation":"storage","value":"<p>Hello</p>"}}}`))
 	}))
 
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 
@@ -41,7 +41,7 @@ func TestRunPageGetWithConfig_NotFound(t *testing.T) {
 		_, _ = w.Write([]byte(`{"message":"not found"}`))
 	}))
 
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 

@@ -40,7 +40,7 @@ func TestRunPageCreateWithConfig_Table_UsesSpaceKey(t *testing.T) {
 		}
 	}))
 	setOutputMode(t, "table")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageCreateOptions{
@@ -98,7 +98,7 @@ func TestRunPageCreateWithConfig_JSON_UsesSpaceID(t *testing.T) {
 		}
 	}))
 	setOutputMode(t, "json")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageCreateOptions{
@@ -136,7 +136,7 @@ func TestRunPageCreateWithConfig_JSON_UsesSpaceID(t *testing.T) {
 }
 
 func TestRunPageCreateWithConfig_Validation(t *testing.T) {
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig("example.atlassian.net", "WORK")
 	testCases := []struct {
@@ -228,7 +228,7 @@ func TestRunPageCreateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 		}
 	}))
 	setOutputMode(t, "table")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageCreateOptions{
@@ -277,7 +277,7 @@ func TestRunPageCreateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 		}
 	}))
 	setOutputMode(t, "table")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageCreateOptions{
@@ -298,7 +298,7 @@ func TestRunPageCreateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 }
 
 func TestRunPageCreateWithConfig_ParentIDSourcesAreMutuallyExclusive(t *testing.T) {
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig("example.atlassian.net", "WORK")
 	opts := &pageCreateOptions{
@@ -320,7 +320,7 @@ func TestRunPageCreateWithConfig_ParentIDSourcesAreMutuallyExclusive(t *testing.
 }
 
 func TestRunPageCreateWithConfig_InvalidFrontMatter(t *testing.T) {
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig("example.atlassian.net", "WORK")
 	opts := &pageCreateOptions{

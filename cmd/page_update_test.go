@@ -46,7 +46,7 @@ func TestRunPageUpdateWithConfig_JSON_AutoVersion(t *testing.T) {
 		}
 	}))
 	setOutputMode(t, "json")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageUpdateOptions{
@@ -124,7 +124,7 @@ func TestRunPageUpdateWithConfig_UsesFrontMatterTitleWhenFlagEmpty(t *testing.T)
 		}
 	}))
 	setOutputMode(t, "table")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageUpdateOptions{
@@ -166,7 +166,7 @@ func TestRunPageUpdateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 		}
 		http.NotFound(w, r)
 	}))
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageUpdateOptions{
@@ -188,7 +188,7 @@ func TestRunPageUpdateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 }
 
 func TestRunPageUpdateWithConfig_ParentIDSourcesAreMutuallyExclusive(t *testing.T) {
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig("example.atlassian.net", "WORK")
 	opts := &pageUpdateOptions{
@@ -241,7 +241,7 @@ func TestRunPageUpdateWithConfig_Table_WritesSummary(t *testing.T) {
 		}
 	}))
 	setOutputMode(t, "table")
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageUpdateOptions{
@@ -282,7 +282,7 @@ func TestRunPageUpdateWithConfig_Conflict(t *testing.T) {
 			http.NotFound(w, r)
 		}
 	}))
-	t.Setenv("CONFLUENCE_API_TOKEN", "token")
+	t.Setenv("CFL_API_TOKEN", "token")
 
 	cfg := newPageListConfig(srv.URL, "WORK")
 	opts := &pageUpdateOptions{
