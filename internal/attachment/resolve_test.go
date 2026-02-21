@@ -37,6 +37,34 @@ func TestResolveMarkdownImageAssets_RelativeLocalPathConvertsToAttachment(t *tes
 	}})
 }
 
+func TestResolveMarkdownImageAssets_RelativeLocalSVGAddsOriginalDimensions(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	bodyFile := filepath.Join(root, "docs", "page.md")
+	imagePath := mustWriteFile(t, filepath.Join(root, "docs", "img", "diagram.svg"), `<svg width="604" height="425" viewBox="0 0 604 425" xmlns="http://www.w3.org/2000/svg"></svg>`)
+	storage := `<ac:image><ri:url ri:value="./img/diagram.svg" /></ac:image>`
+
+	gotStorage, gotAssets, err := ResolveMarkdownImageAssets(storage, bodyFile, "")
+	if err != nil {
+		t.Fatalf("ResolveMarkdownImageAssets: %v", err)
+	}
+
+	if !strings.Contains(gotStorage, `<ri:attachment ri:filename="diagram.svg" />`) {
+		t.Fatalf("storage missing attachment reference: %q", gotStorage)
+	}
+	if !strings.Contains(gotStorage, `ac:original-width="604"`) {
+		t.Fatalf("storage missing original width: %q", gotStorage)
+	}
+	if !strings.Contains(gotStorage, `ac:original-height="425"`) {
+		t.Fatalf("storage missing original height: %q", gotStorage)
+	}
+	assertAssetsEqual(t, gotAssets, []Asset{{
+		Filename:   "diagram.svg",
+		SourcePath: imagePath,
+	}})
+}
+
 func TestResolveMarkdownImageAssets_RootPrefixedPathResolvesFromAssetsRoot(t *testing.T) {
 	t.Parallel()
 

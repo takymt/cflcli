@@ -1,14 +1,18 @@
 package attachment
 
 import (
+	"bytes"
+	"encoding/xml"
 	"fmt"
 	stdhtml "html"
 	"image"
 	_ "image/jpeg"
 	_ "image/png"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -103,25 +107,148 @@ func ResolveMarkdownImageAssets(storage, bodyFilePath, assetsRoot string) (strin
 
 func addOriginalDimensionsAttrs(attrs, sourcePath, filename string) string {
 	lowerExt := strings.ToLower(filepath.Ext(filename))
-	if lowerExt != ".png" && lowerExt != ".jpg" && lowerExt != ".jpeg" {
-		return attrs
-	}
 	if strings.Contains(attrs, `ac:original-width="`) || strings.Contains(attrs, `ac:original-height="`) {
 		return attrs
 	}
-
-	file, err := os.Open(sourcePath)
-	if err != nil {
+	width, height := 0, 0
+	switch lowerExt {
+	case ".png", ".jpg", ".jpeg":
+		width, height = decodeRasterImageDimensions(sourcePath)
+	case ".svg":
+		width, height = decodeSVGDimensions(sourcePath)
+	default:
 		return attrs
+	}
+	if width <= 0 || height <= 0 {
+		return attrs
+	}
+
+	return attrs + fmt.Sprintf(` ac:original-width="%d" ac:original-height="%d"`, width, height)
+}
+
+func decodeRasterImageDimensions(path string) (int, int) {
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, 0
 	}
 	defer func() { _ = file.Close() }()
 
 	config, _, err := image.DecodeConfig(file)
 	if err != nil || config.Width <= 0 || config.Height <= 0 {
-		return attrs
+		return 0, 0
+	}
+	return config.Width, config.Height
+}
+
+type svgRoot struct {
+	XMLName xml.Name `xml:"svg"`
+	Width   string   `xml:"width,attr"`
+	Height  string   `xml:"height,attr"`
+	ViewBox string   `xml:"viewBox,attr"`
+}
+
+func decodeSVGDimensions(path string) (int, int) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0, 0
 	}
 
-	return attrs + fmt.Sprintf(` ac:original-width="%d" ac:original-height="%d"`, config.Width, config.Height)
+	var root svgRoot
+	decoder := xml.NewDecoder(bytes.NewReader(data))
+	for {
+		token, tokenErr := decoder.Token()
+		if tokenErr != nil {
+			return 0, 0
+		}
+		start, ok := token.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if start.Name.Local != "svg" {
+			return 0, 0
+		}
+		if err := decoder.DecodeElement(&root, &start); err != nil {
+			return 0, 0
+		}
+		break
+	}
+
+	width := parseSVGLengthPixels(root.Width)
+	height := parseSVGLengthPixels(root.Height)
+	if width > 0 && height > 0 {
+		return width, height
+	}
+
+	if root.ViewBox == "" {
+		return 0, 0
+	}
+	viewBoxFields := strings.Fields(strings.ReplaceAll(root.ViewBox, ",", " "))
+	if len(viewBoxFields) != 4 {
+		return 0, 0
+	}
+	vw, errW := strconv.ParseFloat(viewBoxFields[2], 64)
+	vh, errH := strconv.ParseFloat(viewBoxFields[3], 64)
+	if errW != nil || errH != nil || vw <= 0 || vh <= 0 {
+		return 0, 0
+	}
+	return int(math.Round(vw)), int(math.Round(vh))
+}
+
+func parseSVGLengthPixels(value string) int {
+	raw := strings.TrimSpace(strings.ToLower(value))
+	if raw == "" {
+		return 0
+	}
+
+	unit := ""
+	number := raw
+	switch {
+	case strings.HasSuffix(raw, "px"):
+		unit = "px"
+		number = strings.TrimSpace(strings.TrimSuffix(raw, "px"))
+	case strings.HasSuffix(raw, "pt"):
+		unit = "pt"
+		number = strings.TrimSpace(strings.TrimSuffix(raw, "pt"))
+	case strings.HasSuffix(raw, "pc"):
+		unit = "pc"
+		number = strings.TrimSpace(strings.TrimSuffix(raw, "pc"))
+	case strings.HasSuffix(raw, "mm"):
+		unit = "mm"
+		number = strings.TrimSpace(strings.TrimSuffix(raw, "mm"))
+	case strings.HasSuffix(raw, "cm"):
+		unit = "cm"
+		number = strings.TrimSpace(strings.TrimSuffix(raw, "cm"))
+	case strings.HasSuffix(raw, "in"):
+		unit = "in"
+		number = strings.TrimSpace(strings.TrimSuffix(raw, "in"))
+	case strings.HasSuffix(raw, "%"):
+		return 0
+	default:
+		unit = "px"
+	}
+
+	val, err := strconv.ParseFloat(number, 64)
+	if err != nil || val <= 0 {
+		return 0
+	}
+
+	const dpi = 96.0
+	switch unit {
+	case "px":
+		return int(math.Round(val))
+	case "pt":
+		return int(math.Round(val * dpi / 72.0))
+	case "pc":
+		return int(math.Round(val * dpi / 6.0))
+	case "mm":
+		return int(math.Round(val * dpi / 25.4))
+	case "cm":
+		return int(math.Round(val * dpi / 2.54))
+	case "in":
+		return int(math.Round(val * dpi))
+	default:
+		return 0
+	}
 }
 
 func resolveAssetsRootPath(rawRoot, fallback string) (string, error) {
