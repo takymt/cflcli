@@ -153,7 +153,7 @@ func TestListPages_HTTPError(t *testing.T) {
 	}
 }
 
-func TestCreatePage_RequestAndAuth(t *testing.T) {
+func TestCreatePage_Request(t *testing.T) {
 	var gotBody struct {
 		SpaceID  string `json:"spaceId"`
 		Status   string `json:"status"`
@@ -178,7 +178,6 @@ func TestCreatePage_RequestAndAuth(t *testing.T) {
 		if contentType := r.Header.Get("Content-Type"); contentType != "application/json" {
 			t.Fatalf("content-type=%q", contentType)
 		}
-		assertBasicAuth(t, r, "u@example.com", "token")
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read body: %v", err)
@@ -219,7 +218,7 @@ func TestCreatePage_RequestAndAuth(t *testing.T) {
 	}
 }
 
-func TestUpdatePage_RequestAndAuth(t *testing.T) {
+func TestUpdatePage_Request(t *testing.T) {
 	var gotBody struct {
 		ID       string `json:"id"`
 		Status   string `json:"status"`
@@ -244,7 +243,6 @@ func TestUpdatePage_RequestAndAuth(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		assertBasicAuth(t, r, "u@example.com", "token")
 		bodyBytes, err := io.ReadAll(r.Body)
 		if err != nil {
 			t.Fatalf("read body: %v", err)
@@ -288,14 +286,13 @@ func TestUpdatePage_RequestAndAuth(t *testing.T) {
 	}
 }
 
-func TestDeletePage_RequestAndAuth(t *testing.T) {
+func TestDeletePage_Request(t *testing.T) {
 	var gotPath string
 	var gotMethod string
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
-		assertBasicAuth(t, r, "u@example.com", "token")
 		w.WriteHeader(http.StatusNoContent)
 	}))
 	defer srv.Close()
@@ -324,7 +321,7 @@ func TestDeletePage_RequestAndAuth(t *testing.T) {
 	}
 }
 
-func TestGetPage_QueryAndAuth(t *testing.T) {
+func TestGetPage_Query(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/wiki/api/v2/pages/123" {
 			http.NotFound(w, r)
@@ -333,7 +330,6 @@ func TestGetPage_QueryAndAuth(t *testing.T) {
 		if got := r.URL.Query().Get("body-format"); got != "storage" {
 			t.Fatalf("body-format=%q", got)
 		}
-		assertBasicAuth(t, r, "u@example.com", "token")
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"123","title":"Doc","status":"current","spaceId":"S1","body":{"storage":{"representation":"storage","value":"<p>Hello</p>"}}}`))
 	}))

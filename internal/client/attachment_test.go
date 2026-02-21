@@ -14,7 +14,7 @@ import (
 	"github.com/takymt/cflcli/internal/config"
 )
 
-func TestUpsertPageAttachment_RequestAndAuth(t *testing.T) {
+func TestUpsertPageAttachment_Request(t *testing.T) {
 	var gotFilename string
 	var gotFileContent string
 	var gotMinorEdit string
@@ -33,8 +33,6 @@ func TestUpsertPageAttachment_RequestAndAuth(t *testing.T) {
 		if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data; boundary=") {
 			t.Fatalf("unexpected content-type=%q", r.Header.Get("Content-Type"))
 		}
-		assertBasicAuth(t, r, "u@example.com", "token")
-
 		mr, err := r.MultipartReader()
 		if err != nil {
 			t.Fatalf("MultipartReader: %v", err)

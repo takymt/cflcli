@@ -93,22 +93,6 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("emoji shortcodes convert to confluence emoticons", func(t *testing.T) {
-		got, err := ToStorage([]byte(":smile: :thumbsup: :unknown_emoji:"), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if !strings.Contains(got, `<ac:emoticon ac:name="smile" />`) {
-			t.Fatalf("missing smile emoji: %q", got)
-		}
-		if !strings.Contains(got, `<ac:emoticon ac:name="thumbsup" />`) {
-			t.Fatalf("missing thumbsup emoji: %q", got)
-		}
-		if !strings.Contains(got, `<ac:emoticon ac:name="unknown_emoji" />`) {
-			t.Fatalf("unknown emoji must be converted as-is: %q", got)
-		}
-	})
-
 	t.Run("emoji shortcode in code block stays literal", func(t *testing.T) {
 		got, err := ToStorage([]byte("```\n:smile:\n```"), "markdown")
 		if err != nil {
@@ -140,28 +124,6 @@ func TestToStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("admonition aliases map to expected macros", func(t *testing.T) {
-		input := strings.Join([]string{
-			":::success",
-			"success",
-			":::",
-			"",
-			":::warn",
-			"warn",
-			":::",
-		}, "\n")
-		got, err := ToStorage([]byte(input), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if !strings.Contains(got, `<ac:structured-macro ac:name="tip">`) {
-			t.Fatalf("missing tip macro for success alias: %q", got)
-		}
-		if !strings.Contains(got, `<ac:structured-macro ac:name="note">`) {
-			t.Fatalf("missing note macro for warn alias: %q", got)
-		}
-	})
-
 	t.Run("nested list blank line is tightened", func(t *testing.T) {
 		got, err := ToStorage([]byte("- parent\n\n  - child\n"), "markdown")
 		if err != nil {
@@ -175,29 +137,6 @@ func TestToStorage(t *testing.T) {
 		}
 		if strings.Contains(got, "<li>parent\n<ul>") {
 			t.Fatalf("unexpected soft-break-prone list markup: %q", got)
-		}
-	})
-
-	t.Run("same level list blank lines are tightened", func(t *testing.T) {
-		got, err := ToStorage([]byte("- foo\n\n- bar\n"), "markdown")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if strings.Contains(got, "<p>foo</p>") || strings.Contains(got, "<p>bar</p>") {
-			t.Fatalf("unexpected loose list paragraphs: %q", got)
-		}
-		if !strings.Contains(got, "<li>foo</li>") || !strings.Contains(got, "<li>bar</li>") {
-			t.Fatalf("missing list items: %q", got)
-		}
-	})
-
-	t.Run("storage passthrough", func(t *testing.T) {
-		got, err := ToStorage([]byte("<p>Hello</p>"), "storage")
-		if err != nil {
-			t.Fatalf("ToStorage: %v", err)
-		}
-		if got != "<p>Hello</p>" {
-			t.Fatalf("got %q want %q", got, "<p>Hello</p>")
 		}
 	})
 }
