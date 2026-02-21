@@ -77,12 +77,12 @@ func RunPageUpdateWithConfig(out io.Writer, opts *pageUpdateOptions, cfg *config
 	if err != nil {
 		return err
 	}
-	title := resolvePageTitle(opts.Title, bodyInput.FrontMatterTitle)
-	if err := validatePageTitleSources(opts.Title, bodyInput.FrontMatterTitle); err != nil {
+	title := resolveTitle(opts.Title, bodyInput.FrontMatterTitle)
+	if err := validateTitleSources(opts.Title, bodyInput.FrontMatterTitle); err != nil {
 		return err
 	}
-	parentID := resolvePageParentID(opts.ParentID, bodyInput.FrontMatterParentID)
-	if err := validatePageParentIDSources(opts.ParentID, bodyInput.FrontMatterParentID); err != nil {
+	parentID := resolveParentID(opts.ParentID, bodyInput.FrontMatterParentID)
+	if err := validateParentIDSources(opts.ParentID, bodyInput.FrontMatterParentID); err != nil {
 		return err
 	}
 	if title == "" {

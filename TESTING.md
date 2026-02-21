@@ -46,6 +46,16 @@ Prioritize cases that catch regressions in CLI behavior:
   - profile selection and fallback behavior
   - config persistence and current-profile handling
 
+## Value Heuristics
+
+When adding or keeping tests, optimize for maintenance value over branch count:
+
+- Prefer behavior-level tests at command/API boundaries over direct tests of private helper functions.
+- Avoid asserting internal call order, temporary variables, or implementation-only structure.
+- Avoid duplicate coverage of the same behavior across multiple layers unless each layer has distinct user-facing risk.
+- For parser/validation logic, keep only representative boundary/error cases that protect CLI contracts.
+- Remove or merge tests that fail only after harmless refactors (renames/extractions) but do not detect behavior regressions.
+
 ## Coverage Policy
 
 - No hard coverage threshold in CI for now.

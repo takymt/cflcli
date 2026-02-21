@@ -86,13 +86,7 @@ func newPageRuntime(cfg *config.Config, repoSearchStart string) (*pageRuntime, e
 	}, nil
 }
 
-func resolvePageSpaceIDWithRepoDefaults(
-	spaceID,
-	spaceKey string,
-	repoCfg *config.RepoConfig,
-	profile *config.Profile,
-	cli *client.Client,
-) (string, error) {
+func (runtime *pageRuntime) resolveSpaceID(spaceID, spaceKey string) (string, error) {
 	spaceID = strings.TrimSpace(spaceID)
 	spaceKey = strings.TrimSpace(spaceKey)
 	if spaceID != "" && spaceKey != "" {
@@ -102,10 +96,10 @@ func resolvePageSpaceIDWithRepoDefaults(
 		return spaceID, nil
 	}
 	if spaceKey != "" {
-		return cli.ResolveSpaceIDByKey(spaceKey)
+		return runtime.Client.ResolveSpaceIDByKey(spaceKey)
 	}
 
-	repoSpaceID, repoSpaceKey, err := config.ResolveRepoSpaceSelectors(repoCfg)
+	repoSpaceID, repoSpaceKey, err := config.ResolveRepoSpaceSelectors(runtime.RepoConfig)
 	if err != nil {
 		return "", err
 	}
@@ -113,13 +107,13 @@ func resolvePageSpaceIDWithRepoDefaults(
 		return repoSpaceID, nil
 	}
 	if repoSpaceKey != "" {
-		return cli.ResolveSpaceIDByKey(repoSpaceKey)
+		return runtime.Client.ResolveSpaceIDByKey(repoSpaceKey)
 	}
 
-	if strings.TrimSpace(profile.SpaceKey) == "" {
+	if strings.TrimSpace(runtime.Profile.SpaceKey) == "" {
 		return "", fmt.Errorf("--space-id or --space-key is required; or configure space_key in profile")
 	}
-	return cli.ResolveSpaceIDByKey(strings.TrimSpace(profile.SpaceKey))
+	return runtime.Client.ResolveSpaceIDByKey(strings.TrimSpace(runtime.Profile.SpaceKey))
 }
 
 func normalizePageBodyFormat(value string) (string, error) {
@@ -175,7 +169,7 @@ func loadPageStorageBody(path, format, assetsRoot string) (*pageBodyInput, error
 	}, nil
 }
 
-func resolvePageTitle(flagTitle, frontMatterTitle string) string {
+func resolveTitle(flagTitle, frontMatterTitle string) string {
 	flagTitle = strings.TrimSpace(flagTitle)
 	if flagTitle != "" {
 		return flagTitle
@@ -183,14 +177,14 @@ func resolvePageTitle(flagTitle, frontMatterTitle string) string {
 	return strings.TrimSpace(frontMatterTitle)
 }
 
-func validatePageTitleSources(flagTitle, frontMatterTitle string) error {
+func validateTitleSources(flagTitle, frontMatterTitle string) error {
 	if strings.TrimSpace(flagTitle) != "" && strings.TrimSpace(frontMatterTitle) != "" {
 		return fmt.Errorf("--title and frontmatter title are mutually exclusive; specify only one")
 	}
 	return nil
 }
 
-func resolvePageParentID(flagParentID, frontMatterParentID string) string {
+func resolveParentID(flagParentID, frontMatterParentID string) string {
 	flagParentID = strings.TrimSpace(flagParentID)
 	if flagParentID != "" {
 		return flagParentID
@@ -198,7 +192,7 @@ func resolvePageParentID(flagParentID, frontMatterParentID string) string {
 	return strings.TrimSpace(frontMatterParentID)
 }
 
-func validatePageParentIDSources(flagParentID, frontMatterParentID string) error {
+func validateParentIDSources(flagParentID, frontMatterParentID string) error {
 	if strings.TrimSpace(flagParentID) != "" && strings.TrimSpace(frontMatterParentID) != "" {
 		return fmt.Errorf("--parent-id and frontmatter parent-id are mutually exclusive; specify only one")
 	}

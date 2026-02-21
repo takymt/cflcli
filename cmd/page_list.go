@@ -96,13 +96,7 @@ func RunPageListWithConfig(out io.Writer, opts *PageListOptions, cfg *config.Con
 		return err
 	}
 
-	spaceID, err := resolvePageSpaceIDWithRepoDefaults(
-		opts.SpaceID,
-		opts.SpaceKey,
-		runtime.RepoConfig,
-		runtime.Profile,
-		runtime.Client,
-	)
+	spaceID, err := runtime.resolveSpaceID(opts.SpaceID, opts.SpaceKey)
 	if err != nil {
 		return err
 	}
