@@ -3,6 +3,9 @@ package attachment
 import (
 	"fmt"
 	stdhtml "html"
+	"image"
+	_ "image/jpeg"
+	_ "image/png"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -84,6 +87,8 @@ func ResolveMarkdownImageAssets(storage, bodyFilePath, assetsRoot string) (strin
 			})
 		}
 
+		attrs = addOriginalDimensionsAttrs(attrs, resolvedPath, filename)
+
 		return `<ac:image` + attrs + `><ri:attachment ri:filename="` +
 			stdhtml.EscapeString(filename) +
 			`" /></ac:image>`
@@ -94,6 +99,29 @@ func ResolveMarkdownImageAssets(storage, bodyFilePath, assetsRoot string) (strin
 	}
 
 	return resolvedStorage, localImageAssets, nil
+}
+
+func addOriginalDimensionsAttrs(attrs, sourcePath, filename string) string {
+	lowerExt := strings.ToLower(filepath.Ext(filename))
+	if lowerExt != ".png" && lowerExt != ".jpg" && lowerExt != ".jpeg" {
+		return attrs
+	}
+	if strings.Contains(attrs, `ac:original-width="`) || strings.Contains(attrs, `ac:original-height="`) {
+		return attrs
+	}
+
+	file, err := os.Open(sourcePath)
+	if err != nil {
+		return attrs
+	}
+	defer func() { _ = file.Close() }()
+
+	config, _, err := image.DecodeConfig(file)
+	if err != nil || config.Width <= 0 || config.Height <= 0 {
+		return attrs
+	}
+
+	return attrs + fmt.Sprintf(` ac:original-width="%d" ac:original-height="%d"`, config.Width, config.Height)
 }
 
 func resolveAssetsRootPath(rawRoot, fallback string) (string, error) {

@@ -1,6 +1,8 @@
 package attachment
 
 import (
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +14,7 @@ func TestResolveMarkdownImageAssets_RelativeLocalPathConvertsToAttachment(t *tes
 
 	root := t.TempDir()
 	bodyFile := filepath.Join(root, "docs", "page.md")
-	imagePath := mustWriteFile(t, filepath.Join(root, "docs", "img", "logo.png"), "PNG")
+	imagePath := mustWritePNGImage(t, filepath.Join(root, "docs", "img", "logo.png"), 640, 480)
 	storage := `<ac:image><ri:url ri:value="./img/logo.png" /></ac:image>`
 
 	gotStorage, gotAssets, err := ResolveMarkdownImageAssets(storage, bodyFile, "")
@@ -22,6 +24,12 @@ func TestResolveMarkdownImageAssets_RelativeLocalPathConvertsToAttachment(t *tes
 
 	if !strings.Contains(gotStorage, `<ri:attachment ri:filename="logo.png" />`) {
 		t.Fatalf("storage missing attachment reference: %q", gotStorage)
+	}
+	if !strings.Contains(gotStorage, `ac:original-width="640"`) {
+		t.Fatalf("storage missing original width: %q", gotStorage)
+	}
+	if !strings.Contains(gotStorage, `ac:original-height="480"`) {
+		t.Fatalf("storage missing original height: %q", gotStorage)
 	}
 	assertAssetsEqual(t, gotAssets, []Asset{{
 		Filename:   "logo.png",
@@ -113,6 +121,25 @@ func mustWriteFile(t *testing.T, path, content string) string {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("WriteFile: %v", err)
+	}
+	return path
+}
+
+func mustWritePNGImage(t *testing.T, path string, width, height int) string {
+	t.Helper()
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	defer func() { _ = file.Close() }()
+
+	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	if err := png.Encode(file, img); err != nil {
+		t.Fatalf("png.Encode: %v", err)
 	}
 	return path
 }
