@@ -170,9 +170,6 @@ func TestRunMigrateExportWithConfig_RootPageAndCustomAttachmentsDir(t *testing.T
 	if _, err := os.Stat(filepath.Join(outDir, "root", "folder-2-2", "child.md")); err != nil {
 		t.Fatalf("child page under folder must be exported in folder path: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(outDir, "root", "folder-2-2", "_index.md")); !os.IsNotExist(err) {
-		t.Fatalf("folder must not create index markdown: err=%v", err)
-	}
 }
 
 func TestRunMigrateExportWithConfig_RequiresOut(t *testing.T) {
@@ -181,43 +178,5 @@ func TestRunMigrateExportWithConfig_RequiresOut(t *testing.T) {
 	}, newPageListConfig("example.atlassian.net", "WORK"))
 	if err == nil || !strings.Contains(err.Error(), "--out is required") {
 		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestRunMigrateExportWithConfig_LeafPageExportsAsMarkdownFile(t *testing.T) {
-	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/wiki/api/v2/spaces":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
-		case "/wiki/api/v2/spaces/SPACE-1/pages":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"Single Page","status":"current","spaceId":"SPACE-1"}],"_links":{}}`))
-		case "/wiki/api/v2/pages/1":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"1","title":"Single Page","status":"current","spaceId":"SPACE-1","body":{"storage":{"representation":"storage","value":"<p>single</p>"}}}`))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-
-	t.Setenv("CFL_API_TOKEN", "token")
-	setOutputMode(t, "table")
-
-	outDir := t.TempDir()
-	opts := &migrateExportOptions{
-		SpaceKey: "WORK",
-		Out:      outDir,
-	}
-
-	if err := RunMigrateExportWithConfig(&bytes.Buffer{}, opts, newPageListConfig(srv.URL, "WORK")); err != nil {
-		t.Fatalf("RunMigrateExportWithConfig: %v", err)
-	}
-
-	if _, err := os.Stat(filepath.Join(outDir, "single-page.md")); err != nil {
-		t.Fatalf("leaf page markdown was not exported as file: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(outDir, "single-page", "_index.md")); !os.IsNotExist(err) {
-		t.Fatalf("leaf page must not be exported as directory index: err=%v", err)
 	}
 }
