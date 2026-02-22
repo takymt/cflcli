@@ -163,6 +163,11 @@
 
 ## Phase 2: 拡張機能
 
+### migrate export 品質改善
+
+- [x] `StorageToMarkdown` で基本的な HTML（見出し/リスト/リンク/強調/引用/区切り線/タスクリスト）を Markdown 記法へ変換する
+- [x] Confluence `code` macro（mermaid 以外）を fenced code block に変換する
+
 ### ページ補助操作
 
 - [ ] `cfl page children <page-id>` — 子ページ一覧

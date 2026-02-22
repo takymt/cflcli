@@ -12,6 +12,7 @@ var (
 	structuredMacroPattern   = regexp.MustCompile(`(?s)<ac:structured-macro\b[^>]*ac:name="([^"]+)"[^>]*>.*?</ac:structured-macro>`)
 	macroNamePattern         = regexp.MustCompile(`ac:name="([^"]+)"`)
 	mermaidLanguagePattern   = regexp.MustCompile(`(?s)<ac:parameter\b[^>]*ac:name="language"[^>]*>\s*mermaid\s*</ac:parameter>`)
+	codeLanguagePattern      = regexp.MustCompile(`(?s)<ac:parameter\b[^>]*ac:name="language"[^>]*>\s*([^<]+?)\s*</ac:parameter>`)
 	plainTextBodyPattern     = regexp.MustCompile(`(?s)<ac:plain-text-body\b[^>]*>(.*?)</ac:plain-text-body>`)
 	cdataPattern             = regexp.MustCompile(`(?s)<!\[CDATA\[(.*?)\]\]>`)
 	imageAttachmentPattern   = regexp.MustCompile(`(?s)<ac:image\b([^>]*)>\s*<ri:attachment\b([^>]*)/>\s*</ac:image>`)
@@ -20,9 +21,6 @@ var (
 	filenameAttributePattern = regexp.MustCompile(`ri:filename="([^"]+)"`)
 	altAttributePattern      = regexp.MustCompile(`ac:alt="([^"]*)"`)
 	xmlHeaderPattern         = regexp.MustCompile(`(?s)<\?xml[^>]*\?>`)
-	pOpenPattern             = regexp.MustCompile(`(?i)<p\b[^>]*>`)
-	pClosePattern            = regexp.MustCompile(`(?i)</p>`)
-	brPattern                = regexp.MustCompile(`(?i)<br\s*/?>`)
 	excessBlankLinesPattern  = regexp.MustCompile(`\n{3,}`)
 )
 
@@ -93,9 +91,7 @@ func StorageToMarkdown(storage string, attachmentPath func(filename string) stri
 	})
 
 	normalized = xmlHeaderPattern.ReplaceAllString(normalized, "")
-	normalized = pOpenPattern.ReplaceAllString(normalized, "")
-	normalized = pClosePattern.ReplaceAllString(normalized, "\n\n")
-	normalized = brPattern.ReplaceAllString(normalized, "\n")
+	normalized = convertHTMLToMarkdownSyntax(normalized)
 	normalized = excessBlankLinesPattern.ReplaceAllString(normalized, "\n\n")
 	normalized = strings.TrimSpace(normalized)
 	if normalized != "" {
@@ -111,6 +107,17 @@ func convertStructuredMacros(storage string) string {
 		if macroName == "code" && mermaidLanguagePattern.MatchString(match) {
 			source := strings.Trim(extractPlainTextBody(match), "\n")
 			return "\n```mermaid\n" + source + "\n```\n"
+		}
+		if macroName == "code" {
+			source := strings.Trim(extractPlainTextBody(match), "\n")
+			language := strings.TrimSpace(extractAttribute(codeLanguagePattern, match))
+			if source == "" {
+				return ""
+			}
+			if language == "" {
+				return "\n```\n" + source + "\n```\n"
+			}
+			return "\n```" + language + "\n" + source + "\n```\n"
 		}
 
 		if macroName == "" {
@@ -150,7 +157,7 @@ func extractAttribute(pattern *regexp.Regexp, value string) string {
 
 func markdownImage(alt, targetPath string) string {
 	alt = strings.ReplaceAll(alt, "]", `\]`)
-	return "![" + alt + "](<" + targetPath + ">)"
+	return "![" + alt + "](" + targetPath + ")"
 }
 
 type orderedStringSet struct {

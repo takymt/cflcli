@@ -9,6 +9,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.7.13
 	go.abhg.dev/goldmark/mermaid v0.6.0
+	golang.org/x/net v0.50.0
 	golang.org/x/term v0.40.0
 )
 
