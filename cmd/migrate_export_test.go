@@ -165,3 +165,12 @@ func TestRunMigrateExportWithConfig_RootPageAndCustomAttachmentsDir(t *testing.T
 		t.Fatalf("custom attachments dir was not reflected in markdown: %q", string(rootMarkdown))
 	}
 }
+
+func TestRunMigrateExportWithConfig_RequiresOut(t *testing.T) {
+	err := RunMigrateExportWithConfig(&bytes.Buffer{}, &migrateExportOptions{
+		SpaceKey: "WORK",
+	}, newPageListConfig("example.atlassian.net", "WORK"))
+	if err == nil || !strings.Contains(err.Error(), "--out is required") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}

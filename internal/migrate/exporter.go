@@ -62,7 +62,7 @@ func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 
 	outDir := strings.TrimSpace(req.OutDir)
 	if outDir == "" {
-		outDir = "."
+		return nil, fmt.Errorf("out directory is required")
 	}
 
 	attachmentsDir := strings.TrimSpace(req.AttachmentsDir)

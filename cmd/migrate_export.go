@@ -51,7 +51,7 @@ func newMigrateExportCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.SpaceID, "space-id", "", "space id (numeric)")
 	cmd.Flags().StringVar(&opts.SpaceKey, "space-key", "", "space key (mutually exclusive with --space-id)")
 	cmd.Flags().StringVar(&opts.RootPageID, "root-page-id", "", "root page id to export as subtree")
-	cmd.Flags().StringVar(&opts.Out, "out", ".", "output directory")
+	cmd.Flags().StringVar(&opts.Out, "out", "", "output directory (required)")
 	cmd.Flags().StringVar(&opts.AttachmentsDir, "attachments-dir", defaultMigrateAttachmentsDir, "attachments directory under --out")
 
 	return cmd
@@ -69,6 +69,10 @@ func runMigrateExport(out io.Writer, opts *migrateExportOptions) error {
 func RunMigrateExportWithConfig(out io.Writer, opts *migrateExportOptions, cfg *config.Config) error {
 	if opts == nil {
 		return fmt.Errorf("options are required")
+	}
+	outDir := strings.TrimSpace(opts.Out)
+	if outDir == "" {
+		return fmt.Errorf("--out is required")
 	}
 
 	runtime, err := newPageRuntime(cfg)
@@ -89,7 +93,7 @@ func RunMigrateExportWithConfig(out io.Writer, opts *migrateExportOptions, cfg *
 		SpaceID:        spaceID,
 		SpaceKey:       spaceKey,
 		RootPageID:     strings.TrimSpace(opts.RootPageID),
-		OutDir:         strings.TrimSpace(opts.Out),
+		OutDir:         outDir,
 		AttachmentsDir: strings.TrimSpace(opts.AttachmentsDir),
 	})
 	if err != nil {
