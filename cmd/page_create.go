@@ -85,6 +85,9 @@ func RunPageCreateWithConfig(out io.Writer, opts *pageCreateOptions, cfg *config
 	if title == "" {
 		return fmt.Errorf("--title is required")
 	}
+	if strings.EqualFold(strings.TrimSpace(title), "_index") {
+		return fmt.Errorf(`title "_index" is reserved`)
+	}
 
 	spaceID, err := runtime.resolveSpaceID(opts.SpaceID, opts.SpaceKey)
 	if err != nil {

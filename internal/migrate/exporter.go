@@ -381,41 +381,184 @@ func (m *subtreeMatcher) folderInRoot(folderID string) (bool, error) {
 
 func buildPageFileMap(pagesByID map[string]client.Page, folders *folderResolver) (map[string]string, error) {
 	builder := &pathBuilder{
-		pagesByID:   pagesByID,
-		folders:     folders,
-		pageDirMemo: map[string]string{},
-		pageVisit:   map[string]struct{}{},
-		foldDirMemo: map[string]string{},
-		foldVisit:   map[string]struct{}{},
+		pagesByID:        pagesByID,
+		folders:          folders,
+		pageContainerDir: map[string]string{},
+		pageAncestors:    map[string][]string{},
+		pageVisit:        map[string]struct{}{},
+		folderDirMemo:    map[string]string{},
+		folderAncestors:  map[string][]string{},
+		folderVisit:      map[string]struct{}{},
+	}
+
+	hasChildren, err := builder.buildHasChildrenMap()
+	if err != nil {
+		return nil, err
 	}
 
 	pageFileByID := map[string]string{}
-	for id := range pagesByID {
-		dir, err := builder.pageDir(id)
+	for id, page := range pagesByID {
+		containerDir, err := builder.pageContainer(id, hasChildren)
 		if err != nil {
 			return nil, err
 		}
-		pageFileByID[id] = filepath.Join(dir, "index.md")
+		name := sanitizePageFileBaseName(page.Title)
+		if hasChildren[id] {
+			pageFileByID[id] = filepath.Join(containerDir, name, "_index.md")
+			continue
+		}
+		pageFileByID[id] = filepath.Join(containerDir, name+".md")
 	}
 
 	return pageFileByID, nil
 }
 
 type pathBuilder struct {
-	pagesByID   map[string]client.Page
-	folders     *folderResolver
-	pageDirMemo map[string]string
-	pageVisit   map[string]struct{}
-	foldDirMemo map[string]string
-	foldVisit   map[string]struct{}
+	pagesByID map[string]client.Page
+	folders   *folderResolver
+
+	pageContainerDir map[string]string
+	pageAncestors    map[string][]string
+	pageVisit        map[string]struct{}
+
+	folderDirMemo   map[string]string
+	folderAncestors map[string][]string
+	folderVisit     map[string]struct{}
 }
 
-func (b *pathBuilder) pageDir(pageID string) (string, error) {
+func (b *pathBuilder) buildHasChildrenMap() (map[string]bool, error) {
+	hasChildren := map[string]bool{}
+	for id := range b.pagesByID {
+		hasChildren[id] = false
+	}
+
+	for id := range b.pagesByID {
+		ancestors, err := b.pageAncestorIDs(id)
+		if err != nil {
+			return nil, err
+		}
+		for _, ancestor := range ancestors {
+			if ancestor == id {
+				continue
+			}
+			if _, ok := hasChildren[ancestor]; ok {
+				hasChildren[ancestor] = true
+			}
+		}
+	}
+	return hasChildren, nil
+}
+
+func (b *pathBuilder) pageAncestorIDs(pageID string) ([]string, error) {
+	pageID = strings.TrimSpace(pageID)
+	if pageID == "" {
+		return nil, nil
+	}
+	if ancestors, ok := b.pageAncestors[pageID]; ok {
+		copied := make([]string, len(ancestors))
+		copy(copied, ancestors)
+		return copied, nil
+	}
+	if _, visiting := b.pageVisit[pageID]; visiting {
+		return []string{pageID}, nil
+	}
+
+	page, ok := b.pagesByID[pageID]
+	if !ok {
+		return nil, fmt.Errorf("page %q not found while building ancestors", pageID)
+	}
+
+	b.pageVisit[pageID] = struct{}{}
+	defer delete(b.pageVisit, pageID)
+
+	ancestors := []string{pageID}
+	parentID := strings.TrimSpace(page.ParentID)
+	parentType := strings.ToLower(strings.TrimSpace(page.ParentType))
+
+	switch parentType {
+	case "page":
+		if _, ok := b.pagesByID[parentID]; ok {
+			parentAncestors, err := b.pageAncestorIDs(parentID)
+			if err != nil {
+				return nil, err
+			}
+			ancestors = append(ancestors, parentAncestors...)
+		}
+	case "folder":
+		folderAncestors, err := b.folderAncestorPageIDs(parentID)
+		if err != nil {
+			return nil, err
+		}
+		ancestors = append(ancestors, folderAncestors...)
+	default:
+		if _, ok := b.pagesByID[parentID]; ok {
+			parentAncestors, err := b.pageAncestorIDs(parentID)
+			if err != nil {
+				return nil, err
+			}
+			ancestors = append(ancestors, parentAncestors...)
+		}
+	}
+
+	b.pageAncestors[pageID] = ancestors
+	copied := make([]string, len(ancestors))
+	copy(copied, ancestors)
+	return copied, nil
+}
+
+func (b *pathBuilder) folderAncestorPageIDs(folderID string) ([]string, error) {
+	folderID = strings.TrimSpace(folderID)
+	if folderID == "" {
+		return nil, nil
+	}
+	if ancestors, ok := b.folderAncestors[folderID]; ok {
+		copied := make([]string, len(ancestors))
+		copy(copied, ancestors)
+		return copied, nil
+	}
+	if _, visiting := b.folderVisit[folderID]; visiting {
+		return nil, nil
+	}
+
+	b.folderVisit[folderID] = struct{}{}
+	defer delete(b.folderVisit, folderID)
+
+	folder, err := b.folders.Get(folderID)
+	if err != nil {
+		return nil, fmt.Errorf("resolve folder %q: %w", folderID, err)
+	}
+
+	parentID := strings.TrimSpace(folder.ParentID)
+	parentType := strings.ToLower(strings.TrimSpace(folder.ParentType))
+	var ancestors []string
+
+	switch parentType {
+	case "page":
+		if _, ok := b.pagesByID[parentID]; ok {
+			ancestors, err = b.pageAncestorIDs(parentID)
+			if err != nil {
+				return nil, err
+			}
+		}
+	case "folder":
+		ancestors, err = b.folderAncestorPageIDs(parentID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	b.folderAncestors[folderID] = ancestors
+	copied := make([]string, len(ancestors))
+	copy(copied, ancestors)
+	return copied, nil
+}
+
+func (b *pathBuilder) pageContainer(pageID string, hasChildren map[string]bool) (string, error) {
 	pageID = strings.TrimSpace(pageID)
 	if pageID == "" {
 		return "", nil
 	}
-	if dir, ok := b.pageDirMemo[pageID]; ok {
+	if dir, ok := b.pageContainerDir[pageID]; ok {
 		return dir, nil
 	}
 	if _, visiting := b.pageVisit[pageID]; visiting {
@@ -430,54 +573,63 @@ func (b *pathBuilder) pageDir(pageID string) (string, error) {
 	b.pageVisit[pageID] = struct{}{}
 	defer delete(b.pageVisit, pageID)
 
+	parentDir := ""
 	parentID := strings.TrimSpace(page.ParentID)
 	parentType := strings.ToLower(strings.TrimSpace(page.ParentType))
-	parentDir := ""
 
 	switch parentType {
 	case "page":
 		if _, ok := b.pagesByID[parentID]; ok {
-			var err error
-			parentDir, err = b.pageDir(parentID)
+			parentContainer, err := b.pageContainer(parentID, hasChildren)
 			if err != nil {
 				return "", err
+			}
+			parentPage := b.pagesByID[parentID]
+			if hasChildren[parentID] {
+				parentDir = filepath.Join(parentContainer, sanitizePageFileBaseName(parentPage.Title))
+			} else {
+				parentDir = parentContainer
 			}
 		}
 	case "folder":
 		var err error
-		parentDir, err = b.folderDir(parentID)
+		parentDir, err = b.folderDir(parentID, hasChildren)
 		if err != nil {
 			return "", err
 		}
 	default:
 		if _, ok := b.pagesByID[parentID]; ok {
-			var err error
-			parentDir, err = b.pageDir(parentID)
+			parentContainer, err := b.pageContainer(parentID, hasChildren)
 			if err != nil {
 				return "", err
+			}
+			parentPage := b.pagesByID[parentID]
+			if hasChildren[parentID] {
+				parentDir = filepath.Join(parentContainer, sanitizePageFileBaseName(parentPage.Title))
+			} else {
+				parentDir = parentContainer
 			}
 		}
 	}
 
-	dir := filepath.Join(parentDir, sanitizePageFileBaseName(page.Title)+"-"+page.ID)
-	b.pageDirMemo[pageID] = dir
-	return dir, nil
+	b.pageContainerDir[pageID] = parentDir
+	return parentDir, nil
 }
 
-func (b *pathBuilder) folderDir(folderID string) (string, error) {
+func (b *pathBuilder) folderDir(folderID string, hasChildren map[string]bool) (string, error) {
 	folderID = strings.TrimSpace(folderID)
 	if folderID == "" {
 		return "", nil
 	}
-	if dir, ok := b.foldDirMemo[folderID]; ok {
+	if dir, ok := b.folderDirMemo[folderID]; ok {
 		return dir, nil
 	}
-	if _, visiting := b.foldVisit[folderID]; visiting {
+	if _, visiting := b.folderVisit[folderID]; visiting {
 		return "", nil
 	}
 
-	b.foldVisit[folderID] = struct{}{}
-	defer delete(b.foldVisit, folderID)
+	b.folderVisit[folderID] = struct{}{}
+	defer delete(b.folderVisit, folderID)
 
 	folder, err := b.folders.Get(folderID)
 	if err != nil {
@@ -491,20 +643,26 @@ func (b *pathBuilder) folderDir(folderID string) (string, error) {
 	switch parentType {
 	case "page":
 		if _, ok := b.pagesByID[parentID]; ok {
-			parentDir, err = b.pageDir(parentID)
+			parentContainer, err := b.pageContainer(parentID, hasChildren)
 			if err != nil {
 				return "", err
 			}
+			parentPage := b.pagesByID[parentID]
+			if hasChildren[parentID] {
+				parentDir = filepath.Join(parentContainer, sanitizePageFileBaseName(parentPage.Title))
+			} else {
+				parentDir = parentContainer
+			}
 		}
 	case "folder":
-		parentDir, err = b.folderDir(parentID)
+		parentDir, err = b.folderDir(parentID, hasChildren)
 		if err != nil {
 			return "", err
 		}
 	}
 
-	dir := filepath.Join(parentDir, sanitizePageFileBaseName(folder.Title)+"-"+folder.ID)
-	b.foldDirMemo[folderID] = dir
+	dir := filepath.Join(parentDir, sanitizePageFileBaseName(folder.Title))
+	b.folderDirMemo[folderID] = dir
 	return dir, nil
 }
 

@@ -70,7 +70,7 @@ func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 		t.Fatalf("attachment filename query=%q want %q", gotAttachmentFilenameQuery, "logo.png")
 	}
 
-	rootMarkdownPath := filepath.Join(outDir, "root-page-1", "index.md")
+	rootMarkdownPath := filepath.Join(outDir, "root-page", "_index.md")
 	rootMarkdown, err := os.ReadFile(rootMarkdownPath)
 	if err != nil {
 		t.Fatalf("ReadFile(root markdown): %v", err)
@@ -86,7 +86,7 @@ func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 		t.Fatalf("attachment markdown missing: %q", rootContent)
 	}
 
-	childMarkdownPath := filepath.Join(outDir, "root-page-1", "child-page-2", "index.md")
+	childMarkdownPath := filepath.Join(outDir, "root-page", "child-page.md")
 	childMarkdown, err := os.ReadFile(childMarkdownPath)
 	if err != nil {
 		t.Fatalf("ReadFile(child markdown): %v", err)
@@ -156,19 +156,22 @@ func TestRunMigrateExportWithConfig_RootPageAndCustomAttachmentsDir(t *testing.T
 		t.Fatalf("RunMigrateExportWithConfig: %v", err)
 	}
 
-	if _, err := os.Stat(filepath.Join(outDir, "outside-3", "index.md")); !os.IsNotExist(err) {
+	if _, err := os.Stat(filepath.Join(outDir, "outside.md")); !os.IsNotExist(err) {
 		t.Fatalf("outside page must not be exported: err=%v", err)
 	}
 
-	rootMarkdown, err := os.ReadFile(filepath.Join(outDir, "root-1", "index.md"))
+	rootMarkdown, err := os.ReadFile(filepath.Join(outDir, "root", "_index.md"))
 	if err != nil {
 		t.Fatalf("ReadFile(root markdown): %v", err)
 	}
 	if !strings.Contains(string(rootMarkdown), `attachments/custom/1/logo.png`) {
 		t.Fatalf("custom attachments dir was not reflected in markdown: %q", string(rootMarkdown))
 	}
-	if _, err := os.Stat(filepath.Join(outDir, "root-1", "folder-2-2-f1", "child-2", "index.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(outDir, "root", "folder-2-2", "child.md")); err != nil {
 		t.Fatalf("child page under folder must be exported in folder path: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "root", "folder-2-2", "_index.md")); !os.IsNotExist(err) {
+		t.Fatalf("folder must not create index markdown: err=%v", err)
 	}
 }
 
@@ -178,5 +181,43 @@ func TestRunMigrateExportWithConfig_RequiresOut(t *testing.T) {
 	}, newPageListConfig("example.atlassian.net", "WORK"))
 	if err == nil || !strings.Contains(err.Error(), "--out is required") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestRunMigrateExportWithConfig_LeafPageExportsAsMarkdownFile(t *testing.T) {
+	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/wiki/api/v2/spaces":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
+		case "/wiki/api/v2/spaces/SPACE-1/pages":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"Single Page","status":"current","spaceId":"SPACE-1"}],"_links":{}}`))
+		case "/wiki/api/v2/pages/1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"1","title":"Single Page","status":"current","spaceId":"SPACE-1","body":{"storage":{"representation":"storage","value":"<p>single</p>"}}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+
+	t.Setenv("CFL_API_TOKEN", "token")
+	setOutputMode(t, "table")
+
+	outDir := t.TempDir()
+	opts := &migrateExportOptions{
+		SpaceKey: "WORK",
+		Out:      outDir,
+	}
+
+	if err := RunMigrateExportWithConfig(&bytes.Buffer{}, opts, newPageListConfig(srv.URL, "WORK")); err != nil {
+		t.Fatalf("RunMigrateExportWithConfig: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(outDir, "single-page.md")); err != nil {
+		t.Fatalf("leaf page markdown was not exported as file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "single-page", "_index.md")); !os.IsNotExist(err) {
+		t.Fatalf("leaf page must not be exported as directory index: err=%v", err)
 	}
 }

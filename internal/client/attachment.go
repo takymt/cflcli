@@ -3,6 +3,7 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -125,27 +126,62 @@ func (c *Client) DownloadPageAttachmentByFilename(pageID, filename string) ([]by
 		return nil, fmt.Errorf("attachment %q has no download link", filename)
 	}
 
-	downloadURL, err := c.resolveDownloadURL(downloadPath)
-	if err != nil {
-		return nil, err
-	}
-	downloadReq, err := http.NewRequestWithContext(c.ctx, http.MethodGet, downloadURL, nil)
-	if err != nil {
-		return nil, err
+	downloadURLs := c.resolveDownloadURLCandidates(downloadPath)
+	var lastErr error
+	for _, downloadURL := range downloadURLs {
+		downloadReq, reqErr := http.NewRequestWithContext(c.ctx, http.MethodGet, downloadURL, nil)
+		if reqErr != nil {
+			lastErr = reqErr
+			continue
+		}
+
+		content, dlErr := c.doRaw(downloadReq, "*/*")
+		if dlErr == nil {
+			return content, nil
+		}
+
+		var httpErr *HTTPError
+		if !errors.As(dlErr, &httpErr) || httpErr.StatusCode != http.StatusNotFound {
+			return nil, dlErr
+		}
+		lastErr = dlErr
 	}
 
-	return c.doRaw(downloadReq, "*/*")
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("attachment %q download link is invalid", filename)
 }
 
-func (c *Client) resolveDownloadURL(path string) (string, error) {
-	switch {
-	case strings.HasPrefix(path, "https://"), strings.HasPrefix(path, "http://"):
-		return path, nil
-	case strings.HasPrefix(path, "/"):
-		return c.siteBaseURL() + path, nil
-	default:
-		return c.siteBaseURL() + "/" + path, nil
+func (c *Client) resolveDownloadURLCandidates(path string) []string {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil
 	}
+	if strings.HasPrefix(path, "https://") || strings.HasPrefix(path, "http://") {
+		return []string{path}
+	}
+
+	var candidates []string
+	switch {
+	case strings.HasPrefix(path, "/wiki/"):
+		candidates = append(candidates, c.domainBaseURL()+path)
+	case strings.HasPrefix(path, "/"):
+		candidates = append(candidates, c.domainBaseURL()+path, c.siteBaseURL()+path)
+	default:
+		candidates = append(candidates, c.domainBaseURL()+"/"+path, c.siteBaseURL()+"/"+path)
+	}
+
+	seen := map[string]struct{}{}
+	unique := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		unique = append(unique, candidate)
+	}
+	return unique
 }
 
 func (c *Client) restAPIBaseURL() string {
@@ -160,6 +196,14 @@ func (c *Client) siteBaseURL() string {
 	const v2Suffix = "/wiki/api/v2"
 	if strings.HasSuffix(c.baseURL, v2Suffix) {
 		return strings.TrimSuffix(c.baseURL, v2Suffix)
+	}
+	return strings.TrimSuffix(c.baseURL, "/")
+}
+
+func (c *Client) domainBaseURL() string {
+	const v2Suffix = "/wiki/api/v2"
+	if strings.HasSuffix(c.baseURL, v2Suffix) {
+		return strings.TrimSuffix(strings.TrimSuffix(c.baseURL, v2Suffix), "/")
 	}
 	return strings.TrimSuffix(c.baseURL, "/")
 }
