@@ -136,11 +136,24 @@
   - [x] IF `--no-render-mermaid` 指定時 THEN mermaid は code block として保持する
 - [x] 生成画像を page 添付にアップロードし、本文を `ri:attachment` 参照へ変換する
 
-## Phase 1.4: Storage -> Markdown と冪等性
+## Phase 1.4: migrate export と冪等性
 
-### Storage -> Markdown 変換
+### migrate export（Git SSOT 移行）
 
-- [ ] Confluence storage format (XHTML) を Markdown に変換する
+- [ ] `cfl migrate export` を追加する
+  - [ ] `--space-key` `--root-page-id` `--out` `--attachments-dir` をサポートする
+  - [ ] ページツリーを Markdown + frontmatter（`page-id`, `title`, `parent-id`, `space-key`）で出力する
+- [ ] 添付ファイルの保存先を migrate 専用サブディレクトリにする
+  - [ ] default は `attachments/_migrate` にする
+  - [ ] `--attachments-dir` で保存先を変更可能にする
+- [ ] `ri:attachment` は一律 `attachments` 配下の Markdown 画像リンクへ変換する
+  - [ ] 元の Markdown 画像パス復元は行わない
+
+### Macro 方針（migrate）
+
+- [ ] Mermaid macro は ```mermaid``` fenced code block に変換する
+- [ ] 未対応 macro は削除せず HTML コメントとして残す
+  - [ ] macro 名と raw storage を追跡できる形式にする
 
 ### 変換冪等性
 
