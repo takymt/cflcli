@@ -22,7 +22,7 @@ func TestDownloadPageAttachmentByFilename(t *testing.T) {
 			assertBasicAuth(t, r, "u@example.com", "token")
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","downloadLink":"/download/attachments/123/logo.png"}]}`))
-		case "/download/attachments/123/logo.png":
+		case "/download/attachments/123/logo.png", "/wiki/download/attachments/123/logo.png":
 			assertBasicAuth(t, r, "u@example.com", "token")
 			_, _ = w.Write([]byte("PNGDATA"))
 		default:

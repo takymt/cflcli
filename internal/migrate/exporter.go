@@ -34,6 +34,11 @@ type ExportedPage struct {
 	File     string
 }
 
+// ExportWarning represents a non-fatal issue encountered during export.
+type ExportWarning struct {
+	Message string
+}
+
 // ExportResult represents migrate export output metadata.
 type ExportResult struct {
 	SpaceID        string
@@ -41,6 +46,7 @@ type ExportResult struct {
 	OutDir         string
 	AttachmentsDir string
 	Pages          []ExportedPage
+	Warnings       []ExportWarning
 }
 
 // Export executes migrate export orchestration using Confluence API + filesystem output.
@@ -125,6 +131,7 @@ func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 	}
 
 	exportedPages := make([]ExportedPage, 0, len(orderedPages))
+	warnings := make([]ExportWarning, 0)
 	for _, page := range orderedPages {
 		detail, err := cli.GetPage(page.ID)
 		if err != nil {
@@ -146,9 +153,11 @@ func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 			return nil, fmt.Errorf("convert page %q body to markdown: %w", page.ID, err)
 		}
 
-		if err := downloadAttachments(cli, outDir, attachmentsDir, page.ID, attachments); err != nil {
+		downloadWarnings, err := downloadAttachments(cli, outDir, attachmentsDir, page.ID, attachments)
+		if err != nil {
 			return nil, err
 		}
+		warnings = append(warnings, downloadWarnings...)
 
 		frontMatter := buildFrontMatter(detail.ID, detail.Title, detail.ParentID, spaceKey)
 		content := frontMatter + markdown
@@ -175,6 +184,7 @@ func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 		OutDir:         outDir,
 		AttachmentsDir: filepath.ToSlash(attachmentsDir),
 		Pages:          exportedPages,
+		Warnings:       warnings,
 	}, nil
 }
 
@@ -684,23 +694,31 @@ func orderedPagesForExport(pagesByID map[string]client.Page, pageFileByID map[st
 	return ordered
 }
 
-func downloadAttachments(cli *client.Client, outDir, attachmentsDir, pageID string, filenames []string) error {
+func downloadAttachments(cli *client.Client, outDir, attachmentsDir, pageID string, filenames []string) ([]ExportWarning, error) {
+	warnings := make([]ExportWarning, 0)
 	for _, filename := range filenames {
 		content, err := cli.DownloadPageAttachmentByFilename(pageID, filename)
 		if err != nil {
-			return fmt.Errorf("download attachment %q for page %q: %w", filename, pageID, err)
+			var httpErr *client.HTTPError
+			if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+				warnings = append(warnings, ExportWarning{
+					Message: fmt.Sprintf(`download attachment %q for page %q skipped: %s`, filename, pageID, httpErr.Status),
+				})
+				continue
+			}
+			return nil, fmt.Errorf("download attachment %q for page %q: %w", filename, pageID, err)
 		}
 
 		safeName := safeAttachmentFilename(filename)
 		targetPath := filepath.Join(outDir, attachmentsDir, pageID, safeName)
 		if err := os.MkdirAll(filepath.Dir(targetPath), 0o755); err != nil {
-			return fmt.Errorf("create attachment directory for %q: %w", targetPath, err)
+			return nil, fmt.Errorf("create attachment directory for %q: %w", targetPath, err)
 		}
 		if err := os.WriteFile(targetPath, content, 0o600); err != nil {
-			return fmt.Errorf("write attachment %q: %w", targetPath, err)
+			return nil, fmt.Errorf("write attachment %q: %w", targetPath, err)
 		}
 	}
-	return nil
+	return warnings, nil
 }
 
 type folderResolver struct {

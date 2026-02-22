@@ -42,7 +42,7 @@ func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 			gotAttachmentFilenameQuery = r.URL.Query().Get("filename")
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","downloadLink":"/download/attachments/1/logo.png"}]}`))
-		case "/download/attachments/1/logo.png":
+		case "/download/attachments/1/logo.png", "/wiki/download/attachments/1/logo.png":
 			_, _ = w.Write([]byte("PNGDATA"))
 		default:
 			http.NotFound(w, r)
@@ -134,7 +134,7 @@ func TestRunMigrateExportWithConfig_RootPageAndCustomAttachmentsDir(t *testing.T
 		case attachmentPath:
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","downloadLink":"/download/attachments/1/logo.png"}]}`))
-		case "/download/attachments/1/logo.png":
+		case "/download/attachments/1/logo.png", "/wiki/download/attachments/1/logo.png":
 			_, _ = w.Write([]byte("PNGDATA"))
 		default:
 			http.NotFound(w, r)

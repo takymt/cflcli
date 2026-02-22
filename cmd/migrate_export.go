@@ -25,6 +25,7 @@ type migrateExportResult struct {
 	Out            string                `json:"out"`
 	AttachmentsDir string                `json:"attachments_dir"`
 	Pages          []migrateExportedPage `json:"pages"`
+	Warnings       []string              `json:"warnings,omitempty"`
 }
 
 type migrateExportedPage struct {
@@ -106,6 +107,7 @@ func RunMigrateExportWithConfig(out io.Writer, opts *migrateExportOptions, cfg *
 		Out:            exportResult.OutDir,
 		AttachmentsDir: exportResult.AttachmentsDir,
 		Pages:          make([]migrateExportedPage, 0, len(exportResult.Pages)),
+		Warnings:       make([]string, 0, len(exportResult.Warnings)),
 	}
 	for _, page := range exportResult.Pages {
 		result.Pages = append(result.Pages, migrateExportedPage{
@@ -115,11 +117,29 @@ func RunMigrateExportWithConfig(out io.Writer, opts *migrateExportOptions, cfg *
 			File:     page.File,
 		})
 	}
+	for _, warning := range exportResult.Warnings {
+		if msg := strings.TrimSpace(warning.Message); msg != "" {
+			result.Warnings = append(result.Warnings, msg)
+		}
+	}
 
 	switch outputFlag {
 	case "table":
-		_, err := fmt.Fprintf(out, "Exported %d pages to %q.\n", len(result.Pages), result.Out)
-		return err
+		if _, err := fmt.Fprintf(out, "Exported %d pages to %q.\n", len(result.Pages), result.Out); err != nil {
+			return err
+		}
+		if len(result.Warnings) == 0 {
+			return nil
+		}
+		if _, err := fmt.Fprintf(out, "Warnings (%d):\n", len(result.Warnings)); err != nil {
+			return err
+		}
+		for _, warning := range result.Warnings {
+			if _, err := fmt.Fprintf(out, "- %s\n", warning); err != nil {
+				return err
+			}
+		}
+		return nil
 	case "json":
 		enc := json.NewEncoder(out)
 		enc.SetIndent("", "  ")

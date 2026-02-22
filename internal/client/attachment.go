@@ -146,10 +146,12 @@ func (c *Client) resolveDownloadURL(path string) (string, error) {
 	switch {
 	case strings.HasPrefix(path, "https://"), strings.HasPrefix(path, "http://"):
 		return path, nil
-	case strings.HasPrefix(path, "/"):
+	case strings.HasPrefix(path, "/wiki/"):
 		return c.siteBaseURL() + path, nil
+	case strings.HasPrefix(path, "/"):
+		return c.siteBaseURL() + "/wiki" + path, nil
 	default:
-		return c.siteBaseURL() + "/" + path, nil
+		return c.siteBaseURL() + "/wiki/" + path, nil
 	}
 }
 
