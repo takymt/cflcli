@@ -17,9 +17,10 @@ type attachmentListResult struct {
 }
 
 type attachmentItem struct {
-	ID    string `json:"id"`
-	Title string `json:"title"`
-	Links struct {
+	ID           string `json:"id"`
+	Title        string `json:"title"`
+	DownloadLink string `json:"downloadLink"`
+	Links        struct {
 		Download string `json:"download"`
 	} `json:"_links"`
 }
@@ -91,12 +92,13 @@ func (c *Client) DownloadPageAttachmentByFilename(pageID, filename string) ([]by
 		return nil, fmt.Errorf("attachment filename is required")
 	}
 
-	listURL, err := url.Parse(c.restAPIBaseURL() + "/content/" + url.PathEscape(pageID) + "/child/attachment")
+	listURL, err := url.Parse(c.baseURL + "/pages/" + url.PathEscape(pageID) + "/attachments")
 	if err != nil {
 		return nil, err
 	}
 	query := listURL.Query()
 	query.Set("filename", filename)
+	query.Set("status", "current")
 	query.Set("limit", "1")
 	listURL.RawQuery = query.Encode()
 
@@ -115,7 +117,10 @@ func (c *Client) DownloadPageAttachmentByFilename(pageID, filename string) ([]by
 		return nil, fmt.Errorf("attachment %q not found on page %q", filename, pageID)
 	}
 
-	downloadPath := strings.TrimSpace(listResult.Results[0].Links.Download)
+	downloadPath := strings.TrimSpace(listResult.Results[0].DownloadLink)
+	if downloadPath == "" {
+		downloadPath = strings.TrimSpace(listResult.Results[0].Links.Download)
+	}
 	if downloadPath == "" {
 		return nil, fmt.Errorf("attachment %q has no download link", filename)
 	}

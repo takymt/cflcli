@@ -49,6 +49,41 @@ func (c *Client) ListPages(spaceID string, limit int, cursor string, statuses []
 	return &result, nil
 }
 
+// ListPagesBySpace lists pages from /spaces/{id}/pages with optional depth.
+func (c *Client) ListPagesBySpace(spaceID string, limit int, cursor, depth string, statuses []string, sort string) (*PageListResult, error) {
+	spaceID = strings.TrimSpace(spaceID)
+	if spaceID == "" {
+		return nil, fmt.Errorf("space id is required")
+	}
+
+	query := url.Values{}
+	for _, status := range statuses {
+		if status != "" {
+			query.Add("status", status)
+		}
+	}
+	if trimmedDepth := strings.TrimSpace(depth); trimmedDepth != "" {
+		query.Set("depth", trimmedDepth)
+	}
+	if limit > 0 {
+		query.Set("limit", strconv.Itoa(limit))
+	}
+	if cursor != "" {
+		query.Set("cursor", cursor)
+	}
+	if sort != "" {
+		query.Set("sort", sort)
+	}
+
+	var result PageListResult
+	if err := c.get("/spaces/"+url.PathEscape(spaceID)+"/pages", query, func(decoder *json.Decoder) error {
+		return decoder.Decode(&result)
+	}); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
 // CreatePage creates a page in storage format.
 func (c *Client) CreatePage(spaceID, title, body, parentID string) (*Page, error) {
 	spaceID = strings.TrimSpace(spaceID)

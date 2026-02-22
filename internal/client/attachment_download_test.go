@@ -11,15 +11,17 @@ import (
 
 func TestDownloadPageAttachmentByFilename(t *testing.T) {
 	var gotFilenameQuery string
-	attachmentPath := "/wiki/" + "rest/api/content/123/child/attachment"
+	var gotStatusQuery string
+	attachmentPath := "/wiki/api/v2/pages/123/attachments"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case attachmentPath:
 			gotFilenameQuery = r.URL.Query().Get("filename")
+			gotStatusQuery = r.URL.Query().Get("status")
 			assertBasicAuth(t, r, "u@example.com", "token")
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","_links":{"download":"/download/attachments/123/logo.png"}}]}`))
+			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","downloadLink":"/download/attachments/123/logo.png"}]}`))
 		case "/download/attachments/123/logo.png":
 			assertBasicAuth(t, r, "u@example.com", "token")
 			_, _ = w.Write([]byte("PNGDATA"))
@@ -48,6 +50,9 @@ func TestDownloadPageAttachmentByFilename(t *testing.T) {
 	}
 	if gotFilenameQuery != "logo.png" {
 		t.Fatalf("filename query=%q want %q", gotFilenameQuery, "logo.png")
+	}
+	if gotStatusQuery != "current" {
+		t.Fatalf("status query=%q want %q", gotStatusQuery, "current")
 	}
 	if string(content) != "PNGDATA" {
 		t.Fatalf("content=%q want %q", string(content), "PNGDATA")

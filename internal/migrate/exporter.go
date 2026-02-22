@@ -1,7 +1,9 @@
 package migrate
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -93,22 +95,31 @@ func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 				return nil, fmt.Errorf("root page %q does not belong to space %q", rootPageID, spaceID)
 			}
 			pagesByID[root.ID] = client.Page{
-				ID:       root.ID,
-				Title:    root.Title,
-				Status:   root.Status,
-				SpaceID:  root.SpaceID,
-				ParentID: root.ParentID,
+				ID:         root.ID,
+				Title:      root.Title,
+				Status:     root.Status,
+				SpaceID:    root.SpaceID,
+				ParentID:   root.ParentID,
+				ParentType: root.ParentType,
 			}
 		}
 	}
 
-	selectedPages := selectPages(pagesByID, rootPageID)
+	folderResolver := newFolderResolver(cli)
+	selectedPages, err := selectPages(pagesByID, rootPageID, folderResolver)
+	if err != nil {
+		return nil, err
+	}
 	if len(selectedPages) == 0 {
 		return nil, fmt.Errorf("no pages found to export")
 	}
 
-	orderedPages := orderPages(selectedPages, rootPageID)
-	pageFileMap := buildPageFileMap(orderedPages)
+	pageFileMap, err := buildPageFileMap(selectedPages, folderResolver)
+	if err != nil {
+		return nil, err
+	}
+	orderedPages := orderedPagesForExport(selectedPages, pageFileMap)
+
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create output directory: %w", err)
 	}
@@ -168,11 +179,28 @@ func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 }
 
 func listAllSpacePages(cli *client.Client, spaceID string) (map[string]client.Page, error) {
-	pagesByID := map[string]client.Page{}
+	pagesByID, err := listAllSpacePagesWithListFn(func(cursor string) (*client.PageListResult, error) {
+		return cli.ListPagesBySpace(spaceID, 250, cursor, "all", []string{"current"}, "")
+	})
+	if err == nil {
+		return pagesByID, nil
+	}
 
+	var httpErr *client.HTTPError
+	if !errors.As(err, &httpErr) || (httpErr.StatusCode != http.StatusBadRequest && httpErr.StatusCode != http.StatusNotFound) {
+		return nil, err
+	}
+
+	return listAllSpacePagesWithListFn(func(cursor string) (*client.PageListResult, error) {
+		return cli.ListPages(spaceID, 250, cursor, []string{"current"}, "")
+	})
+}
+
+func listAllSpacePagesWithListFn(listFn func(cursor string) (*client.PageListResult, error)) (map[string]client.Page, error) {
+	pagesByID := map[string]client.Page{}
 	cursor := ""
 	for {
-		result, err := cli.ListPages(spaceID, 250, cursor, []string{"current"}, "")
+		result, err := listFn(cursor)
 		if err != nil {
 			return nil, err
 		}
@@ -220,112 +248,282 @@ func extractNextCursor(next string) string {
 	return next
 }
 
-func selectPages(pagesByID map[string]client.Page, rootPageID string) map[string]client.Page {
+func selectPages(pagesByID map[string]client.Page, rootPageID string, folders *folderResolver) (map[string]client.Page, error) {
 	selected := map[string]client.Page{}
-
 	rootPageID = strings.TrimSpace(rootPageID)
 	if rootPageID == "" {
 		for id, page := range pagesByID {
 			selected[id] = page
 		}
-		return selected
+		return selected, nil
 	}
 
-	queue := []string{rootPageID}
-	for len(queue) > 0 {
-		pageID := queue[0]
-		queue = queue[1:]
+	matcher := &subtreeMatcher{
+		rootPageID: rootPageID,
+		pagesByID:  pagesByID,
+		folders:    folders,
+		pageMemo:   map[string]bool{},
+		pageVisit:  map[string]struct{}{},
+		foldMemo:   map[string]bool{},
+		foldVisit:  map[string]struct{}{},
+	}
 
-		page, ok := pagesByID[pageID]
-		if !ok {
-			continue
+	for id, page := range pagesByID {
+		inRoot, err := matcher.pageInRoot(id)
+		if err != nil {
+			return nil, err
 		}
-		if _, exists := selected[pageID]; exists {
-			continue
-		}
-
-		selected[pageID] = page
-		for _, candidate := range pagesByID {
-			if strings.TrimSpace(candidate.ParentID) == pageID {
-				queue = append(queue, candidate.ID)
-			}
+		if inRoot {
+			selected[id] = page
 		}
 	}
 
-	return selected
+	return selected, nil
 }
 
-func orderPages(pagesByID map[string]client.Page, rootPageID string) []client.Page {
-	children := map[string][]client.Page{}
+type subtreeMatcher struct {
+	rootPageID string
+	pagesByID  map[string]client.Page
+	folders    *folderResolver
+	pageMemo   map[string]bool
+	pageVisit  map[string]struct{}
+	foldMemo   map[string]bool
+	foldVisit  map[string]struct{}
+}
+
+func (m *subtreeMatcher) pageInRoot(pageID string) (bool, error) {
+	pageID = strings.TrimSpace(pageID)
+	if pageID == "" {
+		return false, nil
+	}
+	if pageID == m.rootPageID {
+		return true, nil
+	}
+	if v, ok := m.pageMemo[pageID]; ok {
+		return v, nil
+	}
+	if _, visiting := m.pageVisit[pageID]; visiting {
+		return false, nil
+	}
+	page, ok := m.pagesByID[pageID]
+	if !ok {
+		m.pageMemo[pageID] = false
+		return false, nil
+	}
+
+	m.pageVisit[pageID] = struct{}{}
+	defer delete(m.pageVisit, pageID)
+
+	parentID := strings.TrimSpace(page.ParentID)
+	parentType := strings.ToLower(strings.TrimSpace(page.ParentType))
+
+	var (
+		inRoot bool
+		err    error
+	)
+	switch parentType {
+	case "page":
+		inRoot, err = m.pageInRoot(parentID)
+	case "folder":
+		inRoot, err = m.folderInRoot(parentID)
+	default:
+		if _, ok := m.pagesByID[parentID]; ok {
+			inRoot, err = m.pageInRoot(parentID)
+		}
+	}
+	if err != nil {
+		return false, err
+	}
+
+	m.pageMemo[pageID] = inRoot
+	return inRoot, nil
+}
+
+func (m *subtreeMatcher) folderInRoot(folderID string) (bool, error) {
+	folderID = strings.TrimSpace(folderID)
+	if folderID == "" {
+		return false, nil
+	}
+	if v, ok := m.foldMemo[folderID]; ok {
+		return v, nil
+	}
+	if _, visiting := m.foldVisit[folderID]; visiting {
+		return false, nil
+	}
+
+	m.foldVisit[folderID] = struct{}{}
+	defer delete(m.foldVisit, folderID)
+
+	folder, err := m.folders.Get(folderID)
+	if err != nil {
+		return false, fmt.Errorf("resolve folder %q: %w", folderID, err)
+	}
+
+	parentID := strings.TrimSpace(folder.ParentID)
+	parentType := strings.ToLower(strings.TrimSpace(folder.ParentType))
+
+	var inRoot bool
+	switch parentType {
+	case "page":
+		inRoot, err = m.pageInRoot(parentID)
+	case "folder":
+		inRoot, err = m.folderInRoot(parentID)
+	default:
+		inRoot = false
+	}
+	if err != nil {
+		return false, err
+	}
+
+	m.foldMemo[folderID] = inRoot
+	return inRoot, nil
+}
+
+func buildPageFileMap(pagesByID map[string]client.Page, folders *folderResolver) (map[string]string, error) {
+	builder := &pathBuilder{
+		pagesByID:   pagesByID,
+		folders:     folders,
+		pageDirMemo: map[string]string{},
+		pageVisit:   map[string]struct{}{},
+		foldDirMemo: map[string]string{},
+		foldVisit:   map[string]struct{}{},
+	}
+
+	pageFileByID := map[string]string{}
+	for id := range pagesByID {
+		dir, err := builder.pageDir(id)
+		if err != nil {
+			return nil, err
+		}
+		pageFileByID[id] = filepath.Join(dir, "index.md")
+	}
+
+	return pageFileByID, nil
+}
+
+type pathBuilder struct {
+	pagesByID   map[string]client.Page
+	folders     *folderResolver
+	pageDirMemo map[string]string
+	pageVisit   map[string]struct{}
+	foldDirMemo map[string]string
+	foldVisit   map[string]struct{}
+}
+
+func (b *pathBuilder) pageDir(pageID string) (string, error) {
+	pageID = strings.TrimSpace(pageID)
+	if pageID == "" {
+		return "", nil
+	}
+	if dir, ok := b.pageDirMemo[pageID]; ok {
+		return dir, nil
+	}
+	if _, visiting := b.pageVisit[pageID]; visiting {
+		return "", nil
+	}
+
+	page, ok := b.pagesByID[pageID]
+	if !ok {
+		return "", fmt.Errorf("page %q not found while building path", pageID)
+	}
+
+	b.pageVisit[pageID] = struct{}{}
+	defer delete(b.pageVisit, pageID)
+
+	parentID := strings.TrimSpace(page.ParentID)
+	parentType := strings.ToLower(strings.TrimSpace(page.ParentType))
+	parentDir := ""
+
+	switch parentType {
+	case "page":
+		if _, ok := b.pagesByID[parentID]; ok {
+			var err error
+			parentDir, err = b.pageDir(parentID)
+			if err != nil {
+				return "", err
+			}
+		}
+	case "folder":
+		var err error
+		parentDir, err = b.folderDir(parentID)
+		if err != nil {
+			return "", err
+		}
+	default:
+		if _, ok := b.pagesByID[parentID]; ok {
+			var err error
+			parentDir, err = b.pageDir(parentID)
+			if err != nil {
+				return "", err
+			}
+		}
+	}
+
+	dir := filepath.Join(parentDir, sanitizePageFileBaseName(page.Title)+"-"+page.ID)
+	b.pageDirMemo[pageID] = dir
+	return dir, nil
+}
+
+func (b *pathBuilder) folderDir(folderID string) (string, error) {
+	folderID = strings.TrimSpace(folderID)
+	if folderID == "" {
+		return "", nil
+	}
+	if dir, ok := b.foldDirMemo[folderID]; ok {
+		return dir, nil
+	}
+	if _, visiting := b.foldVisit[folderID]; visiting {
+		return "", nil
+	}
+
+	b.foldVisit[folderID] = struct{}{}
+	defer delete(b.foldVisit, folderID)
+
+	folder, err := b.folders.Get(folderID)
+	if err != nil {
+		return "", fmt.Errorf("resolve folder %q: %w", folderID, err)
+	}
+
+	parentID := strings.TrimSpace(folder.ParentID)
+	parentType := strings.ToLower(strings.TrimSpace(folder.ParentType))
+	parentDir := ""
+
+	switch parentType {
+	case "page":
+		if _, ok := b.pagesByID[parentID]; ok {
+			parentDir, err = b.pageDir(parentID)
+			if err != nil {
+				return "", err
+			}
+		}
+	case "folder":
+		parentDir, err = b.folderDir(parentID)
+		if err != nil {
+			return "", err
+		}
+	}
+
+	dir := filepath.Join(parentDir, sanitizePageFileBaseName(folder.Title)+"-"+folder.ID)
+	b.foldDirMemo[folderID] = dir
+	return dir, nil
+}
+
+func orderedPagesForExport(pagesByID map[string]client.Page, pageFileByID map[string]string) []client.Page {
+	ordered := make([]client.Page, 0, len(pagesByID))
 	for _, page := range pagesByID {
-		parentID := strings.TrimSpace(page.ParentID)
-		children[parentID] = append(children[parentID], page)
-	}
-	for parentID := range children {
-		sortPages(children[parentID])
-	}
-
-	var roots []client.Page
-	if strings.TrimSpace(rootPageID) != "" {
-		if root, ok := pagesByID[rootPageID]; ok {
-			roots = append(roots, root)
-		}
-	} else {
-		for _, page := range pagesByID {
-			parentID := strings.TrimSpace(page.ParentID)
-			if parentID == "" {
-				roots = append(roots, page)
-				continue
-			}
-			if _, ok := pagesByID[parentID]; !ok {
-				roots = append(roots, page)
-			}
-		}
-		sortPages(roots)
-	}
-
-	ordered := []client.Page{}
-	visited := map[string]struct{}{}
-	var visit func(client.Page)
-	visit = func(page client.Page) {
-		if _, ok := visited[page.ID]; ok {
-			return
-		}
-		visited[page.ID] = struct{}{}
 		ordered = append(ordered, page)
-		for _, child := range children[page.ID] {
-			visit(child)
-		}
 	}
 
-	for _, root := range roots {
-		visit(root)
-	}
-
-	var leftovers []client.Page
-	for _, page := range pagesByID {
-		if _, ok := visited[page.ID]; ok {
-			continue
+	sort.SliceStable(ordered, func(i, j int) bool {
+		leftPath := filepath.ToSlash(pageFileByID[ordered[i].ID])
+		rightPath := filepath.ToSlash(pageFileByID[ordered[j].ID])
+		if leftPath == rightPath {
+			return ordered[i].ID < ordered[j].ID
 		}
-		leftovers = append(leftovers, page)
-	}
-	sortPages(leftovers)
-	for _, page := range leftovers {
-		visit(page)
-	}
+		return leftPath < rightPath
+	})
 
 	return ordered
-}
-
-func sortPages(pages []client.Page) {
-	sort.SliceStable(pages, func(i, j int) bool {
-		leftTitle := strings.ToLower(strings.TrimSpace(pages[i].Title))
-		rightTitle := strings.ToLower(strings.TrimSpace(pages[j].Title))
-		if leftTitle == rightTitle {
-			return pages[i].ID < pages[j].ID
-		}
-		return leftTitle < rightTitle
-	})
 }
 
 func downloadAttachments(cli *client.Client, outDir, attachmentsDir, pageID string, filenames []string) error {
@@ -345,6 +543,31 @@ func downloadAttachments(cli *client.Client, outDir, attachmentsDir, pageID stri
 		}
 	}
 	return nil
+}
+
+type folderResolver struct {
+	cli   *client.Client
+	cache map[string]*client.Folder
+}
+
+func newFolderResolver(cli *client.Client) *folderResolver {
+	return &folderResolver{cli: cli, cache: map[string]*client.Folder{}}
+}
+
+func (r *folderResolver) Get(folderID string) (*client.Folder, error) {
+	folderID = strings.TrimSpace(folderID)
+	if folderID == "" {
+		return nil, fmt.Errorf("folder id is required")
+	}
+	if folder, ok := r.cache[folderID]; ok {
+		return folder, nil
+	}
+	folder, err := r.cli.GetFolder(folderID)
+	if err != nil {
+		return nil, err
+	}
+	r.cache[folderID] = folder
+	return folder, nil
 }
 
 func buildFrontMatter(pageID, title, parentID, spaceKey string) string {
@@ -398,22 +621,4 @@ func safeAttachmentFilename(filename string) string {
 		return "attachment"
 	}
 	return cleaned
-}
-
-func buildPageFileMap(orderedPages []client.Page) map[string]string {
-	pageDirByID := map[string]string{}
-	pageFileByID := map[string]string{}
-
-	for _, page := range orderedPages {
-		parentDir := ""
-		if parent, ok := pageDirByID[strings.TrimSpace(page.ParentID)]; ok {
-			parentDir = parent
-		}
-
-		pageDir := filepath.Join(parentDir, sanitizePageFileBaseName(page.Title)+"-"+page.ID)
-		pageDirByID[page.ID] = pageDir
-		pageFileByID[page.ID] = filepath.Join(pageDir, "index.md")
-	}
-
-	return pageFileByID
 }

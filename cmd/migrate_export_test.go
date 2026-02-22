@@ -12,14 +12,14 @@ import (
 func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 	var gotPageCursors []string
 	var gotAttachmentFilenameQuery string
-	attachmentPath := "/wiki/" + "rest/api/content/1/child/attachment"
+	attachmentPath := "/wiki/api/v2/pages/1/attachments"
 
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/wiki/api/v2/spaces":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
-		case "/wiki/api/v2/pages":
+		case "/wiki/api/v2/spaces/SPACE-1/pages":
 			cursor := r.URL.Query().Get("cursor")
 			gotPageCursors = append(gotPageCursors, cursor)
 			w.Header().Set("Content-Type", "application/json")
@@ -41,7 +41,7 @@ func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 		case attachmentPath:
 			gotAttachmentFilenameQuery = r.URL.Query().Get("filename")
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","_links":{"download":"/download/attachments/1/logo.png"}}]}`))
+			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","downloadLink":"/download/attachments/1/logo.png"}]}`))
 		case "/download/attachments/1/logo.png":
 			_, _ = w.Write([]byte("PNGDATA"))
 		default:
@@ -111,26 +111,29 @@ func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 }
 
 func TestRunMigrateExportWithConfig_RootPageAndCustomAttachmentsDir(t *testing.T) {
-	attachmentPath := "/wiki/" + "rest/api/content/1/child/attachment"
+	attachmentPath := "/wiki/api/v2/pages/1/attachments"
 	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/wiki/api/v2/spaces":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
-		case "/wiki/api/v2/pages":
+		case "/wiki/api/v2/spaces/SPACE-1/pages":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"Root","status":"current","spaceId":"SPACE-1"},{"id":"2","title":"Child","status":"current","spaceId":"SPACE-1","parentId":"1"},{"id":"3","title":"Outside","status":"current","spaceId":"SPACE-1"}],"_links":{}}`))
+			_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"Root","status":"current","spaceId":"SPACE-1"},{"id":"2","title":"Child","status":"current","spaceId":"SPACE-1","parentId":"f1","parentType":"folder"},{"id":"3","title":"Outside","status":"current","spaceId":"SPACE-1"}],"_links":{}}`))
 		case "/wiki/api/v2/pages/1":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"id":"1","title":"Root","status":"current","spaceId":"SPACE-1","body":{"storage":{"representation":"storage","value":"<ac:image><ri:attachment ri:filename=\"logo.png\" /></ac:image>"}}}`))
 		case "/wiki/api/v2/pages/2":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"2","title":"Child","status":"current","spaceId":"SPACE-1","parentId":"1","body":{"storage":{"representation":"storage","value":"<p>child</p>"}}}`))
+			_, _ = w.Write([]byte(`{"id":"2","title":"Child","status":"current","spaceId":"SPACE-1","parentId":"f1","parentType":"folder","body":{"storage":{"representation":"storage","value":"<p>child</p>"}}}`))
 		case "/wiki/api/v2/pages/3":
 			t.Fatalf("page 3 must not be exported when root-page-id=1")
+		case "/wiki/api/v2/folders/f1":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"f1","title":"Folder 2-2","spaceId":"SPACE-1","parentId":"1","parentType":"page"}`))
 		case attachmentPath:
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","_links":{"download":"/download/attachments/1/logo.png"}}]}`))
+			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","downloadLink":"/download/attachments/1/logo.png"}]}`))
 		case "/download/attachments/1/logo.png":
 			_, _ = w.Write([]byte("PNGDATA"))
 		default:
@@ -163,6 +166,9 @@ func TestRunMigrateExportWithConfig_RootPageAndCustomAttachmentsDir(t *testing.T
 	}
 	if !strings.Contains(string(rootMarkdown), `attachments/custom/1/logo.png`) {
 		t.Fatalf("custom attachments dir was not reflected in markdown: %q", string(rootMarkdown))
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "root-1", "folder-2-2-f1", "child-2", "index.md")); err != nil {
+		t.Fatalf("child page under folder must be exported in folder path: %v", err)
 	}
 }
 
