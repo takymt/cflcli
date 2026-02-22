@@ -1,57 +1,57 @@
 > [!WARNING]
-> この README は暫定版（AI 生成）です。まずは「使い始められること」を優先して整理しています。後で人間が内容・表現を整備しますので、少し荒い部分があってもいったんご容赦ください。
+> This README is a temporary AI-generated draft. It is optimized for getting users unstuck and productive quickly. A human-edited version will follow, so please expect rough edges for now.
 
 # cfl
 
-`cfl` は Confluence Cloud 向けの CLI です。Confluence REST API v2 を中心に、日常運用で使うページ操作と、Markdown ベースの更新フローを扱いやすくすることを目的にしています。
+`cfl` is a CLI for Confluence Cloud. It focuses on practical page operations on top of the Confluence REST API v2, with a Markdown-friendly workflow for creating and updating pages.
 
-## まず何ができる？
+## What Can It Do?
 
-現時点で主にできること:
+Current core capabilities:
 
-- プロファイル管理（複数環境の切り替え）
-- ページ一覧 / 取得 / 作成 / 更新 / 削除
-- Markdown から Confluence storage format への変換（`create` / `update`）
-- Markdown frontmatter（`title`, `parent-id`）の取り込み
-- Markdown 内のローカル画像を Confluence 添付へアップロード
-- Mermaid fenced code block の画像化（デフォルト有効）
-- Confluence ページを Markdown + 添付ファイルとしてエクスポート（`migrate export`）
-- 出力形式の切り替え（`table` / `json`）
+- Profile management (multiple environments/sites)
+- Page list / get / create / update / delete
+- Markdown to Confluence storage format conversion (`create` / `update`)
+- Frontmatter support (`title`, `parent-id`)
+- Local image upload from Markdown to Confluence attachments
+- Mermaid fenced code block rendering to images (enabled by default)
+- Export Confluence pages as Markdown + attachments (`migrate export`)
+- Output formats: `table` / `json`
 
-## 最短スタート（Quick Start）
+## Quick Start
 
-### 1. ビルド
+### 1. Build
 
 ```bash
 go build -o cfl .
 ```
 
-`mise` を使う場合:
+With `mise`:
 
 ```bash
 mise run build
 ```
 
-### 2. API トークンを環境変数に設定
+### 2. Set your API token
 
-`cfl` は Basic Auth を使います。
+`cfl` uses Basic Auth:
 
-- ユーザー: profile に設定したメールアドレス
-- パスワード: `CFL_API_TOKEN`
+- Username: the email configured in your profile
+- Password: `CFL_API_TOKEN`
 
 ```bash
 export CFL_API_TOKEN="your_confluence_api_token"
 ```
 
-### 3. 初期設定（最初の profile を作る）
+### 3. Initial setup (create your first profile)
 
 ```bash
 ./cfl init
 ```
 
-`cfl init` は未初期化時に `default` profile を対話式で作成します。
+`cfl init` creates a `default` profile interactively when the config is not initialized yet.
 
-### 4. （任意）profile を追加・切り替え
+### 4. (Optional) Add and switch profiles
 
 ```bash
 ./cfl config init work
@@ -59,49 +59,49 @@ export CFL_API_TOKEN="your_confluence_api_token"
 ./cfl use work
 ```
 
-`cfl config use work` でも切り替えできます。
+You can also use `cfl config use work`.
 
-### 5. まず一覧を取る
+### 5. List pages first
 
-profile に `space_key` を設定していれば `--space-key` を省略できます。
+If your profile already has `space_key`, you can omit `--space-key`.
 
 ```bash
 ./cfl page list --limit 25
 ```
 
-明示的に指定する場合:
+Or specify it explicitly:
 
 ```bash
 ./cfl page list --space-key TEST --limit 25
 ```
 
-## よく使う操作（ユーザー導線）
+## Common User Flows
 
-### 1. ページを探す（一覧・絞り込み・ページング）
+### 1. Find pages (list, filter, paginate)
 
 ```bash
 ./cfl page list --space-key TEST --status current,archived --sort -modified-date --limit 50
 ```
 
-- `--status`: `current`, `archived`, `deleted`, `trashed`（カンマ区切り）
+- `--status`: `current`, `archived`, `deleted`, `trashed` (comma-separated)
 - `--sort`: `id`, `-id`, `created-date`, `-created-date`, `modified-date`, `-modified-date`, `title`, `-title`
-- `--cursor`: 前回結果の `next` を使って続き取得
+- `--cursor`: continue from a previous response's `next`
 
-`json` 出力で `next` を取りたい場合:
+To get `next` in JSON output:
 
 ```bash
 ./cfl -o json page list --space-key TEST
 ```
 
-### 2. ページ本文（storage format）を取得する
+### 2. Get page body (storage format)
 
 ```bash
 ./cfl page get 123456 > page.storage.xhtml
 ```
 
-`page get` は Confluence storage format を標準出力へそのまま出します（`-o json/table` は使いません）。
+`page get` writes the Confluence storage format body directly to stdout (`-o json/table` does not apply).
 
-### 3. Markdown からページを作成する
+### 3. Create a page from Markdown
 
 ```bash
 ./cfl page create \
@@ -110,12 +110,12 @@ profile に `space_key` を設定していれば `--space-key` を省略でき�
   --body-file ./docs/release-notes.md
 ```
 
-- `--body-format` のデフォルトは `markdown`
-- `--body-format storage` を指定すると storage format をそのまま送信
-- Markdown 内のローカル画像は添付ファイルとしてアップロードされ、本文は `ri:attachment` 参照に変換
-- Mermaid fenced code block はデフォルトで画像化（`--no-render-mermaid` で無効化）
+- Default `--body-format` is `markdown`
+- Use `--body-format storage` to send storage format as-is
+- Local images in Markdown are uploaded as attachments and rewritten to `ri:attachment` references
+- Mermaid fenced code blocks are rendered to images by default (`--no-render-mermaid` disables this)
 
-### 4. 既存ページを更新する
+### 4. Update an existing page
 
 ```bash
 ./cfl page update 123456 \
@@ -123,24 +123,24 @@ profile に `space_key` を設定していれば `--space-key` を省略でき�
   --body-file ./docs/release-notes.md
 ```
 
-- ページバージョン番号は自動で解決します
-- 同時更新衝突（version conflict）時は再取得してリトライが必要です
+- Page version is resolved automatically
+- On version conflicts, fetch the latest page state and retry
 
-### 5. ページを削除する
+### 5. Delete a page
 
 ```bash
 ./cfl page delete 123456
 ```
 
-### 6. Confluence から Markdown にエクスポートする（移行用）
+### 6. Export Confluence pages to Markdown (migration flow)
 
-スペース全体:
+Export an entire space:
 
 ```bash
 ./cfl migrate export --space-key TEST --out ./export
 ```
 
-特定ページ配下のサブツリーのみ:
+Export only a subtree under a root page:
 
 ```bash
 ./cfl migrate export \
@@ -149,15 +149,15 @@ profile に `space_key` を設定していれば `--space-key` を省略でき�
   --out ./export
 ```
 
-- 出力は Markdown + frontmatter（`page-id`, `title`, `parent-id`, `space-key`）
-- 添付ファイルは既定で `attachments/_migrate` 配下に保存
-- `--attachments-dir` で変更可能
+- Output is Markdown + frontmatter (`page-id`, `title`, `parent-id`, `space-key`)
+- Attachments are saved under `attachments/_migrate` by default
+- Override with `--attachments-dir`
 
-## Markdown 運用のポイント
+## Markdown Workflow Notes
 
-### Frontmatter（`create` / `update`）
+### Frontmatter (`create` / `update`)
 
-Markdown の先頭に frontmatter を置くと、`--title` / `--parent-id` の代わりに使えます。
+If your Markdown file starts with frontmatter, `cfl` can use it for `--title` and `--parent-id`.
 
 ```markdown
 ---
@@ -171,32 +171,32 @@ parent-id: "123456"
 - Item 2
 ```
 
-挙動:
+Behavior:
 
-- `--title` 未指定時は frontmatter の `title` を使用
-- `--parent-id` 未指定時は frontmatter の `parent-id` を使用
-- フラグと frontmatter の同時指定はエラー
-- frontmatter ブロックは本文変換前に取り除かれます
-- `parent-id`, `parent_id`, `parentid` を受け付けます
+- If `--title` is not set, frontmatter `title` is used
+- If `--parent-id` is not set, frontmatter `parent-id` is used
+- Using both flag and frontmatter for the same field is an error
+- The frontmatter block is removed before body conversion
+- Accepted parent keys: `parent-id`, `parent_id`, `parentid`
 
-### ローカル画像と `--assets-root`
+### Local images and `--assets-root`
 
-Markdown 内の画像パス解決ルール（`--body-format markdown` のとき）:
+Image path resolution rules for `--body-format markdown`:
 
-- `http://` / `https://`: 外部 URL として扱う
-- `./` / `../` / bare path: `--body-file` のあるディレクトリ基準
-- `/` 始まり: OS ルートではなく `--assets-root` 基準
+- `http://` / `https://`: treated as external URLs
+- `./` / `../` / bare path: resolved relative to the `--body-file` directory
+- `/`-prefixed paths: resolved relative to `--assets-root` (not OS root)
 
-profile に `assets_root` を設定しておくと、`--assets-root` の省略時に使われます。
+If `assets_root` is configured in the profile, it is used when `--assets-root` is omitted.
 
-## 設定ファイル（profiles）
+## Configuration (Profiles)
 
-設定ファイルの場所:
+Config file location:
 
 - `$XDG_CONFIG_HOME/cflcli/config.toml`
-- 既定: `~/.config/cflcli/config.toml`
+- Default: `~/.config/cflcli/config.toml`
 
-例:
+Example:
 
 ```toml
 current = "work"
@@ -217,36 +217,36 @@ space_key = "DEV"
 output = "json"
 ```
 
-主な管理コマンド:
+Main profile commands:
 
 ```bash
-./cfl config init [name]    # 対話式で作成
-./cfl config edit <name>    # 対話式で編集
-./cfl config list           # 一覧
-./cfl config show           # 現在の profile を表示
-./cfl config delete <name>  # 削除
-./cfl use [name]            # 切り替え（引数なしで対話式）
+./cfl config init [name]    # create interactively
+./cfl config edit <name>    # edit interactively
+./cfl config list           # list profiles
+./cfl config show           # show current profile
+./cfl config delete <name>  # delete profile
+./cfl use [name]            # switch profile (interactive if omitted)
 ```
 
-## 出力形式
+## Output Formats
 
-グローバルフラグ:
+Global flags:
 
-- `-o, --output`: `table`（既定） / `json`
-- `-p, --profile`: 一時的に profile を切り替え
-- `-v, --verbose`: 詳細出力
+- `-o, --output`: `table` (default) / `json`
+- `-p, --profile`: temporary profile override
+- `-v, --verbose`: verbose output
 
-例:
+Example:
 
 ```bash
 ./cfl -o json page list --space-key TEST
 ```
 
-注意:
+Note:
 
-- `page get` は storage format 本文をそのまま出力するコマンドで、`--output` の影響を受けません
+- `page get` always prints the storage body directly and is not affected by `--output`
 
-## コマンド一覧（現時点）
+## Current Command Tree
 
 ```text
 cfl
@@ -260,16 +260,16 @@ cfl
     └── export
 ```
 
-未実装/今後の予定（labels, folder, attachment, comment, sync など）は `TODO.md` を参照してください。
+For planned features (labels, folder, attachment, comment, sync, etc.), see `TODO.md`.
 
-## 開発者向け
+## Development
 
-### 必要ツール
+### Tooling
 
-- Go `1.26.0`（`go.mod` / `mise.toml` 準拠）
-- `mise`（任意）
+- Go `1.26.0` (matches `go.mod` / `mise.toml`)
+- `mise` (optional)
 
-### よく使うコマンド
+### Common Commands
 
 ```bash
 mise run all        # build + fmt + lint + test
@@ -282,10 +282,10 @@ mise run cover
 mise run build
 ```
 
-テスト方針の詳細は `TESTING.md` を参照してください。
+See `TESTING.md` for the testing strategy.
 
-## API / 実装メモ
+## API / Implementation Notes
 
-- ベース: Confluence Cloud REST API v2
-- 添付ファイルの一部操作は v1 endpoint を利用（ローカル画像アップロードのため）
-- ページングは cursor ベース（`limit` + `cursor` / レスポンスの `next`）
+- Base API: Confluence Cloud REST API v2
+- Some attachment-related behavior uses v1 endpoints (for local image uploads)
+- Pagination is cursor-based (`limit` + `cursor`, and response `next`)
