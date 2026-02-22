@@ -141,7 +141,8 @@
 ### migrate export（Git SSOT 移行）
 
 - [ ] `cfl migrate export` を追加する
-  - [ ] `--space-key` `--root-page-id` `--out` `--attachments-dir` をサポートする
+  - [ ] `--space-id` `--space-key` `--root-page-id` `--out` `--attachments-dir` をサポートする
+  - [ ] `--space-id` と `--space-key` は排他指定にする
   - [ ] ページツリーを Markdown + frontmatter（`page-id`, `title`, `parent-id`, `space-key`）で出力する
 - [ ] 添付ファイルの保存先を migrate 専用サブディレクトリにする
   - [ ] default は `attachments/_migrate` にする
