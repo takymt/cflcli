@@ -106,7 +106,7 @@ func resolveAssetsRoot(explicitRoot string, profile *config.Profile) string {
 	if strings.TrimSpace(explicitRoot) != "" || profile == nil {
 		return explicitRoot
 	}
-	return strings.TrimSpace(profile.ContentRoot)
+	return strings.TrimSpace(profile.AssetsRoot)
 }
 
 func normalizePageBodyFormat(value string) (string, error) {

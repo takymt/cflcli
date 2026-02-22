@@ -29,13 +29,13 @@ func newConfigCmd() *cobra.Command {
 }
 
 type configInitOptions struct {
-	name        string
-	domain      string
-	user        string
-	spaceKey    string
-	contentRoot string
-	output      string
-	configPath  string
+	name       string
+	domain     string
+	user       string
+	spaceKey   string
+	assetsRoot string
+	output     string
+	configPath string
 
 	defaultProfileName string
 	updateExisting     bool
@@ -69,19 +69,19 @@ func newConfigInitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
 	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
 	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
-	cmd.Flags().StringVar(&opts.contentRoot, "content-root", "", "default assets root for /-prefixed markdown image paths")
+	cmd.Flags().StringVar(&opts.assetsRoot, "assets-root", "", "default assets root for /-prefixed markdown image paths")
 	cmd.Flags().StringVar(&opts.output, "profile-output", "", "default output format for this profile (json | table)")
 
 	return cmd
 }
 
 type configEditOptions struct {
-	domain      string
-	user        string
-	spaceKey    string
-	contentRoot string
-	output      string
-	configPath  string
+	domain     string
+	user       string
+	spaceKey   string
+	assetsRoot string
+	output     string
+	configPath string
 }
 
 type configUseOptions struct {
@@ -135,7 +135,7 @@ func newConfigEditCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
 	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
 	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
-	cmd.Flags().StringVar(&opts.contentRoot, "content-root", "", "default assets root for /-prefixed markdown image paths")
+	cmd.Flags().StringVar(&opts.assetsRoot, "assets-root", "", "default assets root for /-prefixed markdown image paths")
 	cmd.Flags().StringVar(&opts.output, "profile-output", "", "default output format for this profile (json | table)")
 
 	return cmd
@@ -178,7 +178,7 @@ func runConfigEdit(in io.Reader, out io.Writer, name string, opts *configEditOpt
 		domain:             opts.domain,
 		user:               opts.user,
 		spaceKey:           opts.spaceKey,
-		contentRoot:        opts.contentRoot,
+		assetsRoot:         opts.assetsRoot,
 		output:             opts.output,
 		configPath:         opts.configPath,
 		defaultProfileName: name,
@@ -251,9 +251,9 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 		return fmt.Errorf("--space-key is required")
 	}
 
-	contentRoot := opts.contentRoot
-	if contentRoot == "" {
-		contentRoot, err = prompt(reader, out, "Content Root (optional)", defaultProfile.ContentRoot)
+	assetsRoot := opts.assetsRoot
+	if assetsRoot == "" {
+		assetsRoot, err = prompt(reader, out, "Assets Root (optional)", defaultProfile.AssetsRoot)
 		if err != nil {
 			return err
 		}
@@ -272,12 +272,12 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 	}
 
 	profile := &config.Profile{
-		Name:        name,
-		Domain:      domain,
-		User:        user,
-		SpaceKey:    spaceKey,
-		ContentRoot: strings.TrimSpace(contentRoot),
-		Output:      profileOutput,
+		Name:       name,
+		Domain:     domain,
+		User:       user,
+		SpaceKey:   spaceKey,
+		AssetsRoot: strings.TrimSpace(assetsRoot),
+		Output:     profileOutput,
 	}
 
 	if opts.updateExisting {
@@ -397,14 +397,14 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 	domain := strings.TrimSpace(p.Domain)
 	user := strings.TrimSpace(p.User)
 	spaceKey := strings.TrimSpace(p.SpaceKey)
-	contentRoot := strings.TrimSpace(p.ContentRoot)
+	assetsRoot := strings.TrimSpace(p.AssetsRoot)
 
 	rows := [][]string{
 		{"Name:", p.Name},
 		{"Domain:", domain},
 		{"User:", user},
 		{"Space Key:", spaceKey},
-		{"Content Root:", contentRoot},
+		{"Assets Root:", assetsRoot},
 		{"Output:", outputForDisplay(p.Output)},
 	}
 

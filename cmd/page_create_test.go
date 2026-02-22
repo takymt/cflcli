@@ -171,7 +171,7 @@ func TestRunPageCreateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 	}
 }
 
-func TestRunPageCreateWithConfig_UsesProfileContentRoot(t *testing.T) {
+func TestRunPageCreateWithConfig_UsesProfileAssetsRoot(t *testing.T) {
 	var gotSpacesQuery string
 	var gotCreatePayload struct {
 		SpaceID string `json:"spaceId"`
@@ -245,8 +245,8 @@ func TestRunPageCreateWithConfig_UsesProfileContentRoot(t *testing.T) {
 
 	root := t.TempDir()
 	bodyFile := filepath.Join(root, "docs", "page.md")
-	contentRoot := filepath.Join(root, "assets")
-	imageFile := filepath.Join(contentRoot, "images", "logo.png")
+	assetsRoot := filepath.Join(root, "assets")
+	imageFile := filepath.Join(assetsRoot, "images", "logo.png")
 	if err := os.MkdirAll(filepath.Dir(bodyFile), 0o755); err != nil {
 		t.Fatalf("MkdirAll(body): %v", err)
 	}
@@ -264,11 +264,11 @@ func TestRunPageCreateWithConfig_UsesProfileContentRoot(t *testing.T) {
 		Current: "work",
 		Profiles: []config.Profile{
 			{
-				Name:        "work",
-				Domain:      srv.URL,
-				User:        "user@example.com",
-				SpaceKey:    "PROFILE",
-				ContentRoot: contentRoot,
+				Name:       "work",
+				Domain:     srv.URL,
+				User:       "user@example.com",
+				SpaceKey:   "PROFILE",
+				AssetsRoot: assetsRoot,
 			},
 		},
 	}
