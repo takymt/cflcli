@@ -168,6 +168,7 @@
 - [x] `StorageToMarkdown` で基本的な HTML（見出し/リスト/リンク/強調/引用/区切り線/タスクリスト）を Markdown 記法へ変換する
 - [x] Confluence `code` macro（mermaid 以外）を fenced code block に変換する
 - [x] `:::` 系（details/info/success/memo/warn/error）の roundtrip 冪等性を characterization test で可視化する
+- [x] `expand/info/tip/note/warning` と ADF panel(note) を `:::` DSL（details/info/success/memo/warn）へ逆変換する
 
 ### ページ補助操作
 

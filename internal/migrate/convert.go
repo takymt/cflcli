@@ -3,6 +3,7 @@ package migrate
 import (
 	"encoding/base64"
 	"fmt"
+	stdhtml "html"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -10,10 +11,12 @@ import (
 
 var (
 	structuredMacroPattern   = regexp.MustCompile(`(?s)<ac:structured-macro\b[^>]*ac:name="([^"]+)"[^>]*>.*?</ac:structured-macro>`)
+	adfPanelExtensionPattern = regexp.MustCompile(`(?s)<ac:adf-extension\b[^>]*>.*?<ac:adf-node\b[^>]*type="panel"[^>]*>.*?<ac:adf-attribute\b[^>]*key="panel-type"[^>]*>\s*([^<]+?)\s*</ac:adf-attribute>.*?<ac:adf-content\b[^>]*>(.*?)</ac:adf-content>.*?</ac:adf-node>.*?</ac:adf-extension>`)
 	macroNamePattern         = regexp.MustCompile(`ac:name="([^"]+)"`)
 	mermaidLanguagePattern   = regexp.MustCompile(`(?s)<ac:parameter\b[^>]*ac:name="language"[^>]*>\s*mermaid\s*</ac:parameter>`)
 	codeLanguagePattern      = regexp.MustCompile(`(?s)<ac:parameter\b[^>]*ac:name="language"[^>]*>\s*([^<]+?)\s*</ac:parameter>`)
 	plainTextBodyPattern     = regexp.MustCompile(`(?s)<ac:plain-text-body\b[^>]*>(.*?)</ac:plain-text-body>`)
+	richTextBodyPattern      = regexp.MustCompile(`(?s)<ac:rich-text-body\b[^>]*>(.*?)</ac:rich-text-body>`)
 	cdataPattern             = regexp.MustCompile(`(?s)<!\[CDATA\[(.*?)\]\]>`)
 	imageAttachmentPattern   = regexp.MustCompile(`(?s)<ac:image\b([^>]*)>\s*<ri:attachment\b([^>]*)/>\s*</ac:image>`)
 	imageURLPattern          = regexp.MustCompile(`(?s)<ac:image\b([^>]*)>\s*<ri:url\b[^>]*ri:value="([^"]+)"[^>]*/>\s*</ac:image>`)
@@ -38,6 +41,7 @@ func StorageToMarkdown(storage string, attachmentPath func(filename string) stri
 	}
 
 	normalized := strings.ReplaceAll(storage, "\r\n", "\n")
+	normalized = convertADFPanels(normalized)
 	normalized = convertStructuredMacros(normalized)
 
 	attachments := newOrderedStringSet()
@@ -104,6 +108,9 @@ func StorageToMarkdown(storage string, attachmentPath func(filename string) stri
 func convertStructuredMacros(storage string) string {
 	return structuredMacroPattern.ReplaceAllStringFunc(storage, func(match string) string {
 		macroName := strings.ToLower(strings.TrimSpace(extractAttribute(macroNamePattern, match)))
+		if directive, ok := convertDirectiveMacro(match, macroName); ok {
+			return directive
+		}
 		if macroName == "code" && mermaidLanguagePattern.MatchString(match) {
 			source := strings.Trim(extractPlainTextBody(match), "\n")
 			return "\n```mermaid\n" + source + "\n```\n"
@@ -126,6 +133,81 @@ func convertStructuredMacros(storage string) string {
 		encoded := base64.StdEncoding.EncodeToString([]byte(match))
 		return fmt.Sprintf(`<!-- cfl:migrate-unsupported-macro name=%q storage-base64=%q -->`, sanitizeMacroName(macroName), encoded)
 	})
+}
+
+func convertADFPanels(storage string) string {
+	return adfPanelExtensionPattern.ReplaceAllStringFunc(storage, func(match string) string {
+		submatches := adfPanelExtensionPattern.FindStringSubmatch(match)
+		if len(submatches) != 3 {
+			return match
+		}
+		panelType := strings.ToLower(strings.TrimSpace(submatches[1]))
+		body := strings.TrimSpace(submatches[2])
+		switch panelType {
+		case "note":
+			return markdownDirective("memo", "", body)
+		default:
+			return match
+		}
+	})
+}
+
+func convertDirectiveMacro(match, macroName string) (string, bool) {
+	body := strings.TrimSpace(extractRichTextBody(match))
+	switch macroName {
+	case "expand":
+		title := stdhtml.UnescapeString(strings.TrimSpace(extractMacroParameter(match, "title")))
+		// Deliberately ignore `expanded` and canonicalize to :::details.
+		return markdownDirective("details", title, body), true
+	case "info":
+		return markdownDirective("info", "", body), true
+	case "tip":
+		return markdownDirective("success", "", body), true
+	case "note":
+		return markdownDirective("warn", "", body), true
+	case "warning":
+		return markdownDirective("warn", "", body), true
+	default:
+		return "", false
+	}
+}
+
+func extractRichTextBody(storage string) string {
+	submatches := richTextBodyPattern.FindStringSubmatch(storage)
+	if len(submatches) != 2 {
+		return ""
+	}
+	return submatches[1]
+}
+
+func extractMacroParameter(storage, name string) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+	pattern := regexp.MustCompile(`(?s)<ac:parameter\b[^>]*ac:name="` + regexp.QuoteMeta(name) + `"[^>]*>(.*?)</ac:parameter>`)
+	submatches := pattern.FindStringSubmatch(storage)
+	if len(submatches) != 2 {
+		return ""
+	}
+	return submatches[1]
+}
+
+func markdownDirective(kind, title, body string) string {
+	kind = strings.TrimSpace(kind)
+	if kind == "" {
+		return body
+	}
+	body = strings.Trim(strings.ReplaceAll(body, "\r\n", "\n"), "\n")
+	header := ":::" + kind
+	title = strings.TrimSpace(title)
+	if title != "" {
+		header += " " + title
+	}
+	if body == "" {
+		return "\n" + header + "\n:::\n"
+	}
+	return "\n" + header + "\n" + body + "\n:::\n"
 }
 
 func extractPlainTextBody(storage string) string {
