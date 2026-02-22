@@ -49,27 +49,61 @@ type ExportResult struct {
 	Warnings       []ExportWarning
 }
 
+type exportConfig struct {
+	spaceID        string
+	spaceKey       string
+	rootPageID     string
+	outDir         string
+	attachmentsDir string
+}
+
+type exportExecutionPlan struct {
+	cfg       *exportConfig
+	pageFiles map[string]string
+	ordered   []client.Page
+}
+
+type renderedExportPage struct {
+	page        ExportedPage
+	relPath     string
+	content     []byte
+	attachments []string
+}
+
 // Export executes migrate export orchestration using Confluence API + filesystem output.
 func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 	if cli == nil {
 		return nil, fmt.Errorf("client is required")
 	}
+	cfg, err := normalizeExportConfig(req)
+	if err != nil {
+		return nil, err
+	}
+	plan, err := buildExportExecutionPlan(cli, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return executeExportPlan(cli, plan)
+}
+
+func normalizeExportConfig(req *ExportRequest) (*exportConfig, error) {
 	if req == nil {
 		return nil, fmt.Errorf("export request is required")
 	}
 
-	spaceID := strings.TrimSpace(req.SpaceID)
-	if spaceID == "" {
+	cfg := &exportConfig{
+		spaceID:    strings.TrimSpace(req.SpaceID),
+		spaceKey:   strings.TrimSpace(req.SpaceKey),
+		rootPageID: strings.TrimSpace(req.RootPageID),
+		outDir:     strings.TrimSpace(req.OutDir),
+	}
+	if cfg.spaceID == "" {
 		return nil, fmt.Errorf("space id is required")
 	}
-
-	spaceKey := strings.TrimSpace(req.SpaceKey)
-	if spaceKey == "" {
+	if cfg.spaceKey == "" {
 		return nil, fmt.Errorf("space key is required")
 	}
-
-	outDir := strings.TrimSpace(req.OutDir)
-	if outDir == "" {
+	if cfg.outDir == "" {
 		return nil, fmt.Errorf("out directory is required")
 	}
 
@@ -84,35 +118,22 @@ func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 	if attachmentsDir == ".." || strings.HasPrefix(attachmentsDir, ".."+string(filepath.Separator)) {
 		return nil, fmt.Errorf("--attachments-dir must stay within --out")
 	}
+	cfg.attachmentsDir = attachmentsDir
 
-	pagesByID, err := listAllSpacePages(cli, spaceID)
+	return cfg, nil
+}
+
+func buildExportExecutionPlan(cli *client.Client, cfg *exportConfig) (*exportExecutionPlan, error) {
+	pagesByID, err := listAllSpacePages(cli, cfg.spaceID)
 	if err != nil {
 		return nil, err
 	}
-
-	rootPageID := strings.TrimSpace(req.RootPageID)
-	if rootPageID != "" {
-		if _, ok := pagesByID[rootPageID]; !ok {
-			root, rootErr := cli.GetPage(rootPageID)
-			if rootErr != nil {
-				return nil, rootErr
-			}
-			if root.SpaceID != "" && root.SpaceID != spaceID {
-				return nil, fmt.Errorf("root page %q does not belong to space %q", rootPageID, spaceID)
-			}
-			pagesByID[root.ID] = client.Page{
-				ID:         root.ID,
-				Title:      root.Title,
-				Status:     root.Status,
-				SpaceID:    root.SpaceID,
-				ParentID:   root.ParentID,
-				ParentType: root.ParentType,
-			}
-		}
+	if err := ensureRootPageInSpacePageSet(cli, pagesByID, cfg.spaceID, cfg.rootPageID); err != nil {
+		return nil, err
 	}
 
 	folderResolver := newFolderResolver(cli)
-	selectedPages, err := selectPages(pagesByID, rootPageID, folderResolver)
+	selectedPages, err := selectPages(pagesByID, cfg.rootPageID, folderResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -124,68 +145,141 @@ func Export(cli *client.Client, req *ExportRequest) (*ExportResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	orderedPages := orderedPagesForExport(selectedPages, pageFileMap)
 
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	return &exportExecutionPlan{
+		cfg:       cfg,
+		pageFiles: pageFileMap,
+		ordered:   orderedPagesForExport(selectedPages, pageFileMap),
+	}, nil
+}
+
+func ensureRootPageInSpacePageSet(cli *client.Client, pagesByID map[string]client.Page, spaceID, rootPageID string) error {
+	rootPageID = strings.TrimSpace(rootPageID)
+	if rootPageID == "" {
+		return nil
+	}
+	if _, ok := pagesByID[rootPageID]; ok {
+		return nil
+	}
+
+	root, err := cli.GetPage(rootPageID)
+	if err != nil {
+		return err
+	}
+	if root.SpaceID != "" && root.SpaceID != spaceID {
+		return fmt.Errorf("root page %q does not belong to space %q", rootPageID, spaceID)
+	}
+
+	pagesByID[root.ID] = client.Page{
+		ID:         root.ID,
+		Title:      root.Title,
+		Status:     root.Status,
+		SpaceID:    root.SpaceID,
+		ParentID:   root.ParentID,
+		ParentType: root.ParentType,
+	}
+	return nil
+}
+
+func executeExportPlan(cli *client.Client, plan *exportExecutionPlan) (*ExportResult, error) {
+	if plan == nil {
+		return nil, fmt.Errorf("export plan is required")
+	}
+	if err := os.MkdirAll(plan.cfg.outDir, 0o755); err != nil {
 		return nil, fmt.Errorf("create output directory: %w", err)
 	}
 
-	exportedPages := make([]ExportedPage, 0, len(orderedPages))
+	exportedPages := make([]ExportedPage, 0, len(plan.ordered))
 	warnings := make([]ExportWarning, 0)
-	for _, page := range orderedPages {
-		detail, err := cli.GetPage(page.ID)
+	for _, page := range plan.ordered {
+		rendered, renderWarnings, err := exportAndWritePage(cli, plan.cfg, page.ID, plan.pageFiles[page.ID])
 		if err != nil {
 			return nil, err
 		}
+		exportedPages = append(exportedPages, rendered.page)
+		warnings = append(warnings, renderWarnings...)
+	}
 
-		exportRelPath := pageFileMap[page.ID]
-		pageDir := filepath.Dir(exportRelPath)
+	return &ExportResult{
+		SpaceID:        plan.cfg.spaceID,
+		SpaceKey:       plan.cfg.spaceKey,
+		OutDir:         plan.cfg.outDir,
+		AttachmentsDir: filepath.ToSlash(plan.cfg.attachmentsDir),
+		Pages:          exportedPages,
+		Warnings:       warnings,
+	}, nil
+}
 
-		markdown, attachments, err := StorageToMarkdown(detail.Body.Storage.Value, func(filename string) string {
-			attachmentPath := filepath.Join(attachmentsDir, page.ID, safeAttachmentFilename(filename))
-			relativePath, relErr := filepath.Rel(pageDir, attachmentPath)
-			if relErr != nil {
-				return filepath.ToSlash(attachmentPath)
-			}
-			return filepath.ToSlash(relativePath)
-		})
-		if err != nil {
-			return nil, fmt.Errorf("convert page %q body to markdown: %w", page.ID, err)
-		}
+func exportAndWritePage(cli *client.Client, cfg *exportConfig, pageID, exportRelPath string) (*renderedExportPage, []ExportWarning, error) {
+	detail, err := cli.GetPage(pageID)
+	if err != nil {
+		return nil, nil, err
+	}
 
-		downloadWarnings, err := downloadAttachments(cli, outDir, attachmentsDir, page.ID, attachments)
-		if err != nil {
-			return nil, err
-		}
-		warnings = append(warnings, downloadWarnings...)
+	rendered, err := renderExportPage(detail, exportRelPath, cfg.attachmentsDir, cfg.spaceKey)
+	if err != nil {
+		return nil, nil, err
+	}
 
-		frontMatter := buildFrontMatter(detail.ID, detail.Title, detail.ParentID, spaceKey)
-		content := frontMatter + markdown
+	downloadWarnings, err := downloadAttachments(cli, cfg.outDir, cfg.attachmentsDir, pageID, rendered.attachments)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := writeRenderedExportPage(cfg.outDir, rendered); err != nil {
+		return nil, nil, err
+	}
 
-		exportPath := filepath.Join(outDir, exportRelPath)
-		if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
-			return nil, fmt.Errorf("create export directory for %q: %w", exportPath, err)
-		}
-		if err := os.WriteFile(exportPath, []byte(content), 0o600); err != nil {
-			return nil, fmt.Errorf("write exported markdown %q: %w", exportPath, err)
-		}
+	return rendered, downloadWarnings, nil
+}
 
-		exportedPages = append(exportedPages, ExportedPage{
+func renderExportPage(detail *client.PageDetail, exportRelPath, attachmentsDir, spaceKey string) (*renderedExportPage, error) {
+	if detail == nil {
+		return nil, fmt.Errorf("page detail is required")
+	}
+
+	pageDir := filepath.Dir(exportRelPath)
+	markdown, attachments, err := StorageToMarkdown(detail.Body.Storage.Value, func(filename string) string {
+		return relativeAttachmentPathForMarkdown(pageDir, attachmentsDir, detail.ID, filename)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("convert page %q body to markdown: %w", detail.ID, err)
+	}
+
+	frontMatter := buildFrontMatter(detail.ID, detail.Title, detail.ParentID, spaceKey)
+	return &renderedExportPage{
+		page: ExportedPage{
 			ID:       detail.ID,
 			Title:    detail.Title,
 			ParentID: strings.TrimSpace(detail.ParentID),
 			File:     filepath.ToSlash(exportRelPath),
-		})
-	}
-
-	return &ExportResult{
-		SpaceID:        spaceID,
-		SpaceKey:       spaceKey,
-		OutDir:         outDir,
-		AttachmentsDir: filepath.ToSlash(attachmentsDir),
-		Pages:          exportedPages,
-		Warnings:       warnings,
+		},
+		relPath:     exportRelPath,
+		content:     []byte(frontMatter + markdown),
+		attachments: attachments,
 	}, nil
+}
+
+func relativeAttachmentPathForMarkdown(pageDir, attachmentsDir, pageID, filename string) string {
+	attachmentPath := filepath.Join(attachmentsDir, pageID, safeAttachmentFilename(filename))
+	relativePath, err := filepath.Rel(pageDir, attachmentPath)
+	if err != nil {
+		return filepath.ToSlash(attachmentPath)
+	}
+	return filepath.ToSlash(relativePath)
+}
+
+func writeRenderedExportPage(outDir string, rendered *renderedExportPage) error {
+	if rendered == nil {
+		return fmt.Errorf("rendered export page is required")
+	}
+	exportPath := filepath.Join(outDir, rendered.relPath)
+	if err := os.MkdirAll(filepath.Dir(exportPath), 0o755); err != nil {
+		return fmt.Errorf("create export directory for %q: %w", exportPath, err)
+	}
+	if err := os.WriteFile(exportPath, rendered.content, 0o600); err != nil {
+		return fmt.Errorf("write exported markdown %q: %w", exportPath, err)
+	}
+	return nil
 }
 
 func listAllSpacePages(cli *client.Client, spaceID string) (map[string]client.Page, error) {
