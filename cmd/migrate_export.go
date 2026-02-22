@@ -101,6 +101,25 @@ func RunMigrateExportWithConfig(out io.Writer, opts *migrateExportOptions, cfg *
 		return err
 	}
 
+	result := buildMigrateExportResult(exportResult)
+
+	switch outputFlag {
+	case "table":
+		return writeMigrateExportTable(out, &result)
+	case "json":
+		enc := json.NewEncoder(out)
+		enc.SetIndent("", "  ")
+		return enc.Encode(result)
+	default:
+		return fmt.Errorf("unsupported output format: %s", outputFlag)
+	}
+}
+
+func buildMigrateExportResult(exportResult *migratepkg.ExportResult) migrateExportResult {
+	if exportResult == nil {
+		return migrateExportResult{}
+	}
+
 	result := migrateExportResult{
 		SpaceID:        exportResult.SpaceID,
 		SpaceKey:       exportResult.SpaceKey,
@@ -122,31 +141,28 @@ func RunMigrateExportWithConfig(out io.Writer, opts *migrateExportOptions, cfg *
 			result.Warnings = append(result.Warnings, msg)
 		}
 	}
+	return result
+}
 
-	switch outputFlag {
-	case "table":
-		if _, err := fmt.Fprintf(out, "Exported %d pages to %q.\n", len(result.Pages), result.Out); err != nil {
-			return err
-		}
-		if len(result.Warnings) == 0 {
-			return nil
-		}
-		if _, err := fmt.Fprintf(out, "Warnings (%d):\n", len(result.Warnings)); err != nil {
-			return err
-		}
-		for _, warning := range result.Warnings {
-			if _, err := fmt.Fprintf(out, "- %s\n", warning); err != nil {
-				return err
-			}
-		}
-		return nil
-	case "json":
-		enc := json.NewEncoder(out)
-		enc.SetIndent("", "  ")
-		return enc.Encode(result)
-	default:
-		return fmt.Errorf("unsupported output format: %s", outputFlag)
+func writeMigrateExportTable(out io.Writer, result *migrateExportResult) error {
+	if result == nil {
+		result = &migrateExportResult{}
 	}
+	if _, err := fmt.Fprintf(out, "Exported %d pages to %q.\n", len(result.Pages), result.Out); err != nil {
+		return err
+	}
+	if len(result.Warnings) == 0 {
+		return nil
+	}
+	if _, err := fmt.Fprintf(out, "Warnings (%d):\n", len(result.Warnings)); err != nil {
+		return err
+	}
+	for _, warning := range result.Warnings {
+		if _, err := fmt.Fprintf(out, "- %s\n", warning); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func resolveMigrateExportSpaceKey(runtime *pageRuntime, opts *migrateExportOptions, resolvedSpaceID string) (string, error) {

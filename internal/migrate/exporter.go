@@ -793,14 +793,14 @@ func downloadAttachments(cli *client.Client, outDir, attachmentsDir, pageID stri
 	for _, filename := range filenames {
 		content, err := cli.DownloadPageAttachmentByFilename(pageID, filename)
 		if err != nil {
-			var httpErr *client.HTTPError
-			if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
-				warnings = append(warnings, ExportWarning{
-					Message: fmt.Sprintf(`download attachment %q for page %q skipped: %s`, filename, pageID, httpErr.Status),
-				})
+			warning, classifyErr := classifyAttachmentDownloadError(pageID, filename, err)
+			if classifyErr != nil {
+				return nil, classifyErr
+			}
+			if warning != nil {
+				warnings = append(warnings, *warning)
 				continue
 			}
-			return nil, fmt.Errorf("download attachment %q for page %q: %w", filename, pageID, err)
 		}
 
 		safeName := safeAttachmentFilename(filename)
@@ -813,6 +813,21 @@ func downloadAttachments(cli *client.Client, outDir, attachmentsDir, pageID stri
 		}
 	}
 	return warnings, nil
+}
+
+func classifyAttachmentDownloadError(pageID, filename string, err error) (*ExportWarning, error) {
+	if err == nil {
+		return nil, nil
+	}
+
+	var httpErr *client.HTTPError
+	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
+		return &ExportWarning{
+			Message: fmt.Sprintf(`download attachment %q for page %q skipped: %s`, filename, pageID, httpErr.Status),
+		}, nil
+	}
+
+	return nil, fmt.Errorf("download attachment %q for page %q: %w", filename, pageID, err)
 }
 
 type folderResolver struct {
