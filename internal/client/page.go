@@ -86,13 +86,44 @@ func (c *Client) ListPagesBySpace(spaceID string, limit int, cursor, depth strin
 
 // CreatePage creates a page in storage format.
 func (c *Client) CreatePage(spaceID, title, body, parentID string) (*Page, error) {
+	req, err := buildPageCreateRequest(spaceID, title, body, parentID)
+	if err != nil {
+		return nil, err
+	}
+
+	var result Page
+	if err := c.post("/pages", url.Values{}, req, func(decoder *json.Decoder) error {
+		return decoder.Decode(&result)
+	}); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// UpdatePage updates a page in storage format.
+func (c *Client) UpdatePage(pageID, title, body, parentID string, nextVersion int) (*Page, error) {
+	req, err := buildPageUpdateRequest(pageID, title, body, parentID, nextVersion)
+	if err != nil {
+		return nil, err
+	}
+
+	var result Page
+	if err := c.put("/pages/"+url.PathEscape(req.ID), url.Values{}, req, func(decoder *json.Decoder) error {
+		return decoder.Decode(&result)
+	}); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+func buildPageCreateRequest(spaceID, title, body, parentID string) (model.PageCreateRequest, error) {
 	spaceID = strings.TrimSpace(spaceID)
 	if spaceID == "" {
-		return nil, fmt.Errorf("space id is required")
+		return model.PageCreateRequest{}, fmt.Errorf("space id is required")
 	}
 	title = strings.TrimSpace(title)
 	if title == "" {
-		return nil, fmt.Errorf("title is required")
+		return model.PageCreateRequest{}, fmt.Errorf("title is required")
 	}
 
 	req := model.PageCreateRequest{
@@ -109,28 +140,20 @@ func (c *Client) CreatePage(spaceID, title, body, parentID string) (*Page, error
 	if trimmedParentID := strings.TrimSpace(parentID); trimmedParentID != "" {
 		req.ParentID = trimmedParentID
 	}
-
-	var result Page
-	if err := c.post("/pages", url.Values{}, req, func(decoder *json.Decoder) error {
-		return decoder.Decode(&result)
-	}); err != nil {
-		return nil, err
-	}
-	return &result, nil
+	return req, nil
 }
 
-// UpdatePage updates a page in storage format.
-func (c *Client) UpdatePage(pageID, title, body, parentID string, nextVersion int) (*Page, error) {
+func buildPageUpdateRequest(pageID, title, body, parentID string, nextVersion int) (model.PageUpdateRequest, error) {
 	pageID = strings.TrimSpace(pageID)
 	if pageID == "" {
-		return nil, fmt.Errorf("page id is required")
+		return model.PageUpdateRequest{}, fmt.Errorf("page id is required")
 	}
 	title = strings.TrimSpace(title)
 	if title == "" {
-		return nil, fmt.Errorf("title is required")
+		return model.PageUpdateRequest{}, fmt.Errorf("title is required")
 	}
 	if nextVersion < 1 {
-		return nil, fmt.Errorf("version must be >= 1")
+		return model.PageUpdateRequest{}, fmt.Errorf("version must be >= 1")
 	}
 
 	req := model.PageUpdateRequest{
@@ -150,14 +173,7 @@ func (c *Client) UpdatePage(pageID, title, body, parentID string, nextVersion in
 	if trimmedParentID := strings.TrimSpace(parentID); trimmedParentID != "" {
 		req.ParentID = trimmedParentID
 	}
-
-	var result Page
-	if err := c.put("/pages/"+url.PathEscape(pageID), url.Values{}, req, func(decoder *json.Decoder) error {
-		return decoder.Decode(&result)
-	}); err != nil {
-		return nil, err
-	}
-	return &result, nil
+	return req, nil
 }
 
 // DeletePage deletes a page by ID.
