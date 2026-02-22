@@ -17,12 +17,11 @@
 
 ## Quick Start
 
-### 1. Run without building
-
-From this repo:
+### 1. Install
 
 ```bash
-go run . --help
+go install github.com/takymt/cflcli@latest
+cfl --help
 ```
 
 ### 2. Set your API token
@@ -52,7 +51,7 @@ If your profile has `space_key`, you can omit `--space-key`.
 cfl page list --limit 25
 ```
 
-Examples below use `cfl`. If you have not installed/built a binary, replace `cfl` with `go run .`.
+If you are working from a local checkout of this repo, you can run `go run .` instead of `cfl`.
 
 ## Common Commands
 
