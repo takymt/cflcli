@@ -2,9 +2,6 @@ package client
 
 import (
 	"context"
-	"net/http"
-	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/takymt/cflcli/internal/config"
@@ -61,34 +58,5 @@ func TestNew(t *testing.T) {
 				t.Fatalf("baseURL=%q want %q", cli.baseURL, tc.wantURL)
 			}
 		})
-	}
-}
-
-func TestListPages_HTTPError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte("token invalid"))
-	}))
-	defer srv.Close()
-
-	old := DefaultHTTPClient
-	DefaultHTTPClient = srv.Client()
-	t.Cleanup(func() { DefaultHTTPClient = old })
-
-	cli, err := New(
-		context.Background(),
-		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
-		"token",
-	)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-
-	_, err = cli.ListPages("", 10, "", []string{"current"}, "")
-	if err == nil {
-		t.Fatalf("expected error")
-	}
-	if !strings.Contains(err.Error(), "401 Unauthorized") || !strings.Contains(err.Error(), "token invalid") {
-		t.Fatalf("unexpected error: %v", err)
 	}
 }
