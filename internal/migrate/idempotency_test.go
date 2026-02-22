@@ -67,16 +67,14 @@ func TestMarkdownStorageMarkdown_DirectiveBlocksFixedPoint(t *testing.T) {
 		":::info",
 		":::success",
 		":::memo",
+		":::error",
 	} {
 		if !strings.Contains(markdown1, want) {
 			t.Fatalf("markdown1 missing %q: %q", want, markdown1)
 		}
 	}
-	if strings.Contains(markdown1, ":::error") {
-		t.Fatalf("warning-family directives must canonicalize to :::warn: %q", markdown1)
-	}
-	if gotWarnCount := strings.Count(markdown1, ":::warn"); gotWarnCount != 2 {
-		t.Fatalf(":::warn count=%d want 2 (warn + error should canonicalize to warn)\nmarkdown1=%q", gotWarnCount, markdown1)
+	if gotWarnCount := strings.Count(markdown1, ":::warn"); gotWarnCount != 1 {
+		t.Fatalf(":::warn count=%d want 1 (only note should canonicalize to warn)\nmarkdown1=%q", gotWarnCount, markdown1)
 	}
 }
 

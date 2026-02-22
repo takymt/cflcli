@@ -166,7 +166,7 @@ func convertDirectiveMacro(match, macroName string) (string, bool) {
 	case "note":
 		return markdownDirective("warn", "", body), true
 	case "warning":
-		return markdownDirective("warn", "", body), true
+		return markdownDirective("error", "", body), true
 	default:
 		return "", false
 	}
