@@ -11,20 +11,16 @@ import (
 
 func TestDownloadPageAttachmentByFilename(t *testing.T) {
 	var gotFilenameQuery string
-	var listCalled bool
-	var downloadCalled bool
 	attachmentPath := "/wiki/" + "rest/api/content/123/child/attachment"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case attachmentPath:
-			listCalled = true
 			gotFilenameQuery = r.URL.Query().Get("filename")
 			assertBasicAuth(t, r, "u@example.com", "token")
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","_links":{"download":"/download/attachments/123/logo.png"}}]}`))
 		case "/download/attachments/123/logo.png":
-			downloadCalled = true
 			assertBasicAuth(t, r, "u@example.com", "token")
 			_, _ = w.Write([]byte("PNGDATA"))
 		default:
@@ -52,9 +48,6 @@ func TestDownloadPageAttachmentByFilename(t *testing.T) {
 	}
 	if gotFilenameQuery != "logo.png" {
 		t.Fatalf("filename query=%q want %q", gotFilenameQuery, "logo.png")
-	}
-	if !listCalled || !downloadCalled {
-		t.Fatalf("listCalled=%v downloadCalled=%v", listCalled, downloadCalled)
 	}
 	if string(content) != "PNGDATA" {
 		t.Fatalf("content=%q want %q", string(content), "PNGDATA")
