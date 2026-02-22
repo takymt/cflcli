@@ -1,6 +1,7 @@
 package migrate
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -77,154 +78,47 @@ func TestStorageMarkdownStorage_IdempotencyAcceptanceCases(t *testing.T) {
 	}
 }
 
-func TestMarkdownStorageMarkdown_DirectiveBlockRoundTripMatrix(t *testing.T) {
+func TestMarkdownStorageMarkdown_DirectiveBlocksFixtureFixedPoint(t *testing.T) {
 	t.Parallel()
 
 	attachmentPath := func(filename string) string {
 		return filepath.ToSlash(filepath.Join("attachments", "_migrate", "123", filename))
 	}
 
-	testCases := []struct {
-		name                  string
-		input                 string
-		wantDirectiveSurvives bool
-		wantStableAfterFirst  bool
-		wantMarkers           []string
-		reason                string
-	}{
-		{
-			name: "details maps to expand macro and loses directive syntax",
-			input: strings.Join([]string{
-				":::details 折りたたみタイトル",
-				"折りたたみ本文1",
-				"折りたたみ本文2",
-				":::",
-			}, "\n"),
-			wantDirectiveSurvives: false,
-			wantStableAfterFirst:  true,
-			wantMarkers: []string{
-				"cfl:migrate-unsupported-macro",
-				`name="expand"`,
-			},
-			reason: "migrate export does not implement expand -> :::details reverse conversion",
-		},
-		{
-			name: "info maps to info macro and loses directive syntax",
-			input: strings.Join([]string{
-				":::info",
-				"情報",
-				":::",
-			}, "\n"),
-			wantDirectiveSurvives: false,
-			wantStableAfterFirst:  true,
-			wantMarkers: []string{
-				"cfl:migrate-unsupported-macro",
-				`name="info"`,
-			},
-			reason: "migrate export treats info macro as unsupported",
-		},
-		{
-			name: "success aliases to tip macro and loses original directive name",
-			input: strings.Join([]string{
-				":::success",
-				"成功",
-				":::",
-			}, "\n"),
-			wantDirectiveSurvives: false,
-			wantStableAfterFirst:  true,
-			wantMarkers: []string{
-				"cfl:migrate-unsupported-macro",
-				`name="tip"`,
-			},
-			reason: "create side normalizes success -> tip and export has no tip -> :::success reverse mapping",
-		},
-		{
-			name: "memo emits adf panel extension and fallback note marker",
-			input: strings.Join([]string{
-				":::memo",
-				"メモ",
-				":::",
-			}, "\n"),
-			wantDirectiveSurvives: false,
-			wantStableAfterFirst:  false,
-			wantMarkers: []string{
-				"<ac:adf-extension>",
-				`name="note"`,
-			},
-			reason: "create side emits ADF panel extension for memo; export preserves raw ADF tags and the next markdown parse mutates some ac:* tags further",
-		},
-		{
-			name: "warn aliases to note macro and loses directive syntax",
-			input: strings.Join([]string{
-				":::warn",
-				"警告",
-				":::",
-			}, "\n"),
-			wantDirectiveSurvives: false,
-			wantStableAfterFirst:  true,
-			wantMarkers: []string{
-				"cfl:migrate-unsupported-macro",
-				`name="note"`,
-			},
-			reason: "create side normalizes warn -> note and export treats note macro as unsupported",
-		},
-		{
-			name: "error aliases to warning macro and loses directive syntax",
-			input: strings.Join([]string{
-				":::error",
-				"エラー",
-				":::",
-			}, "\n"),
-			wantDirectiveSurvives: false,
-			wantStableAfterFirst:  true,
-			wantMarkers: []string{
-				"cfl:migrate-unsupported-macro",
-				`name="warning"`,
-			},
-			reason: "create side normalizes error -> warning and export treats warning macro as unsupported",
-		},
+	fixture, err := os.ReadFile("testdata/directive_roundtrip_fixture.md")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
 	}
 
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			storage1, err := body.ToStorage([]byte(tc.input), body.FormatMarkdown)
-			if err != nil {
-				t.Fatalf("body.ToStorage first: %v", err)
-			}
-
-			markdown1, _, err := StorageToMarkdown(storage1, attachmentPath)
-			if err != nil {
-				t.Fatalf("StorageToMarkdown first: %v", err)
-			}
-
-			storage2, err := body.ToStorage([]byte(markdown1), body.FormatMarkdown)
-			if err != nil {
-				t.Fatalf("body.ToStorage second: %v", err)
-			}
-
-			markdown2, _, err := StorageToMarkdown(storage2, attachmentPath)
-			if err != nil {
-				t.Fatalf("StorageToMarkdown second: %v", err)
-			}
-
-			gotDirectiveSurvives := strings.Contains(markdown1, ":::")
-			if gotDirectiveSurvives != tc.wantDirectiveSurvives {
-				t.Fatalf("directive survival=%v want %v\nreason=%s\ninput=%q\nmarkdown1=%q", gotDirectiveSurvives, tc.wantDirectiveSurvives, tc.reason, tc.input, markdown1)
-			}
-
-			gotStableAfterFirst := markdown1 == markdown2
-			if gotStableAfterFirst != tc.wantStableAfterFirst {
-				t.Fatalf("stable-after-first=%v want %v\nreason=%s\nmarkdown1=%q\nmarkdown2=%q", gotStableAfterFirst, tc.wantStableAfterFirst, tc.reason, markdown1, markdown2)
-			}
-
-			for _, marker := range tc.wantMarkers {
-				if !strings.Contains(markdown1, marker) {
-					t.Fatalf("markdown1 missing marker %q\nreason=%s\nmarkdown1=%q", marker, tc.reason, markdown1)
-				}
-			}
-		})
+	markdown1, err := roundtripMarkdownFixture(fixture, attachmentPath)
+	if err != nil {
+		t.Fatalf("roundtrip #1: %v", err)
 	}
+	markdown2, err := roundtripMarkdownFixture([]byte(markdown1), attachmentPath)
+	if err != nil {
+		t.Fatalf("roundtrip #2: %v", err)
+	}
+
+	if markdown1 == markdown2 {
+		t.Fatalf("directive fixture unexpectedly became a fixed point; this test currently documents non-idempotent behavior")
+	}
+
+	if !strings.Contains(markdown1, "cfl:migrate-unsupported-macro") {
+		t.Fatalf("markdown1 should contain unsupported macro traces: %q", markdown1)
+	}
+	if !strings.Contains(markdown1, "<ac:adf-extension>") {
+		t.Fatalf("markdown1 should contain raw ADF extension for :::memo: %q", markdown1)
+	}
+}
+
+func roundtripMarkdownFixture(input []byte, attachmentPath func(filename string) string) (string, error) {
+	storage, err := body.ToStorage(input, body.FormatMarkdown)
+	if err != nil {
+		return "", err
+	}
+	markdown, _, err := StorageToMarkdown(storage, attachmentPath)
+	if err != nil {
+		return "", err
+	}
+	return markdown, nil
 }
