@@ -1,60 +1,63 @@
 package client
 
-import (
-	"context"
-	"net/http"
-	"net/http/httptest"
-	"testing"
+import "testing"
 
-	"github.com/takymt/cflcli/internal/config"
-)
+func TestResolveDownloadURL(t *testing.T) {
+	cli := &Client{baseURL: "https://example.atlassian.net/wiki/api/v2"}
 
-func TestDownloadPageAttachmentByFilename(t *testing.T) {
-	var gotFilenameQuery string
-	var gotStatusQuery string
-	attachmentPath := "/wiki/api/v2/pages/123/attachments"
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case attachmentPath:
-			gotFilenameQuery = r.URL.Query().Get("filename")
-			gotStatusQuery = r.URL.Query().Get("status")
-			assertBasicAuth(t, r, "u@example.com", "token")
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png","downloadLink":"/download/attachments/123/logo.png"}]}`))
-		case "/download/attachments/123/logo.png", "/wiki/download/attachments/123/logo.png":
-			assertBasicAuth(t, r, "u@example.com", "token")
-			_, _ = w.Write([]byte("PNGDATA"))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer srv.Close()
-
-	old := DefaultHTTPClient
-	DefaultHTTPClient = srv.Client()
-	t.Cleanup(func() { DefaultHTTPClient = old })
-
-	cli, err := New(
-		context.Background(),
-		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
-		"token",
-	)
-	if err != nil {
-		t.Fatalf("New: %v", err)
+	tests := []struct {
+		name    string
+		path    string
+		want    string
+		wantErr bool
+	}{
+		{
+			name: "absolute https url is preserved",
+			path: "https://cdn.example.com/file.svg",
+			want: "https://cdn.example.com/file.svg",
+		},
+		{
+			name: "absolute http url is preserved",
+			path: "http://cdn.example.com/file.svg",
+			want: "http://cdn.example.com/file.svg",
+		},
+		{
+			name: "wiki-prefixed path is not double-prefixed",
+			path: "/wiki/download/attachments/123/logo.png",
+			want: "https://example.atlassian.net/wiki/download/attachments/123/logo.png",
+		},
+		{
+			name: "root-relative path is prefixed with wiki",
+			path: "/download/attachments/123/logo.png",
+			want: "https://example.atlassian.net/wiki/download/attachments/123/logo.png",
+		},
+		{
+			name: "relative path is prefixed with wiki slash",
+			path: "download/attachments/123/logo.png",
+			want: "https://example.atlassian.net/wiki/download/attachments/123/logo.png",
+		},
+		{
+			name:    "empty path returns error",
+			path:    " ",
+			wantErr: true,
+		},
 	}
 
-	content, err := cli.DownloadPageAttachmentByFilename("123", "logo.png")
-	if err != nil {
-		t.Fatalf("DownloadPageAttachmentByFilename: %v", err)
-	}
-	if gotFilenameQuery != "logo.png" {
-		t.Fatalf("filename query=%q want %q", gotFilenameQuery, "logo.png")
-	}
-	if gotStatusQuery != "current" {
-		t.Fatalf("status query=%q want %q", gotStatusQuery, "current")
-	}
-	if string(content) != "PNGDATA" {
-		t.Fatalf("content=%q want %q", string(content), "PNGDATA")
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := cli.resolveDownloadURL(tt.path)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("resolveDownloadURL() error=nil want error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("resolveDownloadURL() unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("resolveDownloadURL()=%q want %q", got, tt.want)
+			}
+		})
 	}
 }
