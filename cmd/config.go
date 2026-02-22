@@ -395,21 +395,9 @@ func runConfigShow(out io.Writer, opts *configShowOptions) error {
 	}
 
 	domain := strings.TrimSpace(p.Domain)
-	if domain == "" {
-		domain = "(unset)"
-	}
 	user := strings.TrimSpace(p.User)
-	if user == "" {
-		user = "(unset)"
-	}
 	spaceKey := strings.TrimSpace(p.SpaceKey)
-	if spaceKey == "" {
-		spaceKey = "(unset)"
-	}
 	contentRoot := strings.TrimSpace(p.ContentRoot)
-	if contentRoot == "" {
-		contentRoot = "(unset)"
-	}
 
 	rows := [][]string{
 		{"Name:", p.Name},
