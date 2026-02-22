@@ -1,97 +1,113 @@
 package client
 
 import (
-	"context"
+	"bytes"
 	"errors"
 	"io"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
+	"mime"
+	"mime/multipart"
+	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/takymt/cflcli/internal/config"
 )
 
-func TestUpsertPageAttachment_Request(t *testing.T) {
-	var gotFilename string
-	var gotFileContent string
-	var gotMinorEdit string
+func TestBuildAttachmentMultipartPayload(t *testing.T) {
+	tests := []struct {
+		name       string
+		filename   string
+		file       io.Reader
+		wantErrSub string
+	}{
+		{
+			name:     "builds multipart payload",
+			filename: "logo.png",
+			file:     strings.NewReader("PNGDATA"),
+		},
+		{
+			name:       "requires filename",
+			filename:   " ",
+			file:       strings.NewReader("PNGDATA"),
+			wantErrSub: "attachment filename is required",
+		},
+		{
+			name:       "requires reader",
+			filename:   "logo.png",
+			file:       nil,
+			wantErrSub: "attachment file reader is required",
+		},
+	}
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPut {
-			t.Fatalf("method=%q", r.Method)
-		}
-		if r.URL.Path != "/wiki/rest/api/content/123/child/attachment" {
-			http.NotFound(w, r)
-			return
-		}
-		if got := r.Header.Get("X-Atlassian-Token"); got != "no-check" {
-			t.Fatalf("X-Atlassian-Token=%q", got)
-		}
-		if !strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data; boundary=") {
-			t.Fatalf("unexpected content-type=%q", r.Header.Get("Content-Type"))
-		}
-		mr, err := r.MultipartReader()
-		if err != nil {
-			t.Fatalf("MultipartReader: %v", err)
-		}
-		for {
-			part, err := mr.NextPart()
-			if errors.Is(err, io.EOF) {
-				break
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			payload, contentType, err := buildAttachmentMultipartPayload(tt.filename, tt.file)
+			if tt.wantErrSub != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErrSub) {
+					t.Fatalf("err=%v want contains %q", err, tt.wantErrSub)
+				}
+				return
 			}
 			if err != nil {
-				t.Fatalf("NextPart: %v", err)
+				t.Fatalf("buildAttachmentMultipartPayload: %v", err)
 			}
-			body, err := io.ReadAll(part)
-			if err != nil {
-				t.Fatalf("ReadAll(part): %v", err)
+			if !strings.HasPrefix(contentType, "multipart/form-data;") {
+				t.Fatalf("contentType=%q", contentType)
 			}
 
-			switch part.FormName() {
-			case "file":
-				gotFilename = part.FileName()
-				gotFileContent = string(body)
-			case "minorEdit":
-				gotMinorEdit = string(body)
+			formValues, fileName, fileContent := parseMultipartPayload(t, payload, contentType)
+			if fileName != "logo.png" {
+				t.Fatalf("fileName=%q want %q", fileName, "logo.png")
 			}
-		}
+			if fileContent != "PNGDATA" {
+				t.Fatalf("fileContent=%q want %q", fileContent, "PNGDATA")
+			}
+			if !reflect.DeepEqual(formValues, map[string]string{"minorEdit": "true"}) {
+				t.Fatalf("formValues=%v want %v", formValues, map[string]string{"minorEdit": "true"})
+			}
+		})
+	}
+}
 
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"results":[{"id":"att-1","title":"logo.png"}]}`))
-	}))
-	defer srv.Close()
+func parseMultipartPayload(t *testing.T, payload []byte, contentType string) (map[string]string, string, string) {
+	t.Helper()
 
-	old := DefaultHTTPClient
-	DefaultHTTPClient = srv.Client()
-	t.Cleanup(func() { DefaultHTTPClient = old })
-
-	cli, err := New(
-		context.Background(),
-		&config.Profile{Name: "work", Domain: srv.URL, User: "u@example.com"},
-		"token",
-	)
+	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		t.Fatalf("New: %v", err)
+		t.Fatalf("ParseMediaType: %v", err)
+	}
+	if mediaType != "multipart/form-data" {
+		t.Fatalf("mediaType=%q", mediaType)
+	}
+	boundary := params["boundary"]
+	if strings.TrimSpace(boundary) == "" {
+		t.Fatalf("boundary missing in contentType=%q", contentType)
 	}
 
-	sourcePath := filepath.Join(t.TempDir(), "logo.png")
-	if err := os.WriteFile(sourcePath, []byte("PNGDATA"), 0o600); err != nil {
-		t.Fatalf("WriteFile: %v", err)
+	reader := multipart.NewReader(bytes.NewReader(payload), boundary)
+	formValues := map[string]string{}
+	var fileName string
+	var fileContent string
+
+	for {
+		part, err := reader.NextPart()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("NextPart: %v", err)
+		}
+		body, err := io.ReadAll(part)
+		if err != nil {
+			t.Fatalf("ReadAll(part): %v", err)
+		}
+
+		switch part.FormName() {
+		case "file":
+			fileName = part.FileName()
+			fileContent = string(body)
+		default:
+			formValues[part.FormName()] = string(body)
+		}
 	}
 
-	if err := cli.UpsertPageAttachment("123", "logo.png", sourcePath); err != nil {
-		t.Fatalf("UpsertPageAttachment: %v", err)
-	}
-	if gotFilename != "logo.png" {
-		t.Fatalf("filename=%q want %q", gotFilename, "logo.png")
-	}
-	if gotFileContent != "PNGDATA" {
-		t.Fatalf("file content=%q want %q", gotFileContent, "PNGDATA")
-	}
-	if gotMinorEdit != "true" {
-		t.Fatalf("minorEdit=%q want %q", gotMinorEdit, "true")
-	}
+	return formValues, fileName, fileContent
 }

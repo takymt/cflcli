@@ -46,21 +46,9 @@ func (c *Client) UpsertPageAttachment(pageID, filename, sourcePath string) error
 	}
 	defer func() { _ = file.Close() }()
 
-	var payload bytes.Buffer
-	writer := multipart.NewWriter(&payload)
-
-	part, err := writer.CreateFormFile("file", filename)
+	payload, contentType, err := buildAttachmentMultipartPayload(filename, file)
 	if err != nil {
-		return fmt.Errorf("create multipart file field: %w", err)
-	}
-	if _, err := io.Copy(part, file); err != nil {
-		return fmt.Errorf("write multipart file body: %w", err)
-	}
-	if err := writer.WriteField("minorEdit", "true"); err != nil {
-		return fmt.Errorf("write multipart field: %w", err)
-	}
-	if err := writer.Close(); err != nil {
-		return fmt.Errorf("close multipart writer: %w", err)
+		return err
 	}
 
 	u, err := url.Parse(c.restAPIBaseURL() + "/content/" + url.PathEscape(pageID) + "/child/attachment")
@@ -68,17 +56,46 @@ func (c *Client) UpsertPageAttachment(pageID, filename, sourcePath string) error
 		return err
 	}
 
-	req, err := http.NewRequestWithContext(c.ctx, http.MethodPut, u.String(), &payload)
+	req, err := http.NewRequestWithContext(c.ctx, http.MethodPut, u.String(), bytes.NewReader(payload))
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("X-Atlassian-Token", "no-check")
 
 	return c.do(req, func(decoder *json.Decoder) error {
 		var body any
 		return decoder.Decode(&body)
 	})
+}
+
+func buildAttachmentMultipartPayload(filename string, file io.Reader) ([]byte, string, error) {
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		return nil, "", fmt.Errorf("attachment filename is required")
+	}
+	if file == nil {
+		return nil, "", fmt.Errorf("attachment file reader is required")
+	}
+
+	var payload bytes.Buffer
+	writer := multipart.NewWriter(&payload)
+
+	part, err := writer.CreateFormFile("file", filename)
+	if err != nil {
+		return nil, "", fmt.Errorf("create multipart file field: %w", err)
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return nil, "", fmt.Errorf("write multipart file body: %w", err)
+	}
+	if err := writer.WriteField("minorEdit", "true"); err != nil {
+		return nil, "", fmt.Errorf("write multipart field: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return nil, "", fmt.Errorf("close multipart writer: %w", err)
+	}
+
+	return payload.Bytes(), writer.FormDataContentType(), nil
 }
 
 // DownloadPageAttachmentByFilename downloads a page attachment binary by filename.
