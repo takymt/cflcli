@@ -2,10 +2,11 @@ package model
 
 // Page represents a Confluence page summary.
 type Page struct {
-	ID      string `json:"id"`
-	Title   string `json:"title"`
-	Status  string `json:"status"`
-	SpaceID string `json:"spaceId"`
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Status   string `json:"status"`
+	SpaceID  string `json:"spaceId"`
+	ParentID string `json:"parentId"`
 }
 
 // PageVersion represents a page version.
@@ -26,12 +27,13 @@ type PageBody struct {
 
 // PageDetail represents a page detail response.
 type PageDetail struct {
-	ID      string      `json:"id"`
-	Title   string      `json:"title"`
-	Status  string      `json:"status"`
-	SpaceID string      `json:"spaceId"`
-	Version PageVersion `json:"version"`
-	Body    PageBody    `json:"body"`
+	ID       string      `json:"id"`
+	Title    string      `json:"title"`
+	Status   string      `json:"status"`
+	SpaceID  string      `json:"spaceId"`
+	ParentID string      `json:"parentId"`
+	Version  PageVersion `json:"version"`
+	Body     PageBody    `json:"body"`
 }
 
 // PageCreateBody represents create request body payload in storage format.

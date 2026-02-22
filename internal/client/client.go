@@ -98,6 +98,34 @@ func (c *Client) do(req *http.Request, decode func(*json.Decoder) error) error {
 	return decode(json.NewDecoder(resp.Body))
 }
 
+func (c *Client) doRaw(req *http.Request, accept string) ([]byte, error) {
+	req.SetBasicAuth(c.user, c.token)
+	if strings.TrimSpace(accept) != "" {
+		req.Header.Set("Accept", accept)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	body, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return nil, readErr
+	}
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, &HTTPError{
+			StatusCode: resp.StatusCode,
+			Status:     resp.Status,
+			Body:       strings.TrimSpace(string(body)),
+		}
+	}
+
+	return body, nil
+}
+
 func (c *Client) get(path string, query url.Values, decode func(*json.Decoder) error) error {
 	u, err := url.Parse(c.baseURL + path)
 	if err != nil {
