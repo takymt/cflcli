@@ -25,6 +25,7 @@ var (
 	altAttributePattern      = regexp.MustCompile(`ac:alt="([^"]*)"`)
 	xmlHeaderPattern         = regexp.MustCompile(`(?s)<\?xml[^>]*\?>`)
 	excessBlankLinesPattern  = regexp.MustCompile(`\n{3,}`)
+	directiveCloseGapPattern = regexp.MustCompile(`\n\n(:::[ \t]*\n)`)
 )
 
 // StorageToMarkdown converts Confluence storage into migrate-friendly markdown.
@@ -97,6 +98,7 @@ func StorageToMarkdown(storage string, attachmentPath func(filename string) stri
 	normalized = xmlHeaderPattern.ReplaceAllString(normalized, "")
 	normalized = convertHTMLToMarkdownSyntax(normalized)
 	normalized = excessBlankLinesPattern.ReplaceAllString(normalized, "\n\n")
+	normalized = directiveCloseGapPattern.ReplaceAllString(normalized, "\n$1")
 	normalized = strings.TrimSpace(normalized)
 	if normalized != "" {
 		normalized += "\n"

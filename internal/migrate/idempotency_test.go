@@ -76,6 +76,9 @@ func TestMarkdownStorageMarkdown_DirectiveBlocksFixedPoint(t *testing.T) {
 	if gotWarnCount := strings.Count(markdown1, ":::warn"); gotWarnCount != 1 {
 		t.Fatalf(":::warn count=%d want 1 (only note should canonicalize to warn)\nmarkdown1=%q", gotWarnCount, markdown1)
 	}
+	if strings.Contains(markdown1, "折りたたみ本文2\n\n:::") {
+		t.Fatalf("directive closing marker should not have an extra blank line before :::\nmarkdown1=%q", markdown1)
+	}
 }
 
 func roundtripMarkdownFixture(input []byte, attachmentPath func(filename string) string) (string, error) {
