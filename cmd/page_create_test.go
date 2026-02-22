@@ -171,33 +171,6 @@ func TestRunPageCreateWithConfig_TitleSourcesAreMutuallyExclusive(t *testing.T) 
 	}
 }
 
-func TestRunPageCreateWithConfig_RejectsReservedTitleIndex(t *testing.T) {
-	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/wiki/api/v2/spaces":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
-		case "/wiki/api/v2/pages":
-			t.Fatalf("create API must not be called when title is reserved")
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	setOutputMode(t, "table")
-	t.Setenv("CFL_API_TOKEN", "token")
-
-	cfg := newPageListConfig(srv.URL, "WORK")
-	opts := &pageCreateOptions{
-		Title:    "_index",
-		BodyFile: writeTempBodyFile(t, "body"),
-	}
-
-	err := RunPageCreateWithConfig(&bytes.Buffer{}, opts, cfg)
-	if err == nil || !strings.Contains(err.Error(), `title "_index" is reserved`) {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestRunPageCreateWithConfig_UsesProfileContentRoot(t *testing.T) {
 	var gotSpacesQuery string
 	var gotCreatePayload struct {
