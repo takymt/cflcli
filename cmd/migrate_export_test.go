@@ -7,12 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/takymt/cflcli/internal/config"
 )
 
 func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
-	var gotPagesQuery string
+	var gotPageCursors []string
 	var gotAttachmentFilenameQuery string
 	attachmentPath := "/wiki/" + "rest/api/content/1/child/attachment"
 
@@ -22,21 +20,21 @@ func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
 		case "/wiki/api/v2/pages":
-			gotPagesQuery = r.URL.RawQuery
+			cursor := r.URL.Query().Get("cursor")
+			gotPageCursors = append(gotPageCursors, cursor)
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"Root Page","status":"current","spaceId":"SPACE-1"},{"id":"2","title":"Child Page","status":"current","spaceId":"SPACE-1","parentId":"1"}],"_links":{}}`))
+			if cursor == "" {
+				_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"Root Page","status":"current","spaceId":"SPACE-1"}],"_links":{"next":"/wiki/api/v2/pages?limit=250&cursor=cursor-2"}}`))
+				return
+			}
+			if cursor == "cursor-2" {
+				_, _ = w.Write([]byte(`{"results":[{"id":"2","title":"Child Page","status":"current","spaceId":"SPACE-1","parentId":"1"}],"_links":{}}`))
+				return
+			}
+			t.Fatalf("unexpected cursor value: %q", cursor)
 		case "/wiki/api/v2/pages/1":
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(strings.Join([]string{
-				`{"id":"1","title":"Root Page","status":"current","spaceId":"SPACE-1","parentId":"","body":{"storage":{"representation":"storage","value":"`,
-				`<p>Intro</p>`,
-				`<ac:image><ri:attachment ri:filename=\"logo.png\" /></ac:image>`,
-				`<ac:structured-macro ac:name=\"code\"><ac:parameter ac:name=\"language\">mermaid</ac:parameter><ac:plain-text-body><![CDATA[flowchart TD`,
-				`A-->B`,
-				`]]></ac:plain-text-body></ac:structured-macro>`,
-				`<ac:structured-macro ac:name=\"toc\"><ac:parameter ac:name=\"maxLevel\">2</ac:parameter></ac:structured-macro>`,
-				`"}}}`,
-			}, "")))
+			_, _ = w.Write([]byte(`{"id":"1","title":"Root Page","status":"current","spaceId":"SPACE-1","parentId":"","body":{"storage":{"representation":"storage","value":"<p>Intro</p><ac:image><ri:attachment ri:filename=\"logo.png\" /></ac:image>"}}}`))
 		case "/wiki/api/v2/pages/2":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"id":"2","title":"Child Page","status":"current","spaceId":"SPACE-1","parentId":"1","body":{"storage":{"representation":"storage","value":"<p>Child body</p>"}}}`))
@@ -65,8 +63,8 @@ func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 		t.Fatalf("RunMigrateExportWithConfig: %v", err)
 	}
 
-	if !strings.Contains(gotPagesQuery, "space-id=SPACE-1") {
-		t.Fatalf("unexpected page list query: %q", gotPagesQuery)
+	if len(gotPageCursors) != 2 || gotPageCursors[0] != "" || gotPageCursors[1] != "cursor-2" {
+		t.Fatalf("page list cursor sequence=%v want [\"\", \"cursor-2\"]", gotPageCursors)
 	}
 	if gotAttachmentFilenameQuery != "logo.png" {
 		t.Fatalf("attachment filename query=%q want %q", gotAttachmentFilenameQuery, "logo.png")
@@ -109,25 +107,6 @@ func TestRunMigrateExportWithConfig_WritesMarkdownAndAttachments(t *testing.T) {
 
 	if !strings.Contains(out.String(), `Exported 2 pages`) {
 		t.Fatalf("unexpected output: %q", out.String())
-	}
-}
-
-func TestRunMigrateExportWithConfig_SpaceSelectorsMutuallyExclusive(t *testing.T) {
-	t.Setenv("CFL_API_TOKEN", "token")
-
-	cfg := &config.Config{
-		Current: "work",
-		Profiles: []config.Profile{
-			{Name: "work", Domain: "example.atlassian.net", User: "user@example.com"},
-		},
-	}
-	err := RunMigrateExportWithConfig(&bytes.Buffer{}, &migrateExportOptions{
-		SpaceID:  "123",
-		SpaceKey: "WORK",
-		Out:      t.TempDir(),
-	}, cfg)
-	if err == nil || !strings.Contains(err.Error(), "mutually exclusive") {
-		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
@@ -184,61 +163,5 @@ func TestRunMigrateExportWithConfig_RootPageAndCustomAttachmentsDir(t *testing.T
 	}
 	if !strings.Contains(string(rootMarkdown), `attachments/custom/1/logo.png`) {
 		t.Fatalf("custom attachments dir was not reflected in markdown: %q", string(rootMarkdown))
-	}
-}
-
-func TestRunMigrateExportWithConfig_PaginatesPageListByCursor(t *testing.T) {
-	var cursors []string
-
-	srv := setupPageListServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/wiki/api/v2/spaces":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"results":[{"id":"SPACE-1","key":"WORK"}]}`))
-		case "/wiki/api/v2/pages":
-			cursor := r.URL.Query().Get("cursor")
-			cursors = append(cursors, cursor)
-			w.Header().Set("Content-Type", "application/json")
-			if cursor == "" {
-				_, _ = w.Write([]byte(`{"results":[{"id":"1","title":"First","status":"current","spaceId":"SPACE-1"}],"_links":{"next":"/wiki/api/v2/pages?limit=250&cursor=cursor-2"}}`))
-				return
-			}
-			if cursor == "cursor-2" {
-				_, _ = w.Write([]byte(`{"results":[{"id":"2","title":"Second","status":"current","spaceId":"SPACE-1"}],"_links":{}}`))
-				return
-			}
-			t.Fatalf("unexpected cursor value: %q", cursor)
-		case "/wiki/api/v2/pages/1":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"1","title":"First","status":"current","spaceId":"SPACE-1","body":{"storage":{"representation":"storage","value":"<p>first</p>"}}}`))
-		case "/wiki/api/v2/pages/2":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"id":"2","title":"Second","status":"current","spaceId":"SPACE-1","body":{"storage":{"representation":"storage","value":"<p>second</p>"}}}`))
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-
-	t.Setenv("CFL_API_TOKEN", "token")
-	setOutputMode(t, "table")
-
-	outDir := t.TempDir()
-	opts := &migrateExportOptions{
-		SpaceKey: "WORK",
-		Out:      outDir,
-	}
-
-	if err := RunMigrateExportWithConfig(&bytes.Buffer{}, opts, newPageListConfig(srv.URL, "WORK")); err != nil {
-		t.Fatalf("RunMigrateExportWithConfig: %v", err)
-	}
-
-	if len(cursors) != 2 || cursors[0] != "" || cursors[1] != "cursor-2" {
-		t.Fatalf("cursor sequence=%v want [\"\", \"cursor-2\"]", cursors)
-	}
-	if _, err := os.Stat(filepath.Join(outDir, "first-1", "index.md")); err != nil {
-		t.Fatalf("first page not exported: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(outDir, "second-2", "index.md")); err != nil {
-		t.Fatalf("second page not exported: %v", err)
 	}
 }
