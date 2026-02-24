@@ -163,6 +163,10 @@
 
 ## Phase 2: 拡張機能
 
+### CLI UX
+
+- [x] `config init/edit` の対話プロンプトに `Domain` / `Assets Root` の例値を表示する
+
 ### 配布・インストール
 
 - [x] `go install github.com/takymt/cflcli/cmd/cfl@latest` で `cfl` バイナリ名でインストールできるようにする

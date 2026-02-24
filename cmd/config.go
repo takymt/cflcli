@@ -69,7 +69,7 @@ func newConfigInitCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
 	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
 	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
-	cmd.Flags().StringVar(&opts.assetsRoot, "assets-root", "", "default assets root for /-prefixed markdown image paths")
+	cmd.Flags().StringVar(&opts.assetsRoot, "assets-root", "", "default assets root for /-prefixed markdown image paths (e.g. ./docs)")
 	cmd.Flags().StringVar(&opts.output, "profile-output", "", "default output format for this profile (json | table)")
 
 	return cmd
@@ -135,7 +135,7 @@ func newConfigEditCmd() *cobra.Command {
 	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain (e.g. mysite.atlassian.net)")
 	cmd.Flags().StringVar(&opts.user, "user", "", "email address")
 	cmd.Flags().StringVar(&opts.spaceKey, "space-key", "", "default space key")
-	cmd.Flags().StringVar(&opts.assetsRoot, "assets-root", "", "default assets root for /-prefixed markdown image paths")
+	cmd.Flags().StringVar(&opts.assetsRoot, "assets-root", "", "default assets root for /-prefixed markdown image paths (e.g. ./docs)")
 	cmd.Flags().StringVar(&opts.output, "profile-output", "", "default output format for this profile (json | table)")
 
 	return cmd
@@ -220,7 +220,7 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 
 	domain := opts.domain
 	if domain == "" {
-		domain, err = prompt(reader, out, "Domain", defaultProfile.Domain)
+		domain, err = prompt(reader, out, "Domain (e.g. mysite.atlassian.net)", defaultProfile.Domain)
 		if err != nil {
 			return err
 		}
@@ -253,7 +253,7 @@ func runConfigInitWithConfig(in io.Reader, out io.Writer, opts *configInitOption
 
 	assetsRoot := opts.assetsRoot
 	if assetsRoot == "" {
-		assetsRoot, err = prompt(reader, out, "Assets Root (optional)", defaultProfile.AssetsRoot)
+		assetsRoot, err = prompt(reader, out, "Assets Root (optional; base dir for /image.png, e.g. ./docs)", defaultProfile.AssetsRoot)
 		if err != nil {
 			return err
 		}
