@@ -178,6 +178,34 @@
 - [x] `:::` 系（details/info/success/memo/warn/error）の roundtrip 冪等性を characterization test で可視化する
 - [x] `expand/info/tip/note/warning` と ADF panel(note) を `:::` DSL（details/info/success/memo/warn）へ逆変換する
 
+### migrate export UX / パフォーマンス改善
+
+#### 実時間短縮
+
+- [ ] 添付メタデータ取得をページ単位に集約して API 呼び出し回数を削減する
+  - [ ] 現状の filename ごとの添付一覧取得をやめ、ページ単位の添付一覧から `filename -> downloadURL` を引けるようにする
+- [ ] `cfl migrate export` のページ処理を並列化する（worker pool）
+  - [ ] `--concurrency` オプションを追加する（default は安全寄り）
+  - [ ] 出力ファイル内容と最終結果の順序は安定化する
+- [ ] 添付ダウンロードを並列化する
+  - [ ] `--attachment-concurrency` オプションを追加する
+  - [ ] レート制限を考慮して過剰並列を避ける
+- [ ] 一時的な API エラー（429 / 5xx）に対する retry/backoff を導入する
+- [ ] 再実行短縮のための `--resume` または `--skip-existing` を検討・導入する
+- [ ] 大きい添付でのメモリ負荷を下げるため、添付ダウンロードのストリーム書き込みを検討する
+
+#### 待機負荷軽減（体感 UX）
+
+- [ ] `migrate export` 実行中の進捗を `stderr` に表示する（`stdout` は最終結果専用）
+  - [ ] IF `--output json` THEN 進捗は `stderr` のみに出力する
+- [ ] フェーズ別進捗を表示する（例: page list / plan build / page export / attachment download）
+- [ ] ページ進捗を表示する（件数カウンタ + 現在の page id/title/path）
+- [ ] 長時間無出力を避けるため、定期 heartbeat を表示する
+- [ ] 可能なら ETA / throughput（pages/sec, attachments/sec）を表示する
+- [ ] 進捗表示モードを切り替えられるようにする（例: `--progress auto|plain|off`）
+- [ ] 実行前確認用の `--plan-only` / `--dry-run` を検討する（対象件数と出力先の確認）
+- [ ] 最終サマリにフェーズ別所要時間と件数を表示する
+
 ### ページ補助操作
 
 - [ ] `cfl page children <page-id>` — 子ページ一覧
