@@ -2,7 +2,7 @@ version: 2
 project_name: cfl
 
 builds:
-  - main: .
+  - main: ./cmd/cfl
     binary: cfl
     ldflags:
       - '-s -w -X main.revision={{ .ShortCommit }}'

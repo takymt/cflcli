@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-matches="$(rg -n --glob '*.go' '/wiki/(api/v1|rest/api)' cmd internal main.go || true)"
+matches="$(rg -n --glob '*.go' '/wiki/(api/v1|rest/api)' cmd internal || true)"
 if [[ -z "$matches" ]]; then
   exit 0
 fi
