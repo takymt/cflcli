@@ -39,7 +39,7 @@ Use "cfl [command] --help" for more information about a command.
 1. Install:
 
 ```bash
-go install github.com/takymt/cflcli@latest
+go install github.com/takymt/cflcli/cmd/cfl@latest
 cfl --help
 ```
 
@@ -61,7 +61,7 @@ cfl init
 cfl page list --limit 25
 ```
 
-If you are working from a local checkout of this repo, you can run `go run .` instead of `cfl`.
+If you are working from a local checkout of this repo, you can run `go run ./cmd/cfl` instead of `cfl`.
 
 ## Typical Flows
 

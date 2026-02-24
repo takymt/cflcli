@@ -163,6 +163,10 @@
 
 ## Phase 2: 拡張機能
 
+### 配布・インストール
+
+- [x] `go install github.com/takymt/cflcli/cmd/cfl@latest` で `cfl` バイナリ名でインストールできるようにする
+
 ### migrate export 品質改善
 
 - [x] `StorageToMarkdown` で基本的な HTML（見出し/リスト/リンク/強調/引用/区切り線/タスクリスト）を Markdown 記法へ変換する
