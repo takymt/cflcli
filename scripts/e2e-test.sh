@@ -5,16 +5,15 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/live-test.sh --bin <path> [--profile <name>] --space-id <space-id> [options]
+  scripts/e2e-test.sh [--profile <name>] --space-id <space-id> [options]
 
 Required arguments:
-  --bin <path>              Path to the built cfl binary
   --space-id <space-id>     Target Confluence space id
 
 Optional arguments:
   --profile <name>          cfl profile name
   --parent-id <parent-id>   Parent page id. If omitted, the space homepage id is used
-  --title <title>           Page title. Default: cfl-live-test-<timestamp>
+  --title <title>           Page title. Default: cfl-e2e-test-<timestamp>
   --create-body <body>      Markdown body used for create
   --update-body <body>      Markdown body used for update
   -h, --help                Show this help
@@ -31,6 +30,17 @@ require_cmd() {
 die() {
   echo "error: $*" >&2
   exit 1
+}
+
+build_cfl() {
+  if ! go build -o "${CFL_BIN}" . >"${BUILD_LOG}" 2>&1; then
+    {
+      echo "failed to build cfl binary"
+      echo "  output:"
+      sed 's/^/    /' "${BUILD_LOG}"
+    } >&2
+    exit 1
+  fi
 }
 
 run_cfl() {
@@ -53,9 +63,9 @@ run_cfl() {
   rm -f "${output_file}"
 }
 
+require_cmd go
 require_cmd jq
 
-CFL_BIN=""
 PROFILE=""
 SPACE_ID=""
 PARENT_ID=""
@@ -65,10 +75,6 @@ UPDATE_BODY=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --bin)
-      CFL_BIN="${2:-}"
-      shift 2
-      ;;
     --profile)
       PROFILE="${2:-}"
       shift 2
@@ -104,27 +110,29 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "${CFL_BIN}" ]] || { usage >&2; die "--bin is required"; }
 [[ -n "${SPACE_ID}" ]] || { usage >&2; die "--space-id is required"; }
-[[ -x "${CFL_BIN}" ]] || die "--bin must point to an executable file: ${CFL_BIN}"
 
 timestamp="$(date -u +%Y%m%d%H%M%S)"
-title="${TITLE:-cfl-live-test-${timestamp}}"
-create_body="${CREATE_BODY:-created by live-test.sh at ${timestamp}}"
-update_body="${UPDATE_BODY:-updated by live-test.sh at ${timestamp}}"
+title="${TITLE:-cfl-e2e-test-${timestamp}}"
+create_body="${CREATE_BODY:-created by e2e-test.sh at ${timestamp}}"
+update_body="${UPDATE_BODY:-updated by e2e-test.sh at ${timestamp}}"
 
 GLOBAL_ARGS=(-o json)
 if [[ -n "${PROFILE}" ]]; then
   GLOBAL_ARGS+=(-p "${PROFILE}")
 fi
 
-create_body_file="$(mktemp)"
-update_body_file="$(mktemp)"
+CFL_BIN="$(mktemp -t cfl-e2e-bin.XXXXXX)"
+BUILD_LOG="$(mktemp -t cfl-e2e-build.XXXXXX)"
+create_body_file="$(mktemp -t cfl-e2e-create.XXXXXX.md)"
+update_body_file="$(mktemp -t cfl-e2e-update.XXXXXX.md)"
 
 cleanup() {
-  rm -f "${create_body_file}" "${update_body_file}"
+  rm -f "${CFL_BIN}" "${BUILD_LOG}" "${create_body_file}" "${update_body_file}"
 }
 trap cleanup EXIT
+
+build_cfl
 
 printf '%s\n' "${create_body}" >"${create_body_file}"
 printf '%s\n' "${update_body}" >"${update_body_file}"
@@ -134,7 +142,8 @@ if [[ -n "${PARENT_ID}" ]]; then
   create_args+=(--parent-id "${PARENT_ID}")
 fi
 
-echo "Using binary ${CFL_BIN} space ${SPACE_ID} title ${title}"
+echo "Built binary ${CFL_BIN}"
+echo "Using space ${SPACE_ID} title ${title}"
 if [[ -n "${PARENT_ID}" ]]; then
   echo "Using parent ${PARENT_ID}"
 fi
@@ -162,4 +171,4 @@ updated_page_id="$(printf '%s' "${update_response}" | jq -er '.id // .page.id //
   || die "failed to parse page id from update output"
 
 echo "Updated page ${updated_page_id}"
-echo "Live test passed"
+echo "E2E test passed"
