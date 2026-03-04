@@ -283,12 +283,17 @@ cfl page sync guide.md
 - the remote page body exactly reflects the local Markdown content after conversion
 - the remote manual edits no longer remain if they are absent from the local file
 
-### SYNC-008 Sync supports the minimum Markdown feature set
+### SYNC-008 Sync supports the documented Markdown syntax subset
 
 #### Given
 
 - a local file contains valid frontmatter
-- the Markdown body contains paragraphs, headings, lists, and fenced code blocks
+- the Markdown body contains the following syntax:
+  - plain paragraphs separated by blank lines
+  - ATX headings `#`, `##`, and `###`
+  - unordered lists using `-`
+  - ordered lists using `1.`
+  - fenced code blocks using triple backticks
 
 #### When
 
@@ -299,7 +304,11 @@ cfl page sync guide.md
 #### Then
 
 - the command succeeds
-- each supported construct is reflected in the remote page in the expected Confluence form
+- plain paragraphs are rendered as paragraphs in the remote page
+- `#`, `##`, and `###` headings are rendered as headings at the expected levels in the remote page
+- unordered lists using `-` are rendered as unordered lists in the remote page
+- ordered lists using `1.` are rendered as ordered lists in the remote page
+- fenced code blocks are rendered as code blocks in the remote page
 
 ## Test Cases: `cfl page sync --watch`
 
