@@ -5,19 +5,18 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/live-test.sh --domain <domain> --email <email> --token <token> --space-id <space-id> [options]
+  scripts/live-test.sh --bin <path> [--profile <name>] --space-id <space-id> [options]
 
 Required arguments:
-  --domain <domain>         Confluence domain, for example example.atlassian.net
-  --email <email>           Atlassian account email
-  --token <token>           Atlassian API token
+  --bin <path>              Path to the built cfl binary
   --space-id <space-id>     Target Confluence space id
 
 Optional arguments:
+  --profile <name>          cfl profile name
   --parent-id <parent-id>   Parent page id. If omitted, the space homepage id is used
   --title <title>           Page title. Default: cfl-live-test-<timestamp>
-  --create-body <html>      Storage-format body used for create
-  --update-body <html>      Storage-format body used for update
+  --create-body <body>      Markdown body used for create
+  --update-body <body>      Markdown body used for update
   -h, --help                Show this help
 EOF
 }
@@ -34,61 +33,30 @@ die() {
   exit 1
 }
 
-curl_json() {
-  local method="$1"
-  local url="$2"
-  local data="${3-}"
-  local body_file
-  body_file="$(mktemp)"
+run_cfl() {
+  local output_file
+  output_file="$(mktemp)"
 
-  local http_code
-  if [[ -n "${data}" ]]; then
-    http_code="$(
-      curl -sS \
-        -o "${body_file}" \
-        -w '%{http_code}' \
-        -u "${EMAIL}:${TOKEN}" \
-        -H 'Accept: application/json' \
-        -H 'Content-Type: application/json' \
-        -X "${method}" \
-        --data "${data}" \
-        "${url}"
-    )"
-  else
-    http_code="$(
-      curl -sS \
-        -o "${body_file}" \
-        -w '%{http_code}' \
-        -u "${EMAIL}:${TOKEN}" \
-        -H 'Accept: application/json' \
-        -X "${method}" \
-        "${url}"
-    )"
-  fi
-
-  if [[ ! "${http_code}" =~ ^2 ]]; then
+  if ! "${CFL_BIN}" "${GLOBAL_ARGS[@]}" "$@" >"${output_file}" 2>&1; then
     {
-      echo "request failed"
-      echo "  method: ${method}"
-      echo "  url: ${url}"
-      echo "  status: ${http_code}"
-      echo "  response:"
-      sed 's/^/    /' "${body_file}"
+      echo "cfl command failed"
+      echo "  binary: ${CFL_BIN}"
+      echo "  args: ${GLOBAL_ARGS[*]} $*"
+      echo "  output:"
+      sed 's/^/    /' "${output_file}"
     } >&2
-    rm -f "${body_file}"
+    rm -f "${output_file}"
     exit 1
   fi
 
-  cat "${body_file}"
-  rm -f "${body_file}"
+  cat "${output_file}"
+  rm -f "${output_file}"
 }
 
-require_cmd curl
 require_cmd jq
 
-DOMAIN=""
-EMAIL=""
-TOKEN=""
+CFL_BIN=""
+PROFILE=""
 SPACE_ID=""
 PARENT_ID=""
 TITLE=""
@@ -97,16 +65,12 @@ UPDATE_BODY=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --domain)
-      DOMAIN="${2:-}"
+    --bin)
+      CFL_BIN="${2:-}"
       shift 2
       ;;
-    --email)
-      EMAIL="${2:-}"
-      shift 2
-      ;;
-    --token)
-      TOKEN="${2:-}"
+    --profile)
+      PROFILE="${2:-}"
       shift 2
       ;;
     --space-id)
@@ -140,84 +104,62 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "${DOMAIN}" ]] || { usage >&2; die "--domain is required"; }
-[[ -n "${EMAIL}" ]] || { usage >&2; die "--email is required"; }
-[[ -n "${TOKEN}" ]] || { usage >&2; die "--token is required"; }
+[[ -n "${CFL_BIN}" ]] || { usage >&2; die "--bin is required"; }
 [[ -n "${SPACE_ID}" ]] || { usage >&2; die "--space-id is required"; }
+[[ -x "${CFL_BIN}" ]] || die "--bin must point to an executable file: ${CFL_BIN}"
 
-base_url="https://${DOMAIN}"
-api_base="${base_url}/wiki/api/v2"
 timestamp="$(date -u +%Y%m%d%H%M%S)"
 title="${TITLE:-cfl-live-test-${timestamp}}"
-create_body="${CREATE_BODY:-<p>created by live-test.sh at ${timestamp}</p>}"
-update_body="${UPDATE_BODY:-<p>updated by live-test.sh at ${timestamp}</p>}"
+create_body="${CREATE_BODY:-created by live-test.sh at ${timestamp}}"
+update_body="${UPDATE_BODY:-updated by live-test.sh at ${timestamp}}"
 
-resolve_parent_id() {
-  if [[ -n "${PARENT_ID}" ]]; then
-    printf '%s\n' "${PARENT_ID}"
-    return 0
-  fi
+GLOBAL_ARGS=(-o json)
+if [[ -n "${PROFILE}" ]]; then
+  GLOBAL_ARGS+=(-p "${PROFILE}")
+fi
 
-  curl_json GET "${api_base}/spaces/${SPACE_ID}" | jq -er '.homepageId'
+create_body_file="$(mktemp)"
+update_body_file="$(mktemp)"
+
+cleanup() {
+  rm -f "${create_body_file}" "${update_body_file}"
 }
+trap cleanup EXIT
 
-parent_id="$(resolve_parent_id)" || die "failed to resolve parent page id"
+printf '%s\n' "${create_body}" >"${create_body_file}"
+printf '%s\n' "${update_body}" >"${update_body_file}"
 
-echo "Using space ${SPACE_ID} parent ${parent_id} title ${title}"
+create_args=(page create --space-id "${SPACE_ID}" --title "${title}" --body-file "${create_body_file}" --body-format markdown)
+if [[ -n "${PARENT_ID}" ]]; then
+  create_args+=(--parent-id "${PARENT_ID}")
+fi
 
-create_payload="$(jq -n \
-  --arg spaceId "${SPACE_ID}" \
-  --arg status "current" \
-  --arg title "${title}" \
-  --arg parentId "${parent_id}" \
-  --arg value "${create_body}" \
-  '{
-    spaceId: $spaceId,
-    status: $status,
-    title: $title,
-    parentId: $parentId,
-    body: {
-      representation: "storage",
-      value: $value
-    }
-  }'
-)"
+echo "Using binary ${CFL_BIN} space ${SPACE_ID} title ${title}"
+if [[ -n "${PARENT_ID}" ]]; then
+  echo "Using parent ${PARENT_ID}"
+fi
 
-create_response="$(curl_json POST "${api_base}/pages" "${create_payload}")" || die "failed to create page"
+create_response="$(run_cfl "${create_args[@]}")"
 
-page_id="$(printf '%s' "${create_response}" | jq -er '.id')" || die "failed to parse created page id"
-version_number="$(printf '%s' "${create_response}" | jq -er '.version.number')" || die "failed to parse created page version"
-page_url="${base_url}/wiki/pages/viewpage.action?pageId=${page_id}"
+page_id="$(printf '%s' "${create_response}" | jq -er '.id // .page.id // .result.id // .data.id')" \
+  || die "failed to parse page id from create output"
+
+page_url="$(printf '%s' "${create_response}" | jq -er '.url // .page.url // .result.url // .data.url // empty' || true)"
+if [[ -z "${page_url}" ]]; then
+  page_url="(url not present in cfl output)"
+fi
 
 echo "Created page ${page_id} ${page_url}"
 
-update_payload="$(jq -n \
-  --arg id "${page_id}" \
-  --arg spaceId "${SPACE_ID}" \
-  --arg parentId "${parent_id}" \
-  --arg status "current" \
-  --arg title "${title}" \
-  --arg value "${update_body}" \
-  --argjson version "$((version_number + 1))" \
-  '{
-    id: $id,
-    spaceId: $spaceId,
-    parentId: $parentId,
-    status: $status,
-    title: $title,
-    body: {
-      representation: "storage",
-      value: $value
-    },
-    version: {
-      number: $version
-    }
-  }'
-)"
+update_args=(page update "${page_id}" --title "${title}" --body-file "${update_body_file}" --body-format markdown)
+if [[ -n "${PARENT_ID}" ]]; then
+  update_args+=(--parent-id "${PARENT_ID}")
+fi
 
-update_response="$(curl_json PUT "${api_base}/pages/${page_id}" "${update_payload}")" || die "failed to update page"
+update_response="$(run_cfl "${update_args[@]}")"
 
-updated_version="$(printf '%s' "${update_response}" | jq -er '.version.number')" || die "failed to parse updated page version"
+updated_page_id="$(printf '%s' "${update_response}" | jq -er '.id // .page.id // .result.id // .data.id')" \
+  || die "failed to parse page id from update output"
 
-echo "Updated page ${page_id} to version ${updated_version}"
-echo "Live test passed: ${page_url}"
+echo "Updated page ${updated_page_id}"
+echo "Live test passed"
