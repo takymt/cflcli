@@ -134,6 +134,48 @@ cfl page new architecture-overview.md --space-id 100 --parent-id 200
 - the created remote page title is exactly `architecture-overview`
 - the generated local file path is `architecture-overview.md`
 
+### NEW-006 Fail when authentication configuration is missing
+
+#### Given
+
+- the required authentication configuration is not available
+- no local file exists at `guide.md`
+
+#### When
+
+```bash
+cfl page new guide.md --space-id 100 --parent-id 200
+```
+
+#### Then
+
+- the command fails with an early error
+- the command returns exit code `1`
+- the command prints a clear error message describing the missing configuration
+- no local file is created
+- no remote page is created
+
+### NEW-007 Fail when the remote service rejects the request for permission or authorization reasons
+
+#### Given
+
+- no local file exists at `guide.md`
+- the provided credentials are recognized but do not have permission to create the page
+
+#### When
+
+```bash
+cfl page new guide.md --space-id 100 --parent-id 200
+```
+
+#### Then
+
+- the command fails
+- the command returns exit code `1`
+- the command prints a clear error message
+- no local file is created
+- no remote page is created
+
 ## Test Cases: `cfl page sync`
 
 ### SYNC-001 Sync a valid Markdown file
@@ -310,6 +352,88 @@ cfl page sync guide.md
 - ordered lists using `1.` are rendered as ordered lists in the remote page
 - fenced code blocks are rendered as code blocks in the remote page
 
+### SYNC-009 Fail when a referenced page does not exist
+
+#### Given
+
+- a local file `guide.md` exists
+- the local file contains valid YAML frontmatter
+- the referenced `page-id` does not exist in the remote service
+
+#### When
+
+```bash
+cfl page sync guide.md
+```
+
+#### Then
+
+- the command fails
+- the command returns exit code `1`
+- the command prints a clear error message
+- the local file is not modified
+
+### SYNC-010 Fail when a frontmatter identifier is invalid
+
+#### Given
+
+- a local file `guide.md` exists
+- the file contains YAML frontmatter
+- at least one of `space-id`, `page-id`, or `parent-id` is not a valid identifier for the product contract
+
+#### When
+
+```bash
+cfl page sync guide.md
+```
+
+#### Then
+
+- the command fails with an early error
+- the command returns exit code `1`
+- the command prints a clear error message naming the invalid identifier
+- the remote page is not modified
+
+### SYNC-011 Fail when authentication configuration is missing
+
+#### Given
+
+- the required authentication configuration is not available
+- a local file `guide.md` exists with valid frontmatter
+
+#### When
+
+```bash
+cfl page sync guide.md
+```
+
+#### Then
+
+- the command fails with an early error
+- the command returns exit code `1`
+- the command prints a clear error message describing the missing configuration
+- the remote page is not modified
+
+### SYNC-012 Fail when the remote service rejects the request for permission or authorization reasons
+
+#### Given
+
+- a local file `guide.md` exists with valid frontmatter
+- the provided credentials are recognized but do not have permission to update the page
+
+#### When
+
+```bash
+cfl page sync guide.md
+```
+
+#### Then
+
+- the command fails
+- the command returns exit code `1`
+- the command prints a clear error message
+- the remote page is not modified
+
 ## Test Cases: `cfl page sync --watch`
 
 ### WATCH-001 Run an initial sync on startup
@@ -404,26 +528,3 @@ cfl page sync guide.md --watch
 
 - no sync is triggered for unrelated file changes
 - no green `.` is printed for unrelated file changes
-
-## Error Handling Coverage
-
-The product should expose clear user-visible errors for at least the following cases:
-
-- target file already exists during `new`
-- duplicate page title during `new`
-- missing or malformed frontmatter during `sync`
-- missing required frontmatter keys during `sync`
-- invalid Confluence identifiers
-- missing authentication configuration
-- remote page not found during `sync`
-- permission or authorization failures
-
-## Acceptance Summary
-
-The MVP is behaviorally complete when:
-
-- `cfl page new` creates both the local Markdown file and the remote page
-- `cfl page sync` updates the remote page title and body from a valid local file
-- `cfl page sync --watch` keeps the remote page up to date after file changes
-- invalid inputs fail early with clear messages
-- successful flows expose a URL to the created or updated page
