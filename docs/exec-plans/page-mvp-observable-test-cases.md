@@ -2,398 +2,379 @@
 
 ## Purpose
 
-This document describes the observable behavior of `page-mvp` in an FP-style layout:
+This document expresses `page-mvp` behavior as transformations:
 
-- `Purpose`
-- `Preconditions`
-- `Procedure`
-- `Expected`
+`(InputState, Command) -> Output`
 
-The focus is user-visible behavior only.
+Each case treats the CLI as a function over observable state.
 
-## Definitions
+## Output Shape
 
-- `local file`: the Markdown file operated on by the CLI
-- `remote page`: the corresponding page in Confluence
-- `early error`: a failure before any remote mutation is performed
-- `success message`: a single-line message that includes the page URL
+Each output is described in the same shape:
 
-## Feature: `cfl page new`
+- `exit`: process exit result
+- `stdout`: user-visible output
+- `local`: resulting local file state
+- `remote`: resulting remote page state
 
-### FP-NEW-001 Create a page with an explicit parent
+## `cfl page new`
 
-Purpose:
-Create a new local Markdown file and a new remote page under the specified parent.
+### FP-NEW-001 Explicit parent
 
-Preconditions:
-- no local file exists at `guide.md`
-- `space-id=100` exists
-- `parent-id=200` exists
-- no page titled `guide` exists under parent `200`
-
-Procedure:
-```bash
-cfl page new guide.md --space-id 100 --parent-id 200
+```text
+(
+  InputState{
+    local.files = {},
+    remote.space[100] exists,
+    remote.page[200] exists,
+    remote.children[200] does not contain title "guide"
+  },
+  Command("cfl page new guide.md --space-id 100 --parent-id 200")
+)
+-> Output{
+  exit = success,
+  stdout contains page URL,
+  local.files["guide.md"] = MarkdownFile{
+    frontmatter.space-id = 100,
+    frontmatter.page-id = <new page id>,
+    frontmatter.parent-id = 200,
+    body = ""
+  },
+  remote.children[200] contains Page{
+    title = "guide"
+  }
+}
 ```
 
-Expected:
-- the command succeeds
-- `guide.md` is created locally
-- the frontmatter contains `space-id`, `page-id`, and `parent-id`
-- the stored `space-id` is `100`
-- the stored `parent-id` is `200`
-- the local body is empty
-- a remote page titled `guide` is created under parent `200`
-- a success message with the page URL is printed
+### FP-NEW-002 Resolved root parent
 
-### FP-NEW-002 Create a page without an explicit parent
-
-Purpose:
-Create a new local Markdown file and a new remote page under the resolved space root.
-
-Preconditions:
-- no local file exists at `guide.md`
-- `space-id=100` exists
-- no explicit parent is provided
-- no page titled `guide` exists under the root page of the target space
-
-Procedure:
-```bash
-cfl page new guide.md --space-id 100
+```text
+(
+  InputState{
+    local.files = {},
+    remote.space[100].root = 300,
+    remote.children[300] does not contain title "guide"
+  },
+  Command("cfl page new guide.md --space-id 100")
+)
+-> Output{
+  exit = success,
+  stdout contains page URL,
+  local.files["guide.md"] = MarkdownFile{
+    frontmatter.space-id = 100,
+    frontmatter.page-id = <new page id>,
+    frontmatter.parent-id = 300,
+    body = ""
+  },
+  remote.children[300] contains Page{
+    title = "guide"
+  }
+}
 ```
 
-Expected:
-- the command succeeds
-- `guide.md` is created locally
-- the frontmatter contains `space-id`, `page-id`, and `parent-id`
-- the stored `space-id` is `100`
-- the stored `parent-id` is the resolved root page id
-- a remote page titled `guide` is created under the resolved root page
-- a success message with the page URL is printed
+### FP-NEW-003 Existing local file
 
-### FP-NEW-003 Reject an existing local target file
-
-Purpose:
-Prevent overwriting an existing Markdown file during `new`.
-
-Preconditions:
-- a local file already exists at `guide.md`
-
-Procedure:
-```bash
-cfl page new guide.md --space-id 100 --parent-id 200
+```text
+(
+  InputState{
+    local.files["guide.md"] = <existing file>
+  },
+  Command("cfl page new guide.md --space-id 100 --parent-id 200")
+)
+-> Output{
+  exit = failure(1),
+  stdout contains clear error,
+  local.files["guide.md"] unchanged,
+  remote unchanged
+}
 ```
 
-Expected:
-- the command fails
-- the exit code is `1`
-- a clear error message is printed
-- no remote page is created
-- the existing local file is unchanged
+### FP-NEW-004 Duplicate sibling title
 
-### FP-NEW-004 Reject a duplicate title under the same parent
-
-Purpose:
-Prevent creating two sibling pages with the same title.
-
-Preconditions:
-- no local file exists at `guide.md`
-- a remote page titled `guide` already exists under parent `200`
-
-Procedure:
-```bash
-cfl page new guide.md --space-id 100 --parent-id 200
+```text
+(
+  InputState{
+    local.files = {},
+    remote.children[200] contains Page{ title = "guide" }
+  },
+  Command("cfl page new guide.md --space-id 100 --parent-id 200")
+)
+-> Output{
+  exit = failure(1),
+  stdout contains clear error,
+  local.files does not contain "guide.md",
+  remote.children[200] has no additional page titled "guide"
+}
 ```
 
-Expected:
-- the command fails
-- the exit code is `1`
-- a clear error message is printed
-- no local file is created
-- no additional remote page titled `guide` is created under parent `200`
+### FP-NEW-005 Basename-derived title
 
-### FP-NEW-005 Use the basename as the title
-
-Purpose:
-Derive the page title from the Markdown filename.
-
-Preconditions:
-- no local file exists at `architecture-overview.md`
-- the target parent contains no page titled `architecture-overview`
-
-Procedure:
-```bash
-cfl page new architecture-overview.md --space-id 100 --parent-id 200
+```text
+(
+  InputState{
+    local.files = {},
+    remote.children[200] does not contain title "architecture-overview"
+  },
+  Command("cfl page new architecture-overview.md --space-id 100 --parent-id 200")
+)
+-> Output{
+  exit = success,
+  local.files["architecture-overview.md"] exists,
+  remote contains Page{
+    title = "architecture-overview"
+  }
+}
 ```
 
-Expected:
-- the command succeeds
-- the remote title is exactly `architecture-overview`
-- the generated local file path is `architecture-overview.md`
+## `cfl page sync`
 
-## Feature: `cfl page sync`
+### FP-SYNC-001 Valid file
 
-### FP-SYNC-001 Sync a valid Markdown file
-
-Purpose:
-Update the remote page title and body from a valid local file.
-
-Preconditions:
-- `guide.md` exists locally
-- the file has valid YAML frontmatter with `space-id`, `page-id`, and `parent-id`
-- the Markdown body is non-empty
-- the referenced remote page exists
-
-Procedure:
-```bash
-cfl page sync guide.md
+```text
+(
+  InputState{
+    local.files["guide.md"] = MarkdownFile{
+      frontmatter = { space-id: 100, page-id: 400, parent-id: 200 },
+      body = "<non-empty markdown>"
+    },
+    remote.pages[400] exists
+  },
+  Command("cfl page sync guide.md")
+)
+-> Output{
+  exit = success,
+  stdout contains page URL,
+  local.files["guide.md"] unchanged,
+  remote.pages[400] = Page{
+    title = "guide",
+    body = convert(markdown)
+  }
+}
 ```
 
-Expected:
-- the command succeeds
-- the remote title becomes `guide`
-- the remote body is replaced with the converted Markdown body
-- a success message with the page URL is printed
-- the local file is not rewritten
+### FP-SYNC-002 Empty body
 
-### FP-SYNC-002 Sync an empty body
-
-Purpose:
-Allow sync even when the local Markdown body is empty.
-
-Preconditions:
-- `guide.md` exists locally
-- the file has valid YAML frontmatter with `space-id`, `page-id`, and `parent-id`
-- the Markdown body is empty
-- the referenced remote page exists
-
-Procedure:
-```bash
-cfl page sync guide.md
+```text
+(
+  InputState{
+    local.files["guide.md"] = MarkdownFile{
+      frontmatter = { space-id: 100, page-id: 400, parent-id: 200 },
+      body = ""
+    },
+    remote.pages[400] exists
+  },
+  Command("cfl page sync guide.md")
+)
+-> Output{
+  exit = success,
+  stdout contains page URL,
+  remote.pages[400] = Page{
+    title = "guide",
+    body = ""
+  }
+}
 ```
 
-Expected:
-- the command succeeds
-- the remote title becomes `guide`
-- the remote body becomes empty
-- a success message with the page URL is printed
+### FP-SYNC-003 Missing frontmatter
 
-### FP-SYNC-003 Reject a file without frontmatter
-
-Purpose:
-Fail early when the local file has no YAML frontmatter.
-
-Preconditions:
-- `guide.md` exists locally
-- the file contains Markdown content without YAML frontmatter
-
-Procedure:
-```bash
-cfl page sync guide.md
+```text
+(
+  InputState{
+    local.files["guide.md"] = MarkdownFileWithoutFrontmatter
+  },
+  Command("cfl page sync guide.md")
+)
+-> Output{
+  exit = failure(1),
+  stdout contains clear error,
+  local unchanged,
+  remote unchanged
+}
 ```
 
-Expected:
-- the command fails with an early error
-- the exit code is `1`
-- a clear error message is printed
-- the remote page is not modified
-- the local file is not modified
+### FP-SYNC-004 Missing required key
 
-### FP-SYNC-004 Reject missing required frontmatter keys
-
-Purpose:
-Fail early when one of the required identifiers is missing.
-
-Preconditions:
-- `guide.md` exists locally
-- the file contains YAML frontmatter
-- one of `space-id`, `page-id`, or `parent-id` is missing
-
-Procedure:
-```bash
-cfl page sync guide.md
+```text
+(
+  InputState{
+    local.files["guide.md"] = MarkdownFile{
+      frontmatter missing one of { space-id, page-id, parent-id }
+    }
+  },
+  Command("cfl page sync guide.md")
+)
+-> Output{
+  exit = failure(1),
+  stdout contains validation error,
+  remote unchanged
+}
 ```
 
-Expected:
-- the command fails with an early error
-- the exit code is `1`
-- a clear validation error is printed
-- the remote page is not modified
+### FP-SYNC-005 Malformed frontmatter
 
-### FP-SYNC-005 Reject malformed frontmatter
-
-Purpose:
-Fail early when the YAML frontmatter cannot be parsed.
-
-Preconditions:
-- `guide.md` exists locally
-- the file begins with malformed YAML frontmatter
-
-Procedure:
-```bash
-cfl page sync guide.md
+```text
+(
+  InputState{
+    local.files["guide.md"] = MarkdownFile{
+      frontmatter = malformed YAML
+    }
+  },
+  Command("cfl page sync guide.md")
+)
+-> Output{
+  exit = failure(1),
+  stdout contains clear error,
+  remote unchanged
+}
 ```
 
-Expected:
-- the command fails with an early error
-- the exit code is `1`
-- a clear error message is printed
-- the remote page is not modified
+### FP-SYNC-006 Title follows basename
 
-### FP-SYNC-006 Update the title from the basename
-
-Purpose:
-Force the remote title to follow the local filename.
-
-Preconditions:
-- `renamed-guide.md` exists locally
-- the file has valid YAML frontmatter with an existing `page-id`
-- the referenced remote page currently has a different title
-
-Procedure:
-```bash
-cfl page sync renamed-guide.md
+```text
+(
+  InputState{
+    local.files["renamed-guide.md"] = MarkdownFile{
+      frontmatter = { space-id: 100, page-id: 400, parent-id: 200 }
+    },
+    remote.pages[400].title = "old-title"
+  },
+  Command("cfl page sync renamed-guide.md")
+)
+-> Output{
+  exit = success,
+  stdout contains page URL,
+  remote.pages[400].title = "renamed-guide"
+}
 ```
 
-Expected:
-- the command succeeds
-- the remote title becomes `renamed-guide`
-- a success message with the page URL is printed
+### FP-SYNC-007 Local file is the source of truth
 
-### FP-SYNC-007 Overwrite remote manual edits
-
-Purpose:
-Treat the local file as the source of truth during sync.
-
-Preconditions:
-- `guide.md` exists locally with valid frontmatter
-- the referenced remote page exists
-- the remote body contains manual edits not present in the local file
-
-Procedure:
-```bash
-cfl page sync guide.md
+```text
+(
+  InputState{
+    local.files["guide.md"] = MarkdownFile{
+      frontmatter = { space-id: 100, page-id: 400, parent-id: 200 },
+      body = "<local markdown>"
+    },
+    remote.pages[400].body = "<remote manual edits>"
+  },
+  Command("cfl page sync guide.md")
+)
+-> Output{
+  exit = success,
+  remote.pages[400].body = convert("<local markdown>")
+}
 ```
 
-Expected:
-- the command succeeds
-- the remote body exactly reflects the converted local Markdown content
-- remote manual edits not present in the local file are removed
+### FP-SYNC-008 Supported Markdown subset
 
-### FP-SYNC-008 Support the documented Markdown subset
-
-Purpose:
-Verify the MVP Markdown subset that must survive conversion.
-
-Preconditions:
-- a local file contains valid frontmatter
-- the body contains:
-  - paragraphs separated by blank lines
-  - ATX headings `#`, `##`, and `###`
-  - unordered lists using `-`
-  - ordered lists using `1.`
-  - fenced code blocks using triple backticks
-
-Procedure:
-```bash
-cfl page sync guide.md
+```text
+(
+  InputState{
+    local.files["guide.md"] = MarkdownFile{
+      frontmatter = valid,
+      body = paragraphs + h1/h2/h3 + unordered-list + ordered-list + fenced-code-block
+    }
+  },
+  Command("cfl page sync guide.md")
+)
+-> Output{
+  exit = success,
+  remote page renders:
+    paragraphs as paragraphs,
+    h1/h2/h3 at matching levels,
+    unordered lists as unordered lists,
+    ordered lists as ordered lists,
+    fenced code blocks as code blocks
+}
 ```
 
-Expected:
-- the command succeeds
-- paragraphs are rendered as paragraphs in the remote page
-- `#`, `##`, and `###` are rendered at the matching heading levels
-- unordered lists are rendered as unordered lists
-- ordered lists are rendered as ordered lists
-- fenced code blocks are rendered as code blocks
+## `cfl page sync --watch`
 
-## Feature: `cfl page sync --watch`
+### FP-WATCH-001 Initial sync
 
-### FP-WATCH-001 Run an initial sync on startup
-
-Purpose:
-Ensure watch mode begins from a synchronized state.
-
-Preconditions:
-- `guide.md` exists locally with valid frontmatter
-- the referenced remote page exists
-
-Procedure:
-```bash
-cfl page sync guide.md --watch
+```text
+(
+  InputState{
+    local.files["guide.md"] = valid sync target,
+    remote.pages[400] exists
+  },
+  Command("cfl page sync guide.md --watch")
+)
+-> Output{
+  exit = running,
+  remote.pages[400] synced once before waiting,
+  stdout may include watch startup output
+}
 ```
 
-Expected:
-- the command starts successfully
-- one initial sync is performed before waiting for further changes
+### FP-WATCH-002 Single file change
 
-### FP-WATCH-002 Sync again after a file change
+```text
+(
+  InputState{
+    watch("guide.md") is active,
+    local.files["guide.md"] changes once
+  },
+  Event(last_change + 800ms)
+)
+-> Output{
+  remote page matches latest local file,
+  stdout prints green "."
+}
+```
 
-Purpose:
-Refresh the remote page after a single file change.
+### FP-WATCH-003 Debounced burst
 
-Preconditions:
-- watch mode is already running for `guide.md`
-- the local file changes once
+```text
+(
+  InputState{
+    watch("guide.md") is active,
+    local.files["guide.md"] changes multiple times within 800ms
+  },
+  Event(no_more_changes_for_800ms)
+)
+-> Output{
+  exactly one sync is observed,
+  remote page matches the final local file,
+  stdout prints one green "."
+}
+```
 
-Procedure:
-- wait until more than `800ms` pass after the last observed change
+### FP-WATCH-004 Error then recovery
 
-Expected:
-- the remote page is updated to match the latest local file content
-- the command prints a green `.`
+```text
+(
+  InputState{
+    watch("guide.md") is active,
+    local.files["guide.md"] first becomes invalid,
+    then becomes valid again
+  },
+  Events(
+    invalid_change + 800ms,
+    valid_change + 800ms
+  )
+)
+-> Output{
+  first sync attempt prints red "!" with error,
+  watch process continues running,
+  later sync succeeds,
+  stdout prints green "."
+}
+```
 
-### FP-WATCH-003 Debounce a rapid burst of file changes
+### FP-WATCH-005 Ignore unrelated files
 
-Purpose:
-Collapse multiple quick file changes into one sync.
-
-Preconditions:
-- watch mode is already running for `guide.md`
-- the local file changes multiple times within `800ms`
-
-Procedure:
-- stop changing the file
-- wait until `800ms` pass
-
-Expected:
-- only one sync is observed for the burst
-- the remote page reflects the final local file content after the burst
-- the command prints one green `.`
-
-### FP-WATCH-004 Continue watching after a sync failure
-
-Purpose:
-Keep watch mode alive across transient sync errors.
-
-Preconditions:
-- watch mode is already running for `guide.md`
-- a file change introduces invalid frontmatter
-
-Procedure:
-- wait until more than `800ms` pass after the last observed change
-- fix the file
-- change the file again
-- wait until more than `800ms` pass after the last observed change
-
-Expected:
-- the first failed sync prints a red `!` and an error message
-- the process keeps running after the failure
-- the next sync succeeds
-- the command prints a green `.`
-
-### FP-WATCH-005 Ignore unrelated file changes
-
-Purpose:
-Watch only the target file.
-
-Preconditions:
-- watch mode is already running for `guide.md`
-- unrelated files in the same directory change
-
-Procedure:
-- change unrelated files only
-
-Expected:
-- no sync is triggered for unrelated file changes
-- no green `.` is printed for unrelated file changes
+```text
+(
+  InputState{
+    watch("guide.md") is active,
+    unrelated files change
+  },
+  Event(unrelated_changes)
+)
+-> Output{
+  no sync is triggered,
+  stdout prints no green "."
+}
+```
