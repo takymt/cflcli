@@ -5,18 +5,18 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/e2e-test.sh [--profile <name>] --space-id <space-id> [options]
+  scripts/e2e-test.sh
+  scripts/e2e-test.sh -h | --help
 
-Required arguments:
-  --space-id <space-id>     Target Confluence space id
+Required environment:
+  SPACE_ID                  Target Confluence space id
 
-Optional arguments:
-  --profile <name>          cfl profile name
-  --parent-id <parent-id>   Parent page id. If omitted, the space homepage id is used
-  --title <title>           Page title. Default: cfl-e2e-test-<timestamp>
-  --create-body <body>      Markdown body used for create
-  --update-body <body>      Markdown body used for update
-  -h, --help                Show this help
+Optional environment:
+  CFL_PROFILE               cfl profile name
+  PARENT_ID                 Parent page id. If omitted, cfl defaults are used
+  TITLE                     Page title. Default: cfl-e2e-test-<timestamp>
+  CREATE_BODY               Markdown body used for create
+  UPDATE_BODY               Markdown body used for update
 EOF
 }
 
@@ -66,39 +66,8 @@ run_cfl() {
 require_cmd go
 require_cmd jq
 
-PROFILE=""
-SPACE_ID=""
-PARENT_ID=""
-TITLE=""
-CREATE_BODY=""
-UPDATE_BODY=""
-
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --profile)
-      PROFILE="${2:-}"
-      shift 2
-      ;;
-    --space-id)
-      SPACE_ID="${2:-}"
-      shift 2
-      ;;
-    --parent-id)
-      PARENT_ID="${2:-}"
-      shift 2
-      ;;
-    --title)
-      TITLE="${2:-}"
-      shift 2
-      ;;
-    --create-body)
-      CREATE_BODY="${2:-}"
-      shift 2
-      ;;
-    --update-body)
-      UPDATE_BODY="${2:-}"
-      shift 2
-      ;;
     -h|--help)
       usage
       exit 0
@@ -110,7 +79,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "${SPACE_ID}" ]] || { usage >&2; die "--space-id is required"; }
+SPACE_ID="${SPACE_ID:-}"
+CFL_PROFILE="${CFL_PROFILE:-}"
+PARENT_ID="${PARENT_ID:-}"
+TITLE="${TITLE:-}"
+CREATE_BODY="${CREATE_BODY:-}"
+UPDATE_BODY="${UPDATE_BODY:-}"
+
+[[ -n "${SPACE_ID}" ]] || { usage >&2; die "SPACE_ID is required"; }
 
 timestamp="$(date -u +%Y%m%d%H%M%S)"
 title="${TITLE:-cfl-e2e-test-${timestamp}}"
@@ -118,8 +94,8 @@ create_body="${CREATE_BODY:-created by e2e-test.sh at ${timestamp}}"
 update_body="${UPDATE_BODY:-updated by e2e-test.sh at ${timestamp}}"
 
 GLOBAL_ARGS=(-o json)
-if [[ -n "${PROFILE}" ]]; then
-  GLOBAL_ARGS+=(-p "${PROFILE}")
+if [[ -n "${CFL_PROFILE}" ]]; then
+  GLOBAL_ARGS+=(-p "${CFL_PROFILE}")
 fi
 
 CFL_BIN="$(mktemp -t cfl-e2e-bin.XXXXXX)"

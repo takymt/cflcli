@@ -2,428 +2,398 @@
 
 ## Purpose
 
-This document defines test cases as a mapping of the observable behavior expected from the `page-mvp` product.
+This document describes the observable behavior of `page-mvp` in an FP-style layout:
 
-The focus is user-visible behavior:
+- `Purpose`
+- `Preconditions`
+- `Procedure`
+- `Expected`
 
-- command input
-- preconditions
-- observable output
-- observable local file changes
-- observable remote Confluence changes
+The focus is user-visible behavior only.
 
-Implementation details, environment constraints, and tool constraints are intentionally ignored.
+## Definitions
 
-## Conventions
+- `local file`: the Markdown file operated on by the CLI
+- `remote page`: the corresponding page in Confluence
+- `early error`: a failure before any remote mutation is performed
+- `success message`: a single-line message that includes the page URL
 
-- "local file" means the Markdown file operated on by the CLI
-- "remote page" means the corresponding Confluence page
-- "success message" means a single-line message that includes the page URL
-- "early error" means the command fails before performing remote mutation
+## Feature: `cfl page new`
 
-## Test Cases: `cfl page new`
+### FP-NEW-001 Create a page with an explicit parent
 
-### NEW-001 Create a page with an explicit parent
+Purpose:
+Create a new local Markdown file and a new remote page under the specified parent.
 
-#### Given
-
+Preconditions:
 - no local file exists at `guide.md`
-- the target `space-id` exists
-- the target `parent-id` exists
-- no page with title `guide` exists under that parent
+- `space-id=100` exists
+- `parent-id=200` exists
+- no page titled `guide` exists under parent `200`
 
-#### When
-
+Procedure:
 ```bash
 cfl page new guide.md --space-id 100 --parent-id 200
 ```
 
-#### Then
-
+Expected:
 - the command succeeds
-- a local file `guide.md` is created
-- the local file contains YAML frontmatter with `space-id`, `page-id`, and `parent-id`
+- `guide.md` is created locally
+- the frontmatter contains `space-id`, `page-id`, and `parent-id`
 - the stored `space-id` is `100`
 - the stored `parent-id` is `200`
-- the local Markdown body is empty
+- the local body is empty
 - a remote page titled `guide` is created under parent `200`
-- the command prints a success message with the page URL
+- a success message with the page URL is printed
 
-### NEW-002 Create a page without an explicit parent
+### FP-NEW-002 Create a page without an explicit parent
 
-#### Given
+Purpose:
+Create a new local Markdown file and a new remote page under the resolved space root.
 
+Preconditions:
 - no local file exists at `guide.md`
-- the target `space-id` exists
-- no `parent-id` is provided
-- no page with title `guide` exists under the root page of the target space
+- `space-id=100` exists
+- no explicit parent is provided
+- no page titled `guide` exists under the root page of the target space
 
-#### When
-
+Procedure:
 ```bash
 cfl page new guide.md --space-id 100
 ```
 
-#### Then
-
+Expected:
 - the command succeeds
-- a local file `guide.md` is created
-- the local file contains YAML frontmatter with `space-id`, `page-id`, and `parent-id`
+- `guide.md` is created locally
+- the frontmatter contains `space-id`, `page-id`, and `parent-id`
 - the stored `space-id` is `100`
-- the stored `parent-id` is the resolved root page id of the space
+- the stored `parent-id` is the resolved root page id
 - a remote page titled `guide` is created under the resolved root page
-- the command prints a success message with the page URL
+- a success message with the page URL is printed
 
-### NEW-003 Fail when the local file already exists
+### FP-NEW-003 Reject an existing local target file
 
-#### Given
+Purpose:
+Prevent overwriting an existing Markdown file during `new`.
 
+Preconditions:
 - a local file already exists at `guide.md`
 
-#### When
-
+Procedure:
 ```bash
 cfl page new guide.md --space-id 100 --parent-id 200
 ```
 
-#### Then
-
+Expected:
 - the command fails
-- the command returns exit code `1`
-- the command prints a clear error message
+- the exit code is `1`
+- a clear error message is printed
 - no remote page is created
-- the existing local file is not modified
+- the existing local file is unchanged
 
-### NEW-004 Fail when a duplicate page title exists under the same parent
+### FP-NEW-004 Reject a duplicate title under the same parent
 
-#### Given
+Purpose:
+Prevent creating two sibling pages with the same title.
 
+Preconditions:
 - no local file exists at `guide.md`
 - a remote page titled `guide` already exists under parent `200`
 
-#### When
-
+Procedure:
 ```bash
 cfl page new guide.md --space-id 100 --parent-id 200
 ```
 
-#### Then
-
+Expected:
 - the command fails
-- the command returns exit code `1`
-- the command prints a clear error message
+- the exit code is `1`
+- a clear error message is printed
 - no local file is created
 - no additional remote page titled `guide` is created under parent `200`
 
-### NEW-005 Use basename as the page title
+### FP-NEW-005 Use the basename as the title
 
-#### Given
+Purpose:
+Derive the page title from the Markdown filename.
 
+Preconditions:
 - no local file exists at `architecture-overview.md`
 - the target parent contains no page titled `architecture-overview`
 
-#### When
-
+Procedure:
 ```bash
 cfl page new architecture-overview.md --space-id 100 --parent-id 200
 ```
 
-#### Then
-
+Expected:
 - the command succeeds
-- the created remote page title is exactly `architecture-overview`
+- the remote title is exactly `architecture-overview`
 - the generated local file path is `architecture-overview.md`
 
-## Test Cases: `cfl page sync`
+## Feature: `cfl page sync`
 
-### SYNC-001 Sync a valid Markdown file
+### FP-SYNC-001 Sync a valid Markdown file
 
-#### Given
+Purpose:
+Update the remote page title and body from a valid local file.
 
-- a local file `guide.md` exists
-- the local file contains valid YAML frontmatter with `space-id`, `page-id`, and `parent-id`
-- the local file contains a non-empty Markdown body
+Preconditions:
+- `guide.md` exists locally
+- the file has valid YAML frontmatter with `space-id`, `page-id`, and `parent-id`
+- the Markdown body is non-empty
 - the referenced remote page exists
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync guide.md
 ```
 
-#### Then
-
+Expected:
 - the command succeeds
-- the remote page title becomes `guide`
-- the remote page body is replaced with the converted content of the local Markdown body
-- the command prints a success message with the page URL
-- the local file is not rewritten by the command
+- the remote title becomes `guide`
+- the remote body is replaced with the converted Markdown body
+- a success message with the page URL is printed
+- the local file is not rewritten
 
-### SYNC-002 Sync an empty body
+### FP-SYNC-002 Sync an empty body
 
-#### Given
+Purpose:
+Allow sync even when the local Markdown body is empty.
 
-- a local file `guide.md` exists
-- the local file contains valid YAML frontmatter with `space-id`, `page-id`, and `parent-id`
-- the local Markdown body is empty
+Preconditions:
+- `guide.md` exists locally
+- the file has valid YAML frontmatter with `space-id`, `page-id`, and `parent-id`
+- the Markdown body is empty
 - the referenced remote page exists
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync guide.md
 ```
 
-#### Then
-
+Expected:
 - the command succeeds
-- the remote page title becomes `guide`
-- the remote page body becomes empty
-- the command prints a success message with the page URL
+- the remote title becomes `guide`
+- the remote body becomes empty
+- a success message with the page URL is printed
 
-### SYNC-003 Fail when frontmatter is missing
+### FP-SYNC-003 Reject a file without frontmatter
 
-#### Given
+Purpose:
+Fail early when the local file has no YAML frontmatter.
 
-- a local file `guide.md` exists
+Preconditions:
+- `guide.md` exists locally
 - the file contains Markdown content without YAML frontmatter
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync guide.md
 ```
 
-#### Then
-
+Expected:
 - the command fails with an early error
-- the command returns exit code `1`
-- the command prints a clear error message
+- the exit code is `1`
+- a clear error message is printed
 - the remote page is not modified
 - the local file is not modified
 
-### SYNC-004 Fail when a required frontmatter key is missing
+### FP-SYNC-004 Reject missing required frontmatter keys
 
-#### Given
+Purpose:
+Fail early when one of the required identifiers is missing.
 
-- a local file `guide.md` exists
+Preconditions:
+- `guide.md` exists locally
 - the file contains YAML frontmatter
 - one of `space-id`, `page-id`, or `parent-id` is missing
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync guide.md
 ```
 
-#### Then
-
+Expected:
 - the command fails with an early error
-- the command returns exit code `1`
-- the command prints a clear error message naming the validation problem
+- the exit code is `1`
+- a clear validation error is printed
 - the remote page is not modified
 
-### SYNC-005 Fail when frontmatter format is invalid
+### FP-SYNC-005 Reject malformed frontmatter
 
-#### Given
+Purpose:
+Fail early when the YAML frontmatter cannot be parsed.
 
-- a local file `guide.md` exists
+Preconditions:
+- `guide.md` exists locally
 - the file begins with malformed YAML frontmatter
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync guide.md
 ```
 
-#### Then
-
+Expected:
 - the command fails with an early error
-- the command returns exit code `1`
-- the command prints a clear error message
+- the exit code is `1`
+- a clear error message is printed
 - the remote page is not modified
 
-### SYNC-006 Sync updates the title from the basename
+### FP-SYNC-006 Update the title from the basename
 
-#### Given
+Purpose:
+Force the remote title to follow the local filename.
 
-- a local file `renamed-guide.md` exists
-- the file contains valid YAML frontmatter with an existing `page-id`
+Preconditions:
+- `renamed-guide.md` exists locally
+- the file has valid YAML frontmatter with an existing `page-id`
 - the referenced remote page currently has a different title
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync renamed-guide.md
 ```
 
-#### Then
-
+Expected:
 - the command succeeds
-- the remote page title becomes `renamed-guide`
-- the command prints a success message with the page URL
+- the remote title becomes `renamed-guide`
+- a success message with the page URL is printed
 
-### SYNC-007 Sync overwrites remote manual edits
+### FP-SYNC-007 Overwrite remote manual edits
 
-#### Given
+Purpose:
+Treat the local file as the source of truth during sync.
 
-- a local file `guide.md` exists with valid frontmatter
+Preconditions:
+- `guide.md` exists locally with valid frontmatter
 - the referenced remote page exists
-- the remote page body contains manual edits not present in the local file
+- the remote body contains manual edits not present in the local file
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync guide.md
 ```
 
-#### Then
-
+Expected:
 - the command succeeds
-- the remote page body exactly reflects the local Markdown content after conversion
-- the remote manual edits no longer remain if they are absent from the local file
+- the remote body exactly reflects the converted local Markdown content
+- remote manual edits not present in the local file are removed
 
-### SYNC-008 Sync supports the documented Markdown syntax subset
+### FP-SYNC-008 Support the documented Markdown subset
 
-#### Given
+Purpose:
+Verify the MVP Markdown subset that must survive conversion.
 
+Preconditions:
 - a local file contains valid frontmatter
-- the Markdown body contains the following syntax:
-  - plain paragraphs separated by blank lines
+- the body contains:
+  - paragraphs separated by blank lines
   - ATX headings `#`, `##`, and `###`
   - unordered lists using `-`
   - ordered lists using `1.`
   - fenced code blocks using triple backticks
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync guide.md
 ```
 
-#### Then
-
+Expected:
 - the command succeeds
-- plain paragraphs are rendered as paragraphs in the remote page
-- `#`, `##`, and `###` headings are rendered as headings at the expected levels in the remote page
-- unordered lists using `-` are rendered as unordered lists in the remote page
-- ordered lists using `1.` are rendered as ordered lists in the remote page
-- fenced code blocks are rendered as code blocks in the remote page
+- paragraphs are rendered as paragraphs in the remote page
+- `#`, `##`, and `###` are rendered at the matching heading levels
+- unordered lists are rendered as unordered lists
+- ordered lists are rendered as ordered lists
+- fenced code blocks are rendered as code blocks
 
-## Test Cases: `cfl page sync --watch`
+## Feature: `cfl page sync --watch`
 
-### WATCH-001 Run an initial sync on startup
+### FP-WATCH-001 Run an initial sync on startup
 
-#### Given
+Purpose:
+Ensure watch mode begins from a synchronized state.
 
-- a local file `guide.md` exists with valid frontmatter
+Preconditions:
+- `guide.md` exists locally with valid frontmatter
 - the referenced remote page exists
 
-#### When
-
+Procedure:
 ```bash
 cfl page sync guide.md --watch
 ```
 
-#### Then
-
+Expected:
 - the command starts successfully
-- an initial sync is performed before waiting for further file changes
+- one initial sync is performed before waiting for further changes
 
-### WATCH-002 Sync again after a file change
+### FP-WATCH-002 Sync again after a file change
 
-#### Given
+Purpose:
+Refresh the remote page after a single file change.
 
+Preconditions:
 - watch mode is already running for `guide.md`
-- the local file content changes once
+- the local file changes once
 
-#### When
+Procedure:
+- wait until more than `800ms` pass after the last observed change
 
-- more than `800ms` pass after the last observed change
-
-#### Then
-
+Expected:
 - the remote page is updated to match the latest local file content
 - the command prints a green `.`
 
-### WATCH-003 Debounce a burst of rapid file changes
+### FP-WATCH-003 Debounce a rapid burst of file changes
 
-#### Given
+Purpose:
+Collapse multiple quick file changes into one sync.
 
+Preconditions:
 - watch mode is already running for `guide.md`
 - the local file changes multiple times within `800ms`
 
-#### When
+Procedure:
+- stop changing the file
+- wait until `800ms` pass
 
-- the file stops changing and `800ms` pass
-
-#### Then
-
+Expected:
 - only one sync is observed for the burst
 - the remote page reflects the final local file content after the burst
 - the command prints one green `.`
 
-### WATCH-004 Continue watching after a sync failure
+### FP-WATCH-004 Continue watching after a sync failure
 
-#### Given
+Purpose:
+Keep watch mode alive across transient sync errors.
 
+Preconditions:
 - watch mode is already running for `guide.md`
 - a file change introduces invalid frontmatter
 
-#### When
+Procedure:
+- wait until more than `800ms` pass after the last observed change
+- fix the file
+- change the file again
+- wait until more than `800ms` pass after the last observed change
 
-- more than `800ms` pass after the last observed change
-
-#### Then
-
-- the command prints a red `!` and an error message
-- the process keeps running
-
-#### And When
-
-- the file is fixed and changed again
-- more than `800ms` pass after the last observed change
-
-#### Then
-
-- sync succeeds
+Expected:
+- the first failed sync prints a red `!` and an error message
+- the process keeps running after the failure
+- the next sync succeeds
 - the command prints a green `.`
 
-### WATCH-005 Watch mode observes only the target file
+### FP-WATCH-005 Ignore unrelated file changes
 
-#### Given
+Purpose:
+Watch only the target file.
 
+Preconditions:
 - watch mode is already running for `guide.md`
 - unrelated files in the same directory change
 
-#### When
+Procedure:
+- change unrelated files only
 
-- those unrelated file changes occur
-
-#### Then
-
+Expected:
 - no sync is triggered for unrelated file changes
 - no green `.` is printed for unrelated file changes
-
-## Error Handling Coverage
-
-The product should expose clear user-visible errors for at least the following cases:
-
-- target file already exists during `new`
-- duplicate page title during `new`
-- missing or malformed frontmatter during `sync`
-- missing required frontmatter keys during `sync`
-- invalid Confluence identifiers
-- missing authentication configuration
-- remote page not found during `sync`
-- permission or authorization failures
-
-## Acceptance Summary
-
-The MVP is behaviorally complete when:
-
-- `cfl page new` creates both the local Markdown file and the remote page
-- `cfl page sync` updates the remote page title and body from a valid local file
-- `cfl page sync --watch` keeps the remote page up to date after file changes
-- invalid inputs fail early with clear messages
-- successful flows expose a URL to the created or updated page
