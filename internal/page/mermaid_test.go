@@ -18,7 +18,7 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "guide.md")
-	input := "before\n\n```mermaid\ngraph TD\nA-->B\n```\n\nafter\n"
+	input := "before\n\n```mermaid\ngraph TD\nA-->B\n```\n\nmiddle\n\n```mermaid\ngraph TD\nB-->C\n```\n\nafter\n"
 
 	got, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
 	if err != nil {
@@ -28,25 +28,22 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	if !strings.Contains(got, "<p>before</p>") {
 		t.Fatalf("converted storage = %q, want paragraph for 'before'", got)
 	}
-	if !strings.Contains(got, `<ac:image><ri:attachment ri:filename="mermaid-`) {
-		t.Fatalf("converted storage = %q, want mermaid attachment image macro", got)
+	if !strings.Contains(got, `<ac:image><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`) {
+		t.Fatalf("converted storage = %q, want mermaid-1 attachment image macro", got)
+	}
+	if !strings.Contains(got, `<ac:image><ri:attachment ri:filename="mermaid-2.svg" /></ac:image>`) {
+		t.Fatalf("converted storage = %q, want mermaid-2 attachment image macro", got)
+	}
+	if !strings.Contains(got, "<p>middle</p>") {
+		t.Fatalf("converted storage = %q, want paragraph for 'middle'", got)
 	}
 	if !strings.Contains(got, "<p>after</p>") {
 		t.Fatalf("converted storage = %q, want paragraph for 'after'", got)
 	}
 
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("ReadDir() error = %v", err)
-	}
-	foundSVG := false
-	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), "mermaid-") && strings.HasSuffix(entry.Name(), ".svg") {
-			foundSVG = true
-			break
+	for _, filename := range []string{"mermaid-1.svg", "mermaid-2.svg"} {
+		if _, err := os.Stat(filepath.Join(dir, filename)); err != nil {
+			t.Fatalf("expected generated %s: %v", filename, err)
 		}
-	}
-	if !foundSVG {
-		t.Fatal("expected generated mermaid-*.svg file")
 	}
 }

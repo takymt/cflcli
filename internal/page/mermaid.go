@@ -2,12 +2,11 @@ package page
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -16,8 +15,9 @@ import (
 func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string) (string, error) {
 	lines := strings.Split(markdown, "\n")
 	var (
-		parts   []string
-		pending []string
+		parts        []string
+		pending      []string
+		mermaidIndex int
 	)
 
 	flushPending := func() error {
@@ -59,7 +59,8 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 				break
 			}
 
-			filename, err := renderMermaidSVG(ctx, markdownPath, strings.Join(mermaidLines, "\n"))
+			mermaidIndex++
+			filename, err := renderMermaidSVG(ctx, markdownPath, strings.Join(mermaidLines, "\n"), mermaidIndex)
 			if err != nil {
 				return "", err
 			}
@@ -75,9 +76,8 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 	return strings.Join(parts, "\n"), nil
 }
 
-func renderMermaidSVG(ctx context.Context, markdownPath string, source string) (string, error) {
-	sum := sha256.Sum256([]byte(source))
-	filename := "mermaid-" + hex.EncodeToString(sum[:])[:12] + ".svg"
+func renderMermaidSVG(ctx context.Context, markdownPath string, source string, index int) (string, error) {
+	filename := "mermaid-" + strconv.Itoa(index) + ".svg"
 	svgPath := filepath.Join(filepath.Dir(markdownPath), filename)
 
 	tmpFile, err := os.CreateTemp("", "cfl-mermaid-*.mmd")
