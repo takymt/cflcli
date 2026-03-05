@@ -2,7 +2,9 @@
 
 This document provides a concise catalog of Markdown notations for Confluence CLI.
 
-## Headings
+## Supporting
+
+### Headings
 
 ```md
 # Heading 1
@@ -70,10 +72,6 @@ This document provides a concise catalog of Markdown notations for Confluence CL
 2. Second
    1. Second-First
 
-### Color models
-
-Not supported yet.
-
 ### Links
 
 ```md
@@ -81,10 +79,6 @@ Not supported yet.
 ```
 
 [Anchor text](https://developer.atlassian.com/cloud/confluence/)
-
-### Relarive Links
-
-Not supported yet.
 
 ### Images and Caption Text
 
@@ -141,14 +135,6 @@ This example
 
 Will span two lines
 
-### Emoji
-
-```md
-:smile: :thumbsup:
-```
-
-Not supported yet.
-
 ### Table
 
 ```md
@@ -195,6 +181,35 @@ Use `<summary>` to define the block title.
 </ul>
 </details>
 
+### Inline Comments
+
+```md
+<!-- TODO: add details about this section -->
+```
+
+<!-- TODO: add details about this section -->
+
+Comments written in this format are not rendered on the published page.
+Multi-line comment handling is currently out of scope.
+
+## Not Supported Yet
+
+### Color Models
+
+Not supported yet.
+
+### Relative Links
+
+Not supported yet.
+
+### Emoji
+
+```md
+:smile: :thumbsup:
+```
+
+Not supported yet.
+
 ### Alerts
 
 [GitHub Markdown alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts) style.
@@ -217,14 +232,3 @@ Use `<summary>` to define the block title.
 ```
 
 Not supported yet.
-
-### Inline Comments
-
-```md
-<!-- TODO: add details about this section -->
-```
-
-<!-- TODO: add details about this section -->
-
-Comments written in this format are not rendered on the published page.
-Multi-line comment handling is currently out of scope.
