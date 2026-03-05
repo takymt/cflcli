@@ -41,7 +41,7 @@ prepare_results_dir() {
   mkdir -p "$results_dir"
 }
 
-cleanup_on_error() {
+cleanup() {
   local status
   status=$?
 
@@ -107,7 +107,7 @@ prepare_sync_target_from_fixture() {
     -e "s/__SPACE_ID__/${SPACE_ID}/g" \
     -e "s/__PAGE_ID__/${page_id}/g" \
     -e "s/__PARENT_ID__/${PARENT_ID}/g" \
-    "$target_file" > "$tmp"
+    "$target_file" >"$tmp"
   mv "$tmp" "$target_file"
 }
 
@@ -192,7 +192,7 @@ EOF
 }
 
 main() {
-  trap cleanup_on_error EXIT
+  trap cleanup EXIT
   load_env
   require_env CONFLUENCE_DOMAIN CONFLUENCE_EMAIL CONFLUENCE_API_TOKEN SPACE_ID PARENT_ID
   prepare_results_dir
