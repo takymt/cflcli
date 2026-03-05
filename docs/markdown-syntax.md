@@ -1,6 +1,6 @@
-# Markdown Notation Catalog for Confluence CLI
+# Markdown Syntax Catalog for Confluence CLI
 
-This document provides a concise catalog of Markdown notations for Confluence CLI.
+This document provides a concise catalog of Markdown syntax for Confluence CLI.
 
 ## Supporting
 
