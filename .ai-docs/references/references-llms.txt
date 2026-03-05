@@ -1,5 +1,12 @@
 Confluence Storage Format (reference)
 https://ja.confluence.atlassian.com/doc/confluence-storage-format-790796544.html
 
-Confluence Cloud REST API v2 intro (reference)
-https://developer.atlassian.com/cloud/confluence/rest/v2/intro
+Confluence Cloud REST API v2 (reference)
+https://developer.atlassian.com/cloud/confluence/rest/v2
+
+Confluence Cloud REST API v1 for attachments endpoint (reference)
+https://developer.atlassian.com/cloud/confluence/rest/v1/api-group-content---attachments/#api-group-content---attachments
+
+Attachment operations used by cfl (v1, reference)
+- upload/update: PUT /wiki/rest/api/content/{id}/child/attachment
+- delete: DELETE /wiki/rest/api/content/{id}/child/attachment/{attachmentId}

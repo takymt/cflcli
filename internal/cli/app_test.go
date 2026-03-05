@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -260,6 +262,75 @@ func TestRunPageSync(t *testing.T) {
 	}
 }
 
+func TestRunAttachmentPutDelete(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "diagram.svg")
+	if err := os.WriteFile(filePath, []byte("<svg></svg>"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+
+	exit := app.Run(context.Background(), []string{"attachment", "put", "--page-id", "400", filePath}, dir)
+	if exit != 0 {
+		t.Fatalf("Run(attachment put) exit = %d, want 0", exit)
+	}
+	if len(client.putAttachmentCalls) != 1 {
+		t.Fatalf("putAttachmentCalls = %d, want 1", len(client.putAttachmentCalls))
+	}
+
+	exit = app.Run(context.Background(), []string{"attachment", "delete", "--page-id", "400", "diagram.svg"}, dir)
+	if exit != 0 {
+		t.Fatalf("Run(attachment delete) exit = %d, want 0", exit)
+	}
+	if len(client.deleteAttachmentCalls) != 1 {
+		t.Fatalf("deleteAttachmentCalls = %d, want 1", len(client.deleteAttachmentCalls))
+	}
+}
+
+func TestRunPageSync_MermaidAttachmentFailurePreventsBodyUpdate(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("mmdc"); err != nil {
+		t.Skip("mmdc is required for mermaid attachment sync test")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "guide.md")
+	content := "---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n```mermaid\ngraph TD\nA-->B\n```\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{
+		ID:    "400",
+		Title: "guide",
+		Body:  "<p>old body</p>",
+		URL:   "https://example.test/pages/400",
+	}
+	client.failPutAttachmentNames["mermaid-1.svg"] = true
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+	exit := app.Run(context.Background(), []string{"page", "sync", "guide.md"}, dir)
+	if exit != 1 {
+		t.Fatalf("Run() exit = %d, want 1", exit)
+	}
+
+	p := client.pageByID("400")
+	if p == nil {
+		t.Fatal("expected page 400 to exist")
+	}
+	if p.Body != "<p>old body</p>" {
+		t.Fatalf("page body updated unexpectedly: %q", p.Body)
+	}
+}
+
 func TestRunPageSyncWatch(t *testing.T) {
 	t.Parallel()
 
@@ -446,21 +517,25 @@ func stripANSI(s string) string {
 }
 
 type fakeClient struct {
-	mu          sync.Mutex
-	nextID      int
-	spaceRoots  map[string]string
-	children    map[string]map[string]string
-	pages       map[string]*page.Page
-	updateCalls map[string]int
+	mu                     sync.Mutex
+	nextID                 int
+	spaceRoots             map[string]string
+	children               map[string]map[string]string
+	pages                  map[string]*page.Page
+	updateCalls            map[string]int
+	putAttachmentCalls     []string
+	deleteAttachmentCalls  []string
+	failPutAttachmentNames map[string]bool
 }
 
 func newFakeClient() *fakeClient {
 	return &fakeClient{
-		nextID:      401,
-		spaceRoots:  make(map[string]string),
-		children:    make(map[string]map[string]string),
-		pages:       make(map[string]*page.Page),
-		updateCalls: make(map[string]int),
+		nextID:                 401,
+		spaceRoots:             make(map[string]string),
+		children:               make(map[string]map[string]string),
+		pages:                  make(map[string]*page.Page),
+		updateCalls:            make(map[string]int),
+		failPutAttachmentNames: make(map[string]bool),
 	}
 }
 
@@ -521,6 +596,26 @@ func (f *fakeClient) UpdatePage(ctx context.Context, pageID string, title string
 	}
 	f.updateCalls[pageID]++
 	return *p, nil
+}
+
+func (f *fakeClient) PutAttachment(ctx context.Context, pageID string, filePath string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	name := filepath.Base(filePath)
+	if f.failPutAttachmentNames[name] {
+		return errors.New("put attachment failed")
+	}
+	f.putAttachmentCalls = append(f.putAttachmentCalls, pageID+":"+name)
+	return nil
+}
+
+func (f *fakeClient) DeleteAttachment(ctx context.Context, pageID string, filename string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.deleteAttachmentCalls = append(f.deleteAttachmentCalls, pageID+":"+filename)
+	return nil
 }
 
 func (f *fakeClient) pageByID(id string) *page.Page {

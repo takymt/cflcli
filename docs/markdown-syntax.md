@@ -281,7 +281,7 @@ graph TD
 
 - During `page sync`, `mermaid` fenced blocks are rendered into local SVG files and referenced as page attachments (`mermaid-1.svg`, `mermaid-2.svg`, ...).
 - Rendering uses [mermaid-cli](https://github.com/mermaid-js/mermaid-cli).
-- If one mermaid block exceeds 2000 characters, it falls back to a code block.
+- If one mermaid block exceeds 2000 characters, sync returns an error.
 
 ## Not Supported Yet
 

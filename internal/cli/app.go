@@ -47,6 +47,9 @@ func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 	pageCmd := &cobra.Command{
 		Use: "page",
 	}
+	attachmentCmd := &cobra.Command{
+		Use: "attachment",
+	}
 
 	var (
 		newSpaceID  string
@@ -78,7 +81,36 @@ func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 	pageSyncCmd.Flags().BoolVar(&syncWatch, "watch", false, "Watch the file and sync on changes")
 
 	pageCmd.AddCommand(pageNewCmd, pageSyncCmd)
-	rootCmd.AddCommand(pageCmd)
+
+	var (
+		attachmentPutPageID string
+		attachmentDelPageID string
+	)
+	attachmentPutCmd := &cobra.Command{
+		Use:   "put <file>",
+		Args:  cobra.ExactArgs(1),
+		Short: "Upload or update an attachment on a Confluence page",
+		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
+			filePath := resolvePath(workdir, cmdArgs[0])
+			return a.client.PutAttachment(cmd.Context(), attachmentPutPageID, filePath)
+		},
+	}
+	attachmentPutCmd.Flags().StringVar(&attachmentPutPageID, "page-id", "", "Confluence page id")
+	_ = attachmentPutCmd.MarkFlagRequired("page-id")
+
+	attachmentDeleteCmd := &cobra.Command{
+		Use:   "delete <filename>",
+		Args:  cobra.ExactArgs(1),
+		Short: "Delete an attachment from a Confluence page by filename",
+		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
+			return a.client.DeleteAttachment(cmd.Context(), attachmentDelPageID, cmdArgs[0])
+		},
+	}
+	attachmentDeleteCmd.Flags().StringVar(&attachmentDelPageID, "page-id", "", "Confluence page id")
+	_ = attachmentDeleteCmd.MarkFlagRequired("page-id")
+
+	attachmentCmd.AddCommand(attachmentPutCmd, attachmentDeleteCmd)
+	rootCmd.AddCommand(pageCmd, attachmentCmd)
 
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		a.println(err.Error())
@@ -230,12 +262,19 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 		return page.Page{}, err
 	}
 
-	converted, warnings, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body)
+	converted, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body)
 	if err != nil {
 		return page.Page{}, err
 	}
-	for _, warning := range warnings {
-		a.println("WARN: " + warning)
+
+	for _, filename := range page.AttachmentFilenamesFromStorage(converted) {
+		attachmentPath := filepath.Join(filepath.Dir(path), filename)
+		if _, err := os.Stat(attachmentPath); err != nil {
+			return page.Page{}, fmt.Errorf("attachment file %q not found: %w", filename, err)
+		}
+		if err := a.client.PutAttachment(ctx, frontmatter.PageID, attachmentPath); err != nil {
+			return page.Page{}, fmt.Errorf("put attachment %q: %w", filename, err)
+		}
 	}
 
 	title := page.TitleFromPath(path)

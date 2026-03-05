@@ -20,12 +20,9 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	path := filepath.Join(dir, "guide.md")
 	input := "before\n\n```mermaid\ngraph TD\nA-->B\n```\n\nmiddle\n\n```mermaid\ngraph TD\nB-->C\n```\n\nafter\n"
 
-	got, warnings, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	got, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
 	if err != nil {
 		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
-	}
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
 	}
 
 	if !strings.Contains(got, "<p>before</p>") {
@@ -51,7 +48,7 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	}
 }
 
-func TestConvertMarkdownToStorageWithMermaid_OversizeFallsBackToCodeBlock(t *testing.T) {
+func TestConvertMarkdownToStorageWithMermaid_OversizeReturnsError(t *testing.T) {
 	t.Parallel()
 
 	dir := t.TempDir()
@@ -59,20 +56,11 @@ func TestConvertMarkdownToStorageWithMermaid_OversizeFallsBackToCodeBlock(t *tes
 	oversized := strings.Repeat("A", maxMermaidBlockChars+1)
 	input := "```mermaid\n" + oversized + "\n```\n"
 
-	got, warnings, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
-	if err != nil {
-		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
+	_, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	if err == nil {
+		t.Fatal("ConvertMarkdownToStorageWithMermaid() error = nil, want oversize error")
 	}
-	if len(warnings) != 1 {
-		t.Fatalf("warnings = %v, want 1 warning", warnings)
-	}
-	if !strings.Contains(warnings[0], "exceeds") {
-		t.Fatalf("warning = %q, want exceeds message", warnings[0])
-	}
-	if !strings.Contains(got, `<ac:structured-macro ac:name="code">`) {
-		t.Fatalf("converted storage = %q, want code macro fallback", got)
-	}
-	if strings.Contains(got, `<ac:image><ri:attachment`) {
-		t.Fatalf("converted storage = %q, want no attachment image for oversized block", got)
+	if !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("error = %q, want exceeds message", err.Error())
 	}
 }

@@ -24,4 +24,6 @@ type Client interface {
 	PageExists(ctx context.Context, spaceID string, parentID string, title string) (bool, error)
 	CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string) (Page, error)
 	UpdatePage(ctx context.Context, pageID string, title string, body string) (Page, error)
+	PutAttachment(ctx context.Context, pageID string, filePath string) error
+	DeleteAttachment(ctx context.Context, pageID string, filename string) error
 }

@@ -14,13 +14,12 @@ const maxMermaidBlockChars = 2000
 
 // ConvertMarkdownToStorageWithMermaid converts markdown to storage format and
 // turns mermaid fenced blocks into attachment image macros.
-func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string) (string, []string, error) {
+func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string) (string, error) {
 	lines := strings.Split(markdown, "\n")
 	var (
 		parts        []string
 		pending      []string
 		mermaidIndex int
-		warnings     []string
 	)
 
 	flushPending := func() error {
@@ -40,10 +39,10 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 
 	for i := 0; i < len(lines); i++ {
 		trimmed := strings.TrimSpace(lines[i])
-			if strings.HasPrefix(trimmed, "```") && strings.TrimSpace(strings.TrimPrefix(trimmed, "```")) == "mermaid" {
-				if err := flushPending(); err != nil {
-					return "", nil, err
-				}
+		if strings.HasPrefix(trimmed, "```") && strings.TrimSpace(strings.TrimPrefix(trimmed, "```")) == "mermaid" {
+			if err := flushPending(); err != nil {
+				return "", err
+			}
 			start := i
 			i++
 
@@ -65,20 +64,12 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 			mermaidIndex++
 			source := strings.Join(mermaidLines, "\n")
 			if len(source) > maxMermaidBlockChars {
-				warnings = append(warnings, fmt.Sprintf("mermaid block %d exceeds %d chars; using code block fallback", mermaidIndex, maxMermaidBlockChars))
-				fallback, err := ConvertMarkdownToStorage("```mermaid\n" + source + "\n```")
-				if err != nil {
-					return "", nil, err
-				}
-				if fallback != "" {
-					parts = append(parts, fallback)
-				}
-				continue
+				return "", fmt.Errorf("mermaid block %d exceeds %d chars", mermaidIndex, maxMermaidBlockChars)
 			}
 
 			filename, err := renderMermaidSVG(ctx, markdownPath, source, mermaidIndex)
 			if err != nil {
-				return "", nil, err
+				return "", err
 			}
 			parts = append(parts, `<ac:image><ri:attachment ri:filename="`+filename+`" /></ac:image>`)
 			continue
@@ -87,9 +78,9 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 	}
 
 	if err := flushPending(); err != nil {
-		return "", nil, err
+		return "", err
 	}
-	return strings.Join(parts, "\n"), warnings, nil
+	return strings.Join(parts, "\n"), nil
 }
 
 func renderMermaidSVG(ctx context.Context, markdownPath string, source string, index int) (string, error) {
