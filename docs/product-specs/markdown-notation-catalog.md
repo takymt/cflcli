@@ -20,6 +20,30 @@ This document provides a concise catalog of Markdown notations for Confluence CL
 ##### Heading 5
 ###### Heading 6
 
+### Inline Styles
+
+```md
+- **This is bold text**
+- _This text is italicized_
+- ~~This was mistaken text~~
+- **This text is _extremely_ important**
+- ***All this text is important***
+- This is `quoted code` text
+- This is a <sub>subscript</sub> text
+- This is a <sup>superscript</sup> text
+- This is an <ins>underlined</ins> text
+```
+
+- **This is bold text**
+- _This text is italicized_
+- ~~This was mistaken text~~
+- **This text is _extremely_ important**
+- ***All this text is important***
+- This is `quoted code` text
+- This is a <sub>subscript</sub> text
+- This is a <sup>superscript</sup> text
+- This is an <ins>underlined</ins> text
+
 ### Unordered Lists
 
 ```md
@@ -46,6 +70,10 @@ This document provides a concise catalog of Markdown notations for Confluence CL
 2. Second
    1. Second-First
 
+### Color models
+
+Not supported yet.
+
 ### Links
 
 ```md
@@ -54,12 +82,15 @@ This document provides a concise catalog of Markdown notations for Confluence CL
 
 [Anchor text](https://developer.atlassian.com/cloud/confluence/)
 
+### Relarive Links
+
+Not supported yet.
+
 ### Images and Caption Text
 
 ```md
 ![alt-text](https://developer.atlassian.com/favicon.ico)
 *Caption*
-_Caption (underscore)_
 ```
 
 ![alt-text](https://developer.atlassian.com/favicon.ico)
@@ -91,34 +122,6 @@ _Caption (underscore)_
 
 ---
 
-### Inline Text Styles
-
-```md
-- *italic*
-- _italic_
-- **bold**
-- __bold__
-- ~~strikethrough~~
-- Inline `code`
-- \*escaped literal asterisks\*
-```
-
-- *italic*
-- _italic_
-- **bold**
-- __bold__
-- ~~strikethrough~~
-- Inline `code`
-- \*escaped literal asterisks\*
-
-### Underline (raw HTML fallback)
-
-```md
-<u>underline via raw html</u>
-```
-
-<u>underline via raw html</u>
-
 ### URL Autolink / Link Card Candidate
 
 ```md
@@ -127,13 +130,24 @@ https://zenn.dev/zenn/articles/markdown-guide
 
 Expected intent: keep as a valid link, optionally rendered as inline card by Confluence rules.
 
+### Line breaks
+
+```md
+This example
+Will span two lines
+```
+
+This example
+
+Will span two lines
+
 ### Emoji
 
 ```md
 :smile: :thumbsup:
 ```
 
-Expected intent: map to supported Confluence emoji where possible.
+Not supported yet.
 
 ### Table
 
@@ -181,7 +195,7 @@ Use `<summary>` to define the block title.
 </ul>
 </details>
 
-### Admonition-like Blocks
+### Alerts
 
 [GitHub Markdown alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts) style.
 
@@ -201,6 +215,8 @@ Use `<summary>` to define the block title.
 > [!CAUTION]
 > Error text
 ```
+
+Not supported yet.
 
 ### Inline Comments
 
