@@ -23,6 +23,7 @@ var (
 	tableSepRE       = regexp.MustCompile(`^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$`)
 	emojiCodeRE      = regexp.MustCompile(`:([a-z][a-z0-9_-]*):`)
 	colorSpanRE      = regexp.MustCompile(`<span style="color:\s*rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\);\s*">([^<]*)</span>`)
+	textAlignParaRE  = regexp.MustCompile(`^<p style="text-align:\s*(left|center|right)\s*;">(.*)</p>$`)
 )
 
 // ConvertMarkdownToStorage converts the supported markdown subset to Confluence storage format.
@@ -81,6 +82,11 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 			continue
 		}
 		if out, ok := convertHeading(trimmed); ok {
+			parts = append(parts, out)
+			i++
+			continue
+		}
+		if out, ok := convertTextAlignParagraph(trimmed); ok {
 			parts = append(parts, out)
 			i++
 			continue
@@ -404,6 +410,16 @@ func convertDetails(lines []string, start int) (string, int, bool) {
 		convertInline(title) + `</ac:parameter><ac:rich-text-body>` + body + `</ac:rich-text-body></ac:structured-macro>`, i, true
 }
 
+func convertTextAlignParagraph(line string) (string, bool) {
+	sub := textAlignParaRE.FindStringSubmatch(line)
+	if len(sub) != 3 {
+		return "", false
+	}
+	align := sub[1]
+	content := convertInline(sub[2])
+	return `<p style="text-align: ` + align + `;">` + content + `</p>`, true
+}
+
 func convertInline(text string) string {
 	text = inlineCommentRE.ReplaceAllString(text, "")
 	text = strings.TrimSpace(text)
@@ -510,6 +526,7 @@ func isBlockStart(lines []string, index int) bool {
 	}
 	if strings.HasPrefix(line, "```") ||
 		strings.HasPrefix(line, "<details><summary>") ||
+		textAlignParaRE.MatchString(line) ||
 		isTaskItem(line) ||
 		isUnorderedItem(line) {
 		return true

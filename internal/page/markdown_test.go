@@ -79,6 +79,18 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 			},
 		},
 		{
+			name: "text align paragraphs",
+			input: "" +
+				`<p style="text-align: left;">left aligned text</p>` + "\n" +
+				`<p style="text-align: center;">centered text</p>` + "\n" +
+				`<p style="text-align: right;">right aligned text</p>` + "\n",
+			contains: []string{
+				`<p style="text-align: left;">left aligned text</p>`,
+				`<p style="text-align: center;">centered text</p>`,
+				`<p style="text-align: right;">right aligned text</p>`,
+			},
+		},
+		{
 			name:  "task list",
 			input: "- [ ] Task 1\n- [x] Task 2\n",
 			contains: []string{

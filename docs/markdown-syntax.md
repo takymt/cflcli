@@ -220,6 +220,18 @@ Multi-line comment handling is currently out of scope.
 
 <span style="color: rgb(255,0,0);">red text</span>
 
+### Text Align
+
+```md
+<p style="text-align: left;">left aligned text</p>
+<p style="text-align: center;">centered text</p>
+<p style="text-align: right;">right aligned text</p>
+```
+
+<p style="text-align: left;">left aligned text</p>
+<p style="text-align: center;">centered text</p>
+<p style="text-align: right;">right aligned text</p>
+
 ## Not Supported Yet
 
 The following items are not supported yet and are planned for future support.

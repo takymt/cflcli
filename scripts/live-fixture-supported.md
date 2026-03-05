@@ -51,6 +51,9 @@ https://zenn.dev/zenn/articles/markdown-guide
 :information:
 :warning:
 <span style="color: rgb(255,0,0);">red text</span>
+<p style="text-align: left;">left aligned text</p>
+<p style="text-align: center;">centered text</p>
+<p style="text-align: right;">right aligned text</p>
 
 | Head | Head | Head |
 | ---- | ---- | ---- |
