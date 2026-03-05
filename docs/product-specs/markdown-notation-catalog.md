@@ -194,41 +194,12 @@ Multi-line comment handling is currently out of scope.
 
 ## Not Supported Yet
 
-### Color Models
+The following items are not supported yet and are planned for future support.
 
-Not supported yet.
-
-### Relative Links
-
-Not supported yet.
-
-### Emoji
-
-```md
-:smile: :thumbsup:
-```
-
-Not supported yet.
-
-### Alerts
-
-[GitHub Markdown alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts) style.
-
-```md
-> [!NOTE]
-> Note text
-
-> [!TIP]
-> Tip text
-
-> [!IMPORTANT]
-> Information text
-
-> [!WARNING]
-> Warning text
-
-> [!CAUTION]
-> Error text
-```
-
-Not supported yet.
+- Color Models
+- Relative Links
+- Confluence Emoji
+- Alerts
+- Mermaidjs Rendering
+- Tex Rendering
+- Footnotes
