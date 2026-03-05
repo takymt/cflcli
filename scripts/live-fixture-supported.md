@@ -44,7 +44,7 @@ parent-id: __PARENT_ID__
 This example
 Will span two lines
 
-https://zenn.dev/zenn/articles/markdown-guide
+https://github.com/takymt/cflcli/blob/main/docs/markdown-syntax.md
 
 :smile:
 :sad:
@@ -69,6 +69,11 @@ graph TD
   Start --> Parse
   Parse --> Render
   Render --> Done
+```
+
+```mermaid width=900 align=right
+graph TD
+  A --> B
 ```
 
 <details><summary>title</summary>

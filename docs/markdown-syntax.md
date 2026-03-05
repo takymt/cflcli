@@ -2,9 +2,7 @@
 
 This document provides a concise catalog of Markdown syntax for Confluence CLI.
 
-## Supporting
-
-### Headings
+## Headings
 
 ```md
 # Heading 1
@@ -22,7 +20,7 @@ This document provides a concise catalog of Markdown syntax for Confluence CLI.
 ##### Heading 5
 ###### Heading 6
 
-### Inline Styles
+## Inline Styles
 
 ```md
 - **This is bold text**
@@ -46,7 +44,7 @@ This document provides a concise catalog of Markdown syntax for Confluence CLI.
 - This is a <sup>superscript</sup> text
 - This is an <ins>underlined</ins> text
 
-### Unordered Lists
+## Unordered Lists
 
 ```md
 - Hello!
@@ -60,7 +58,7 @@ This document provides a concise catalog of Markdown syntax for Confluence CLI.
   - Bonjour!
     - Hi!
 
-### Ordered Lists
+## Ordered Lists
 
 ```md
 1. First
@@ -72,7 +70,7 @@ This document provides a concise catalog of Markdown syntax for Confluence CLI.
 2. Second
    1. Second-First
 
-### Links
+## Links
 
 ```md
 [Anchor text](https://developer.atlassian.com/cloud/confluence/)
@@ -80,7 +78,7 @@ This document provides a concise catalog of Markdown syntax for Confluence CLI.
 
 [Anchor text](https://developer.atlassian.com/cloud/confluence/)
 
-### Images and Caption Text
+## Images and Caption Text
 
 ```md
 ![alt-text](https://developer.atlassian.com/favicon.ico)
@@ -90,7 +88,7 @@ This document provides a concise catalog of Markdown syntax for Confluence CLI.
 ![alt-text](https://developer.atlassian.com/favicon.ico)
 *Caption*
 
-### Task Lists
+## Task Lists
 
 ```md
 - [ ] Task 1
@@ -100,7 +98,7 @@ This document provides a concise catalog of Markdown syntax for Confluence CLI.
 - [ ] Task 1
 - [x] Task 2
 
-### Blockquotes (including nesting)
+## Blockquotes (including nesting)
 
 Nested blockquotes are unsupported (legacy in Confluence).
 
@@ -110,7 +108,7 @@ Nested blockquotes are unsupported (legacy in Confluence).
 
 > Quote
 
-### Horizontal Rule
+## Horizontal Rule
 
 ```md
 ---
@@ -118,7 +116,7 @@ Nested blockquotes are unsupported (legacy in Confluence).
 
 ---
 
-### URL Autolink / Link Card Candidate
+## URL Autolink / Link Card Candidate
 
 ```md
 https://github.com/takymt/cflcli/blob/main/docs/markdown-syntax.md
@@ -128,7 +126,7 @@ https://github.com/takymt/cflcli/blob/main/docs/markdown-syntax.md
 
 Rendered in Confluence: Inline Smart Link (resolved), or raw URL (fallback).
 
-### Line breaks
+## Line breaks
 
 ```md
 This example
@@ -139,7 +137,7 @@ This example
 
 Will span two lines
 
-### Table
+## Table
 
 ```md
 | Head | Head | Head |
@@ -153,7 +151,7 @@ Will span two lines
 | Text | Text | Text |
 | Text | Text | Text |
 
-### Fenced Code Block
+## Fenced Code Block
 
 ~~~md
 ```javascript
@@ -165,7 +163,7 @@ const codeBlock = "this is code block";
 const codeBlock = "this is code block";
 ```
 
-### Expand (Details-like block)
+## Expand (Details-like block)
 
 Wrap content with `<details>` to create an expand/collapse block.
 Use `<summary>` to define the block title.
@@ -185,7 +183,7 @@ Use `<summary>` to define the block title.
 </ul>
 </details>
 
-### Inline Comments
+## Inline Comments
 
 ```md
 <!-- TODO: add details about this section -->
@@ -196,7 +194,7 @@ Use `<summary>` to define the block title.
 Comments written in this format are not rendered on the published page.
 Multi-line comment handling is currently out of scope.
 
-### Emoji
+## Emoji
 
 ```md
 :smile:
@@ -214,7 +212,7 @@ Multi-line comment handling is currently out of scope.
 
 ![warning](/docs/images/emojis/warning.svg)
 
-### Color
+## Color
 
 ```md
 <span style="color: rgb(255,0,0);">red text</span>
@@ -222,7 +220,7 @@ Multi-line comment handling is currently out of scope.
 
 <span style="color: rgb(255,0,0);">red text</span>
 
-### Text Align
+## Text Align
 
 ```md
 <p style="text-align: left;">left aligned text</p>
@@ -234,7 +232,7 @@ Multi-line comment handling is currently out of scope.
 <p style="text-align: center;">centered text</p>
 <p style="text-align: right;">right aligned text</p>
 
-### Alerts
+## Alerts
 
 ```md
 :::info
@@ -268,7 +266,7 @@ error
 
 ![error](/docs/images/panels/error.png)
 
-### Mermaid Diagrams
+## Mermaid Diagrams
 
 This CLI supports diagrams written with [mermaid.js](https://mermaid.js.org/).
 
@@ -294,10 +292,3 @@ graph TD
 - During `page sync`, `mermaid` fenced blocks are rendered into local SVG files and referenced as page attachments (`mermaid-1.svg`, `mermaid-2.svg`, ...).
 - Rendering uses [mermaid-cli](https://github.com/mermaid-js/mermaid-cli).
 - If one mermaid block exceeds 2000 characters, sync returns an error.
-
-## Not Supported Yet
-
-The following items are not supported yet and are planned for future support.
-
-- Tex Rendering
-- Footnotes
