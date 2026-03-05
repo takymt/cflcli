@@ -230,9 +230,12 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 		return page.Page{}, err
 	}
 
-	converted, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body)
+	converted, warnings, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body)
 	if err != nil {
 		return page.Page{}, err
+	}
+	for _, warning := range warnings {
+		a.println("WARN: " + warning)
 	}
 
 	title := page.TitleFromPath(path)
