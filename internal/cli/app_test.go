@@ -292,7 +292,7 @@ func TestRunAttachmentPutDelete(t *testing.T) {
 	}
 }
 
-func TestRunPageSync_MermaidAttachmentFailurePreventsBodyUpdate(t *testing.T) {
+func TestRunPageSync_AttachmentFailureDoesNotUpdateBody(t *testing.T) {
 	t.Parallel()
 
 	if _, err := exec.LookPath("mmdc"); err != nil {

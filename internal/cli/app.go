@@ -267,14 +267,8 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 		return page.Page{}, err
 	}
 
-	for _, filename := range page.AttachmentFilenamesFromStorage(converted) {
-		attachmentPath := filepath.Join(filepath.Dir(path), filename)
-		if _, err := os.Stat(attachmentPath); err != nil {
-			return page.Page{}, fmt.Errorf("attachment file %q not found: %w", filename, err)
-		}
-		if err := a.client.PutAttachment(ctx, frontmatter.PageID, attachmentPath); err != nil {
-			return page.Page{}, fmt.Errorf("put attachment %q: %w", filename, err)
-		}
+	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, converted); err != nil {
+		return page.Page{}, err
 	}
 
 	title := page.TitleFromPath(path)
