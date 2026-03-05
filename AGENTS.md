@@ -42,5 +42,6 @@ When the user has not specified otherwise, use these defaults:
 - prefer minimal edits over broad rewrites
 - preserve previously approved behavior
 - do not silently change product decisions already confirmed by the user
+- after completing requested code or script changes, commit them before asking for review or feedback
 - when the user asks for changes to be committed incrementally, commit the current change before asking for feedback or proposing the next step
 - do not run state-changing git commands such as `git add` and `git commit` in parallel
