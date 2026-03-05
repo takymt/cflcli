@@ -20,9 +20,12 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	path := filepath.Join(dir, "guide.md")
 	input := "before\n\n```mermaid\ngraph TD\nA-->B\n```\n\nmiddle\n\n```mermaid\ngraph TD\nB-->C\n```\n\nafter\n"
 
-	got, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
 	if err != nil {
 		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
+	}
+	if len(generatedPaths) != 2 {
+		t.Fatalf("generatedPaths = %d, want 2", len(generatedPaths))
 	}
 
 	if !strings.Contains(got, "<p>before</p>") {
@@ -59,9 +62,12 @@ func TestConvertMarkdownToStorageWithMermaid_WithWidthAndAlignOptions(t *testing
 	path := filepath.Join(dir, "guide.md")
 	input := "```mermaid width=900 align=right\ngraph TD\nA-->B\n```\n"
 
-	got, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
 	if err != nil {
 		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
+	}
+	if len(generatedPaths) != 1 {
+		t.Fatalf("generatedPaths = %d, want 1", len(generatedPaths))
 	}
 
 	want := `<ac:image ac:align="right" ac:layout="align-end" ac:width="900"><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`
@@ -78,7 +84,7 @@ func TestConvertMarkdownToStorageWithMermaid_OversizeReturnsError(t *testing.T) 
 	oversized := strings.Repeat("A", maxMermaidBlockChars+1)
 	input := "```mermaid\n" + oversized + "\n```\n"
 
-	_, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	_, _, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
 	if err == nil {
 		t.Fatal("ConvertMarkdownToStorageWithMermaid() error = nil, want oversize error")
 	}

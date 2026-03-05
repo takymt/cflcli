@@ -262,10 +262,15 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 		return page.Page{}, err
 	}
 
-	converted, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body)
+	converted, generatedPaths, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body)
 	if err != nil {
 		return page.Page{}, err
 	}
+	defer func() {
+		for _, generatedPath := range generatedPaths {
+			_ = os.Remove(generatedPath)
+		}
+	}()
 
 	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, converted); err != nil {
 		return page.Page{}, err
