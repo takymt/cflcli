@@ -91,6 +91,24 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 			},
 		},
 		{
+			name: "alerts mapping with emoji in body",
+			input: "" +
+				":::info\ninformation :information:\n:::\n\n" +
+				":::note\nnote\n:::\n\n" +
+				":::success\nsuccess\n:::\n\n" +
+				":::warning\nwarning\n:::\n\n" +
+				":::error\nerror :warning:\n:::\n",
+			contains: []string{
+				`<ac:structured-macro ac:name="info"><ac:rich-text-body>`,
+				`<ac:adf-extension><ac:adf-node type="panel"><ac:adf-attribute key="panel-type">note</ac:adf-attribute>`,
+				`<ac:structured-macro ac:name="tip"><ac:rich-text-body>`,
+				`<ac:structured-macro ac:name="note"><ac:rich-text-body>`,
+				`<ac:structured-macro ac:name="warning"><ac:rich-text-body>`,
+				`<ac:emoticon ac:name="information" />`,
+				`<ac:emoticon ac:name="warning" />`,
+			},
+		},
+		{
 			name:  "task list",
 			input: "- [ ] Task 1\n- [x] Task 2\n",
 			contains: []string{

@@ -24,6 +24,8 @@ var (
 	emojiCodeRE      = regexp.MustCompile(`:([a-z][a-z0-9_-]*):`)
 	colorSpanRE      = regexp.MustCompile(`<span style="color:\s*rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\);\s*">([^<]*)</span>`)
 	textAlignParaRE  = regexp.MustCompile(`^<p style="text-align:\s*(left|center|right)\s*;">(.*)</p>$`)
+	alertStartRE     = regexp.MustCompile(`^:::(info|note|success|warning|error)\s*$`)
+	alertEndRE       = regexp.MustCompile(`^:::\s*$`)
 )
 
 // ConvertMarkdownToStorage converts the supported markdown subset to Confluence storage format.
@@ -47,6 +49,11 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 			continue
 		}
 		if out, next, ok := convertDetails(lines, i); ok {
+			parts = append(parts, out)
+			i = next
+			continue
+		}
+		if out, next, ok := convertAlert(lines, i); ok {
 			parts = append(parts, out)
 			i = next
 			continue
@@ -410,6 +417,46 @@ func convertDetails(lines []string, start int) (string, int, bool) {
 		convertInline(title) + `</ac:parameter><ac:rich-text-body>` + body + `</ac:rich-text-body></ac:structured-macro>`, i, true
 }
 
+func convertAlert(lines []string, start int) (string, int, bool) {
+	sub := alertStartRE.FindStringSubmatch(strings.TrimSpace(lines[start]))
+	if len(sub) != 2 {
+		return "", start, false
+	}
+	alertType := sub[1]
+
+	i := start + 1
+	var bodyLines []string
+	foundEnd := false
+	for i < len(lines) {
+		if alertEndRE.MatchString(strings.TrimSpace(lines[i])) {
+			foundEnd = true
+			i++
+			break
+		}
+		bodyLines = append(bodyLines, lines[i])
+		i++
+	}
+	if !foundEnd {
+		return "", start, false
+	}
+
+	body, _ := ConvertMarkdownToStorage(strings.Join(bodyLines, "\n"))
+	switch alertType {
+	case "info":
+		return `<ac:structured-macro ac:name="info"><ac:rich-text-body>` + body + `</ac:rich-text-body></ac:structured-macro>`, i, true
+	case "note":
+		return `<ac:adf-extension><ac:adf-node type="panel"><ac:adf-attribute key="panel-type">note</ac:adf-attribute><ac:adf-content>` + body + `</ac:adf-content></ac:adf-node><ac:adf-fallback><div class="panel conf-macro output-block"><div class="panelContent">` + body + `</div></div></ac:adf-fallback></ac:adf-extension>`, i, true
+	case "success":
+		return `<ac:structured-macro ac:name="tip"><ac:rich-text-body>` + body + `</ac:rich-text-body></ac:structured-macro>`, i, true
+	case "warning":
+		return `<ac:structured-macro ac:name="note"><ac:rich-text-body>` + body + `</ac:rich-text-body></ac:structured-macro>`, i, true
+	case "error":
+		return `<ac:structured-macro ac:name="warning"><ac:rich-text-body>` + body + `</ac:rich-text-body></ac:structured-macro>`, i, true
+	default:
+		return "", start, false
+	}
+}
+
 func convertTextAlignParagraph(line string) (string, bool) {
 	sub := textAlignParaRE.FindStringSubmatch(line)
 	if len(sub) != 3 {
@@ -526,6 +573,7 @@ func isBlockStart(lines []string, index int) bool {
 	}
 	if strings.HasPrefix(line, "```") ||
 		strings.HasPrefix(line, "<details><summary>") ||
+		alertStartRE.MatchString(line) ||
 		textAlignParaRE.MatchString(line) ||
 		isTaskItem(line) ||
 		isUnorderedItem(line) {
