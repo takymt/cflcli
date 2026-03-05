@@ -46,6 +46,9 @@ Will span two lines
 
 https://zenn.dev/zenn/articles/markdown-guide
 
+:smile:
+:sad:
+:information:
 :warning:
 
 | Head | Head | Head |
