@@ -1,7 +1,6 @@
 package page
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -60,13 +59,13 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 	if fm.SpaceID == "" || fm.PageID == "" || fm.ParentID == "" {
 		return Frontmatter{}, "", errors.New("frontmatter is missing required keys: space-id, page-id, parent-id")
 	}
-	for label, value := range map[string]string{
-		"space-id":  fm.SpaceID,
-		"page-id":   fm.PageID,
-		"parent-id": fm.ParentID,
+	for _, entry := range []struct{ label, value string }{
+		{"space-id", fm.SpaceID},
+		{"page-id", fm.PageID},
+		{"parent-id", fm.ParentID},
 	} {
-		if !numericIDPattern.MatchString(value) {
-			return Frontmatter{}, "", fmt.Errorf("frontmatter %s must be a numeric Confluence id", label)
+		if !numericIDPattern.MatchString(entry.value) {
+			return Frontmatter{}, "", fmt.Errorf("frontmatter %s must be a numeric Confluence id", entry.label)
 		}
 	}
 
@@ -75,19 +74,8 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 
 // FormatMarkdownFile renders a markdown file with the required frontmatter.
 func FormatMarkdownFile(frontmatter Frontmatter, body string) []byte {
-	var buf bytes.Buffer
-	buf.WriteString("---\n")
-	buf.WriteString("space-id: ")
-	buf.WriteString(frontmatter.SpaceID)
-	buf.WriteByte('\n')
-	buf.WriteString("page-id: ")
-	buf.WriteString(frontmatter.PageID)
-	buf.WriteByte('\n')
-	buf.WriteString("parent-id: ")
-	buf.WriteString(frontmatter.ParentID)
-	buf.WriteString("\n---\n")
-	buf.WriteString(body)
-	return buf.Bytes()
+	return []byte(fmt.Sprintf("---\nspace-id: %s\npage-id: %s\nparent-id: %s\n---\n%s",
+		frontmatter.SpaceID, frontmatter.PageID, frontmatter.ParentID, body))
 }
 
 // TitleFromPath derives the Confluence page title from the file basename.
@@ -100,11 +88,7 @@ func valueAsString(v any) string {
 	switch value := v.(type) {
 	case string:
 		return value
-	case int:
-		return fmt.Sprintf("%d", value)
-	case int64:
-		return fmt.Sprintf("%d", value)
-	case uint64:
+	case int, int64, uint64:
 		return fmt.Sprintf("%d", value)
 	case float64:
 		if value == float64(int64(value)) {

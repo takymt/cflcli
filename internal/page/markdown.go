@@ -16,8 +16,7 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 	var parts []string
 
 	for i := 0; i < len(lines); {
-		line := lines[i]
-		trimmed := strings.TrimSpace(line)
+		trimmed := strings.TrimSpace(lines[i])
 		if trimmed == "" {
 			i++
 			continue
@@ -74,10 +73,7 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 		var paragraph []string
 		for i < len(lines) {
 			current := strings.TrimSpace(lines[i])
-			if current == "" || strings.HasPrefix(current, "#") || strings.HasPrefix(current, "```") || isUnorderedItem(current) {
-				break
-			}
-			if ok, _ := orderedListItem(current); ok {
+			if current == "" || startsBlock(current) {
 				break
 			}
 			paragraph = append(paragraph, current)
@@ -99,6 +95,14 @@ func parseHeading(line string) (level int, text string, ok bool) {
 		return 1, line[2:], true
 	}
 	return 0, "", false
+}
+
+func startsBlock(line string) bool {
+	if strings.HasPrefix(line, "#") || strings.HasPrefix(line, "```") || isUnorderedItem(line) {
+		return true
+	}
+	ok, _ := orderedListItem(line)
+	return ok
 }
 
 func isUnorderedItem(line string) bool {

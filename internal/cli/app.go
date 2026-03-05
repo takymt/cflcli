@@ -151,9 +151,7 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = watcher.Close()
-	}()
+	defer watcher.Close()
 
 	return a.watchLoop(ctx, watcher.Events(), path)
 }
@@ -222,12 +220,7 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 	}
 
 	title := page.TitleFromPath(path)
-	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, converted)
-	if err != nil {
-		return page.Page{}, err
-	}
-
-	return updated, nil
+	return a.client.UpdatePage(ctx, frontmatter.PageID, title, converted)
 }
 
 func (a *App) println(s string) {

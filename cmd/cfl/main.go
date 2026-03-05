@@ -57,11 +57,8 @@ func newHTTPClientFromEnv() (page.Client, error) {
 		return nil, errors.New("CONFLUENCE_API_TOKEN is required")
 	}
 
+	siteBaseURL = strings.TrimSuffix(siteBaseURL, "/wiki")
 	apiBaseURL := siteBaseURL + "/wiki/api/v2"
-	if strings.HasSuffix(siteBaseURL, "/wiki") {
-		siteBaseURL = strings.TrimSuffix(siteBaseURL, "/wiki")
-		apiBaseURL = siteBaseURL + "/wiki/api/v2"
-	}
 
 	return &httpClient{
 		siteBaseURL: siteBaseURL,
@@ -191,9 +188,7 @@ func (c *httpClient) doJSON(ctx context.Context, method string, endpoint string,
 	if err != nil {
 		return err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
+	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return page.ErrNotFound
