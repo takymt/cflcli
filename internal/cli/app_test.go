@@ -349,6 +349,61 @@ func TestRunPageSyncWatch(t *testing.T) {
 	}
 }
 
+func TestRunPageNewWatch(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "guide.md")
+
+	client := newFakeClient()
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+	app.watchPollInterval = 10 * time.Millisecond
+	app.watchDebounce = 25 * time.Millisecond
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan int, 1)
+	go func() {
+		done <- app.Run(ctx, []string{"page", "new", "guide.md", "--space-id", "100", "--parent-id", "200", "--watch"}, dir)
+	}()
+
+	waitFor(t, time.Second, func() bool {
+		if _, err := os.Stat(path); err != nil {
+			return false
+		}
+		return client.updateCount("401") >= 1
+	})
+
+	if err := os.WriteFile(path, []byte("---\nspace-id: 100\npage-id: 401\nparent-id: 200\n---\n# Updated\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	waitFor(t, time.Second, func() bool {
+		page := client.pageByID("401")
+		return page != nil && strings.Contains(page.Body, "<h1>Updated</h1>")
+	})
+
+	cancel()
+	select {
+	case exit := <-done:
+		if exit != 0 {
+			t.Fatalf("Run() exit = %d, want 0", exit)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("new --watch command did not stop after cancel")
+	}
+
+	output := stripANSI(stdout.String())
+	if !strings.Contains(output, "https://example.test/pages/401") {
+		t.Fatalf("output = %q, want page URL", output)
+	}
+	if strings.Count(output, ".") == 0 {
+		t.Fatalf("output = %q, want success dot from watch", output)
+	}
+}
+
 func waitFor(t *testing.T, timeout time.Duration, cond func() bool) {
 	t.Helper()
 

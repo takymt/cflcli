@@ -51,17 +51,19 @@ func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 	var (
 		newSpaceID  string
 		newParentID string
+		newWatch    bool
 	)
 	pageNewCmd := &cobra.Command{
 		Use:   "new <title>.md",
 		Args:  cobra.ExactArgs(1),
 		Short: "Create a local markdown file and a Confluence page",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
-			return a.runPageNew(cmd.Context(), workdir, cmdArgs[0], newSpaceID, newParentID)
+			return a.runPageNew(cmd.Context(), workdir, cmdArgs[0], newSpaceID, newParentID, newWatch)
 		},
 	}
 	pageNewCmd.Flags().StringVar(&newSpaceID, "space-id", "", "Confluence space id")
 	pageNewCmd.Flags().StringVar(&newParentID, "parent-id", "", "Confluence parent page id")
+	pageNewCmd.Flags().BoolVar(&newWatch, "watch", false, "Watch the created file and sync on changes")
 	_ = pageNewCmd.MarkFlagRequired("space-id")
 
 	var syncWatch bool
@@ -86,7 +88,7 @@ func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 	return 0
 }
 
-func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, spaceID string, parentID string) error {
+func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, spaceID string, parentID string, watch bool) error {
 	path := resolvePath(workdir, fileArg)
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("target file %q already exists", fileArg)
@@ -126,6 +128,10 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 	}
 
 	a.println(created.URL)
+	if watch {
+		return a.runPageSync(ctx, workdir, fileArg, true)
+	}
+
 	return nil
 }
 
