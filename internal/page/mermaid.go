@@ -39,7 +39,8 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 
 	for i := 0; i < len(lines); i++ {
 		trimmed := strings.TrimSpace(lines[i])
-		if strings.HasPrefix(trimmed, "```") && strings.TrimSpace(strings.TrimPrefix(trimmed, "```")) == "mermaid" {
+		opts, isMermaidFence := parseMermaidFence(trimmed)
+		if isMermaidFence {
 			if err := flushPending(); err != nil {
 				return "", err
 			}
@@ -71,7 +72,7 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 			if err != nil {
 				return "", err
 			}
-			parts = append(parts, `<ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="`+filename+`" /></ac:image>`)
+			parts = append(parts, buildMermaidImageStorage(filename, opts))
 			continue
 		}
 		pending = append(pending, lines[i])
@@ -81,6 +82,68 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 		return "", err
 	}
 	return strings.Join(parts, "\n"), nil
+}
+
+type mermaidOptions struct {
+	align string
+	width int
+}
+
+func parseMermaidFence(line string) (mermaidOptions, bool) {
+	if !strings.HasPrefix(line, "```") {
+		return mermaidOptions{}, false
+	}
+	info := strings.TrimSpace(strings.TrimPrefix(line, "```"))
+	if info == "" {
+		return mermaidOptions{}, false
+	}
+	parts := strings.Fields(info)
+	if len(parts) == 0 || parts[0] != "mermaid" {
+		return mermaidOptions{}, false
+	}
+
+	opts := mermaidOptions{align: "center"}
+	for _, token := range parts[1:] {
+		kv := strings.SplitN(token, "=", 2)
+		if len(kv) != 2 {
+			continue
+		}
+		key := strings.ToLower(strings.TrimSpace(kv[0]))
+		value := strings.ToLower(strings.TrimSpace(kv[1]))
+		switch key {
+		case "align":
+			if value == "left" || value == "center" || value == "right" {
+				opts.align = value
+			}
+		case "width":
+			w, err := strconv.Atoi(value)
+			if err == nil && w > 0 {
+				opts.width = w
+			}
+		}
+	}
+	return opts, true
+}
+
+func buildMermaidImageStorage(filename string, opts mermaidOptions) string {
+	align := opts.align
+	if align == "" {
+		align = "center"
+	}
+	layout := "center"
+	switch align {
+	case "left":
+		layout = "align-start"
+	case "right":
+		layout = "align-end"
+	}
+
+	var attrs []string
+	attrs = append(attrs, `ac:align="`+align+`"`, `ac:layout="`+layout+`"`)
+	if opts.width > 0 {
+		attrs = append(attrs, `ac:width="`+strconv.Itoa(opts.width)+`"`)
+	}
+	return `<ac:image ` + strings.Join(attrs, " ") + `><ri:attachment ri:filename="` + filename + `" /></ac:image>`
 }
 
 func renderMermaidSVG(ctx context.Context, markdownPath string, source string, index int) (string, error) {

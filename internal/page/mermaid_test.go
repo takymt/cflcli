@@ -48,6 +48,28 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	}
 }
 
+func TestConvertMarkdownToStorageWithMermaid_WithWidthAndAlignOptions(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("mmdc"); err != nil {
+		t.Skip("mmdc is required for mermaid conversion test")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "guide.md")
+	input := "```mermaid width=900 align=right\ngraph TD\nA-->B\n```\n"
+
+	got, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	if err != nil {
+		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
+	}
+
+	want := `<ac:image ac:align="right" ac:layout="align-end" ac:width="900"><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`
+	if !strings.Contains(got, want) {
+		t.Fatalf("converted storage = %q, want %q", got, want)
+	}
+}
+
 func TestConvertMarkdownToStorageWithMermaid_OversizeReturnsError(t *testing.T) {
 	t.Parallel()
 
