@@ -1,0 +1,5 @@
+Confluence Storage Format (reference)
+https://ja.confluence.atlassian.com/doc/confluence-storage-format-790796544.html
+
+Confluence Cloud REST API v2 intro (reference)
+https://developer.atlassian.com/cloud/confluence/rest/v2/intro

@@ -5,49 +5,144 @@ import (
 	"testing"
 )
 
-func TestConvertMarkdownToStorage(t *testing.T) {
+func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 	t.Parallel()
 
-	input := strings.Join([]string{
-		"# Heading 1",
-		"",
-		"## Heading 2",
-		"",
-		"Paragraph text.",
-		"",
-		"- one",
-		"- two",
-		"",
-		"1. first",
-		"2. second",
-		"",
-		"```go",
-		"fmt.Println(\"hello\")",
-		"```",
-		"",
-	}, "\n")
-
-	got, err := ConvertMarkdownToStorage(input)
-	if err != nil {
-		t.Fatalf("ConvertMarkdownToStorage() error = %v", err)
+	tests := []struct {
+		name     string
+		input    string
+		contains []string
+	}{
+		{
+			name:  "headings",
+			input: "# H1\n## H2\n### H3\n#### H4\n##### H5\n###### H6\n",
+			contains: []string{
+				"<h1>H1</h1>",
+				"<h2>H2</h2>",
+				"<h3>H3</h3>",
+				"<h4>H4</h4>",
+				"<h5>H5</h5>",
+				"<h6>H6</h6>",
+			},
+		},
+		{
+			name:  "inline styles",
+			input: "- **bold**\n- _italic_\n- ~~strike~~\n- this is `code`\n- <sub>sub</sub>\n- <sup>sup</sup>\n- <ins>ins</ins>\n",
+			contains: []string{
+				"<strong>bold</strong>",
+				"<em>italic</em>",
+				`text-decoration: line-through`,
+				"<code>code</code>",
+				"<sub>sub</sub>",
+				"<sup>sup</sup>",
+				"<ins>ins</ins>",
+			},
+		},
+		{
+			name:  "unordered and ordered lists nested",
+			input: "- one\n  - child\n1. first\n2. second\n   1. second-first\n",
+			contains: []string{
+				"<ul>",
+				"<ol>",
+				"<li><p>child</p></li>",
+				"<li><p>second-first</p></li>",
+			},
+		},
+		{
+			name:  "links and autolinks",
+			input: "[Anchor text](https://developer.atlassian.com/cloud/confluence/)\nhttps://zenn.dev/zenn/articles/markdown-guide\n",
+			contains: []string{
+				`<a href="https://developer.atlassian.com/cloud/confluence/">Anchor text</a>`,
+				`<a href="https://zenn.dev/zenn/articles/markdown-guide">https://zenn.dev/zenn/articles/markdown-guide</a>`,
+			},
+		},
+		{
+			name:  "images",
+			input: "![alt-text](https://developer.atlassian.com/favicon.ico)\n",
+			contains: []string{
+				`<ac:image ac:alt="alt-text"><ri:url ri:value="https://developer.atlassian.com/favicon.ico" /></ac:image>`,
+			},
+		},
+		{
+			name:  "task list",
+			input: "- [ ] Task 1\n- [x] Task 2\n",
+			contains: []string{
+				"<ac:task-list>",
+				"<ac:task-status>incomplete</ac:task-status>",
+				"<ac:task-status>complete</ac:task-status>",
+			},
+		},
+		{
+			name:  "blockquote and rule",
+			input: "> Quote\n>> Nested quote\n\n---\n",
+			contains: []string{
+				"<blockquote>",
+				"<p>Quote</p>",
+				"<p>Nested quote</p>",
+				"<hr />",
+			},
+		},
+		{
+			name:  "line breaks in paragraph",
+			input: "This example\nWill span two lines\n",
+			contains: []string{
+				"<p>This example<br />Will span two lines</p>",
+			},
+		},
+		{
+			name:  "table",
+			input: "| Head | Head |\n| ---- | ---- |\n| Text | Text |\n",
+			contains: []string{
+				"<table><tbody>",
+				"<th>Head</th>",
+				"<td>Text</td>",
+			},
+		},
+		{
+			name:  "fenced code block",
+			input: "```javascript\nconst codeBlock = \"this is code block\";\n```\n",
+			contains: []string{
+				`ac:name="code"`,
+				`<ac:parameter ac:name="language">javascript</ac:parameter>`,
+				`<![CDATA[const codeBlock = "this is code block";`,
+			},
+		},
+		{
+			name:  "details expand",
+			input: "<details><summary>title</summary>\n- Collapsed body line 1\n- Collapsed body line 2\n</details>\n",
+			contains: []string{
+				`<ac:structured-macro ac:name="expand">`,
+				`<ac:parameter ac:name="title">title</ac:parameter>`,
+				`Collapsed body line 1`,
+			},
+		},
+		{
+			name:  "inline comments ignored",
+			input: "<!-- TODO: add details about this section -->\nVisible text\n",
+			contains: []string{
+				"<p>Visible text</p>",
+			},
+		},
 	}
 
-	for _, want := range []string{
-		"<h1>Heading 1</h1>",
-		"<h2>Heading 2</h2>",
-		"<p>Paragraph text.</p>",
-		"<ul><li><p>one</p></li><li><p>two</p></li></ul>",
-		"<ol><li><p>first</p></li><li><p>second</p></li></ol>",
-		`ac:name="code"`,
-		"<![CDATA[fmt.Println(\"hello\")",
-	} {
-		if !strings.Contains(got, want) {
-			t.Fatalf("ConvertMarkdownToStorage() = %q, missing %q", got, want)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ConvertMarkdownToStorage(tt.input)
+			if err != nil {
+				t.Fatalf("ConvertMarkdownToStorage() error = %v", err)
+			}
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Fatalf("ConvertMarkdownToStorage() = %q, missing %q", got, want)
+				}
+			}
+		})
 	}
 }
 
-func TestConvertMarkdownToStorageEmptyBody(t *testing.T) {
+func TestConvertMarkdownToStorage_EmptyBody(t *testing.T) {
 	t.Parallel()
 
 	got, err := ConvertMarkdownToStorage("")
@@ -57,5 +152,14 @@ func TestConvertMarkdownToStorageEmptyBody(t *testing.T) {
 
 	if got != "" {
 		t.Fatalf("ConvertMarkdownToStorage() = %q, want empty string", got)
+	}
+}
+
+func TestParseHeading(t *testing.T) {
+	t.Parallel()
+
+	level, text, ok := parseHeading("### title")
+	if !ok || level != 3 || text != "title" {
+		t.Fatalf("parseHeading() = (%d, %q, %v), want (3, %q, true)", level, text, ok, "title")
 	}
 }
