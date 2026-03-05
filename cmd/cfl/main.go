@@ -42,10 +42,11 @@ type httpClient struct {
 }
 
 func newHTTPClientFromEnv() (page.Client, error) {
-	siteBaseURL := strings.TrimSuffix(os.Getenv("CONFLUENCE_BASE_URL"), "/")
-	if siteBaseURL == "" {
-		return nil, errors.New("CONFLUENCE_BASE_URL is required")
+	domain, err := normalizeConfluenceDomain(os.Getenv("CONFLUENCE_DOMAIN"))
+	if err != nil {
+		return nil, err
 	}
+	siteBaseURL := "https://" + domain
 
 	email := firstNonEmpty(os.Getenv("CONFLUENCE_EMAIL"), os.Getenv("ATLASSIAN_EMAIL"))
 	if email == "" {
@@ -188,15 +189,25 @@ func (c *httpClient) doJSON(ctx context.Context, method string, endpoint string,
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotFound {
+		closeErr := resp.Body.Close()
+		if closeErr != nil {
+			return closeErr
+		}
 		return page.ErrNotFound
 	}
 
 	raw, err := io.ReadAll(resp.Body)
+	closeErr := resp.Body.Close()
 	if err != nil {
+		if closeErr != nil {
+			return fmt.Errorf("read response body: %w", errors.Join(err, closeErr))
+		}
 		return err
+	}
+	if closeErr != nil {
+		return closeErr
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("confluence API %s %s failed: %s", method, endpoint, strings.TrimSpace(string(raw)))
@@ -242,6 +253,27 @@ func firstNonEmpty(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeConfluenceDomain(value string) (string, error) {
+	domain := strings.TrimSpace(value)
+	if domain == "" {
+		return "", errors.New("CONFLUENCE_DOMAIN is required")
+	}
+	domain = strings.TrimPrefix(domain, "https://")
+	domain = strings.TrimPrefix(domain, "http://")
+	domain = strings.TrimSuffix(domain, "/")
+	if strings.Contains(domain, "/") {
+		return "", errors.New("CONFLUENCE_DOMAIN must be a host like example.atlassian.net")
+	}
+	if !strings.HasSuffix(domain, ".atlassian.net") {
+		return "", errors.New("CONFLUENCE_DOMAIN must end with .atlassian.net")
+	}
+	parts := strings.Split(domain, ".")
+	if len(parts) < 3 || parts[0] == "" {
+		return "", errors.New("CONFLUENCE_DOMAIN must be in the form <site>.atlassian.net")
+	}
+	return domain, nil
 }
 
 type apiPage struct {

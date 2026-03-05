@@ -151,9 +151,15 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 	if err != nil {
 		return err
 	}
-	defer watcher.Close()
-
-	return a.watchLoop(ctx, watcher.Events(), path)
+	watchErr := a.watchLoop(ctx, watcher.Events(), path)
+	closeErr := watcher.Close()
+	if watchErr != nil {
+		return watchErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return nil
 }
 
 func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string) error {
