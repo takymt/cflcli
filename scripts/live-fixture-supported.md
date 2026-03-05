@@ -69,4 +69,24 @@ const codeBlock = "this is code block";
 - Collapsed body line 2
 </details>
 
+:::info
+information
+:::
+
+:::note
+note
+:::
+
+:::success
+success
+:::
+
+:::warning
+warning
+:::
+
+:::error
+error
+:::
+
 <!-- TODO: add details about this section -->
