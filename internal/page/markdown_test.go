@@ -53,7 +53,7 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 			input: "[Anchor text](https://developer.atlassian.com/cloud/confluence/)\nhttps://zenn.dev/zenn/articles/markdown-guide\n",
 			contains: []string{
 				`<a href="https://developer.atlassian.com/cloud/confluence/">Anchor text</a>`,
-				`<a href="https://zenn.dev/zenn/articles/markdown-guide">https://zenn.dev/zenn/articles/markdown-guide</a>`,
+				`<a href="https://zenn.dev/zenn/articles/markdown-guide" data-card-appearance="inline">https://zenn.dev/zenn/articles/markdown-guide</a>`,
 			},
 		},
 		{

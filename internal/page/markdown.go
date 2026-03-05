@@ -517,7 +517,7 @@ func convertInline(text string) string {
 		return stash(`<a href="` + html.EscapeString(sub[2]) + `">` + html.EscapeString(sub[1]) + `</a>`)
 	})
 	text = autolinkRE.ReplaceAllStringFunc(text, func(m string) string {
-		return stash(`<a href="` + html.EscapeString(m) + `">` + html.EscapeString(m) + `</a>`)
+		return stash(`<a href="` + html.EscapeString(m) + `" data-card-appearance="inline">` + html.EscapeString(m) + `</a>`)
 	})
 
 	escaped := html.EscapeString(text)
