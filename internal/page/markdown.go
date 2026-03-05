@@ -40,17 +40,7 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 			continue
 		}
 
-		if strings.HasPrefix(trimmed, "# ") || strings.HasPrefix(trimmed, "## ") || strings.HasPrefix(trimmed, "### ") {
-			level := 1
-			text := trimmed[2:]
-			switch {
-			case strings.HasPrefix(trimmed, "### "):
-				level = 3
-				text = trimmed[4:]
-			case strings.HasPrefix(trimmed, "## "):
-				level = 2
-				text = trimmed[3:]
-			}
+		if level, text, ok := parseHeading(trimmed); ok {
 			parts = append(parts, fmt.Sprintf("<h%d>%s</h%d>", level, html.EscapeString(text), level))
 			i++
 			continue
@@ -67,7 +57,7 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 			continue
 		}
 
-		if ordered, text := orderedListItem(trimmed); ordered {
+		if ordered, _ := orderedListItem(trimmed); ordered {
 			var items []string
 			for i < len(lines) {
 				ok, item := orderedListItem(strings.TrimSpace(lines[i]))
@@ -78,7 +68,6 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 				i++
 			}
 			parts = append(parts, "<ol>"+strings.Join(items, "")+"</ol>")
-			_ = text
 			continue
 		}
 
@@ -98,6 +87,18 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 	}
 
 	return strings.Join(parts, "\n"), nil
+}
+
+func parseHeading(line string) (level int, text string, ok bool) {
+	switch {
+	case strings.HasPrefix(line, "### "):
+		return 3, line[4:], true
+	case strings.HasPrefix(line, "## "):
+		return 2, line[3:], true
+	case strings.HasPrefix(line, "# "):
+		return 1, line[2:], true
+	}
+	return 0, "", false
 }
 
 func isUnorderedItem(line string) bool {

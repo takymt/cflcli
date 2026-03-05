@@ -67,7 +67,7 @@ func newHTTPClientFromEnv() (page.Client, error) {
 		siteBaseURL: siteBaseURL,
 		apiBaseURL:  apiBaseURL,
 		authHeader:  "Basic " + base64.StdEncoding.EncodeToString([]byte(email+":"+token)),
-		http:        http.DefaultClient,
+		http:        &http.Client{},
 	}, nil
 }
 
@@ -226,7 +226,7 @@ func (c *httpClient) resolveNext(next string) string {
 	if strings.HasPrefix(next, "/") {
 		return c.siteBaseURL + next
 	}
-	return c.apiBaseURL + "/" + strings.TrimPrefix(next, "/")
+	return c.apiBaseURL + "/" + next
 }
 
 func (c *httpClient) toPage(api *apiPage) page.Page {

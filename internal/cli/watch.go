@@ -2,12 +2,14 @@ package cli
 
 import (
 	"os"
+	"sync"
 	"time"
 )
 
 type pollingWatcher struct {
-	events chan struct{}
-	done   chan struct{}
+	events    chan struct{}
+	done      chan struct{}
+	closeOnce sync.Once
 }
 
 func newPollingWatcher(path string, interval time.Duration) (*pollingWatcher, error) {
@@ -58,6 +60,6 @@ func (w *pollingWatcher) Events() <-chan struct{} {
 }
 
 func (w *pollingWatcher) Close() error {
-	close(w.done)
+	w.closeOnce.Do(func() { close(w.done) })
 	return nil
 }

@@ -379,7 +379,7 @@ type fakeClient struct {
 func newFakeClient() *fakeClient {
 	return &fakeClient{
 		nextID:      401,
-		spaceRoots:  map[string]string{"100": "300"},
+		spaceRoots:  make(map[string]string),
 		children:    make(map[string]map[string]string),
 		pages:       make(map[string]*page.Page),
 		updateCalls: make(map[string]int),
