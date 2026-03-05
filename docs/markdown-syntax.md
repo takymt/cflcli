@@ -232,12 +232,45 @@ Multi-line comment handling is currently out of scope.
 <p style="text-align: center;">centered text</p>
 <p style="text-align: right;">right aligned text</p>
 
+### Alerts
+
+```md
+:::info
+information
+:::
+
+:::note
+note
+:::
+
+:::success
+success
+:::
+
+:::warning
+warning
+:::
+
+:::error
+error
+:::
+```
+
+![information](/docs/images/panels/information.png)
+
+![note](/docs/images/panels/note.png)
+
+![success](/docs/images/panels/success.png)
+
+![warning](/docs/images/panels/warning.png)
+
+![error](/docs/images/panels/error.png)
+
 ## Not Supported Yet
 
 The following items are not supported yet and are planned for future support.
 
 - Relative Links
-- Alerts
 - Mermaidjs Rendering
 - Tex Rendering
 - Link Carts
