@@ -64,6 +64,13 @@ https://zenn.dev/zenn/articles/markdown-guide
 const codeBlock = "this is code block";
 ```
 
+```mermaid
+graph TD
+  Start --> Parse
+  Parse --> Render
+  Render --> Done
+```
+
 <details><summary>title</summary>
 - Collapsed body line 1
 - Collapsed body line 2
