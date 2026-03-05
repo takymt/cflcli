@@ -138,29 +138,9 @@ func convertHorizontalRule(line string) (string, bool) {
 }
 
 func convertFencedCode(lines []string, start int) (string, int, bool) {
-	block, ok := parseFencedCodeBlock(lines, start)
-	if !ok {
-		return "", start, false
-	}
-	var languageParam string
-	if block.Language != "" {
-		languageParam = `<ac:parameter ac:name="language">` + html.EscapeString(block.Language) + `</ac:parameter>`
-	}
-	return `<ac:structured-macro ac:name="code">` + languageParam + `<ac:plain-text-body><![CDATA[` +
-		block.Body +
-		`]]></ac:plain-text-body></ac:structured-macro>`, block.Next, true
-}
-
-type fencedCodeBlock struct {
-	Language string
-	Body     string
-	Next     int
-}
-
-func parseFencedCodeBlock(lines []string, start int) (fencedCodeBlock, bool) {
 	trimmed := strings.TrimSpace(lines[start])
 	if !strings.HasPrefix(trimmed, "```") {
-		return fencedCodeBlock{}, false
+		return "", start, false
 	}
 	lang := strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
 	var block []string
@@ -173,11 +153,13 @@ func parseFencedCodeBlock(lines []string, start int) (fencedCodeBlock, bool) {
 		block = append(block, lines[i])
 		i++
 	}
-	return fencedCodeBlock{
-		Language: lang,
-		Body:     strings.Join(block, "\n"),
-		Next:     i,
-	}, true
+	var languageParam string
+	if lang != "" {
+		languageParam = `<ac:parameter ac:name="language">` + html.EscapeString(lang) + `</ac:parameter>`
+	}
+	return `<ac:structured-macro ac:name="code">` + languageParam + `<ac:plain-text-body><![CDATA[` +
+		strings.Join(block, "\n") +
+		`]]></ac:plain-text-body></ac:structured-macro>`, i, true
 }
 
 func convertTaskList(lines []string, start int) (string, int, bool) {

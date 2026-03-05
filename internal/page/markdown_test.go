@@ -208,29 +208,3 @@ func TestParseHeading(t *testing.T) {
 		t.Fatalf("parseHeading() = (%d, %q, %v), want (3, %q, true)", level, text, ok, "title")
 	}
 }
-
-func TestParseFencedCodeBlock(t *testing.T) {
-	t.Parallel()
-
-	lines := []string{
-		"```mermaid",
-		"graph TD",
-		"  A --> B",
-		"```",
-		"next",
-	}
-
-	got, ok := parseFencedCodeBlock(lines, 0)
-	if !ok {
-		t.Fatal("parseFencedCodeBlock() ok = false, want true")
-	}
-	if got.Language != "mermaid" {
-		t.Fatalf("parseFencedCodeBlock() language = %q, want %q", got.Language, "mermaid")
-	}
-	if got.Body != "graph TD\n  A --> B" {
-		t.Fatalf("parseFencedCodeBlock() body = %q, want %q", got.Body, "graph TD\n  A --> B")
-	}
-	if got.Next != 4 {
-		t.Fatalf("parseFencedCodeBlock() next = %d, want 4", got.Next)
-	}
-}
