@@ -21,6 +21,7 @@ var (
 	strikeRE         = regexp.MustCompile(`~~([^~]+)~~`)
 	inlineCommentRE  = regexp.MustCompile(`<!--.*?-->`)
 	tableSepRE       = regexp.MustCompile(`^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$`)
+	emojiCodeRE      = regexp.MustCompile(`:([a-z][a-z0-9_-]*):`)
 )
 
 // ConvertMarkdownToStorage converts the supported markdown subset to Confluence storage format.
@@ -408,7 +409,7 @@ func convertInline(text string) string {
 
 	placeholders := make(map[string]string)
 	stash := func(value string) string {
-		key := "%%INLINE_" + strconv.Itoa(len(placeholders)) + "%%"
+		key := "@@INLINE" + strconv.Itoa(len(placeholders)) + "@@"
 		placeholders[key] = value
 		return key
 	}
@@ -416,6 +417,13 @@ func convertInline(text string) string {
 	text = codeSpanRE.ReplaceAllStringFunc(text, func(m string) string {
 		value := strings.TrimSuffix(strings.TrimPrefix(m, "`"), "`")
 		return stash("<code>" + html.EscapeString(value) + "</code>")
+	})
+	text = emojiCodeRE.ReplaceAllStringFunc(text, func(m string) string {
+		sub := emojiCodeRE.FindStringSubmatch(m)
+		if len(sub) != 2 {
+			return m
+		}
+		return stash(`<ac:emoticon ac:name="` + sub[1] + `" />`)
 	})
 	text = imageRE.ReplaceAllStringFunc(text, func(m string) string {
 		sub := imageRE.FindStringSubmatch(m)

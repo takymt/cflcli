@@ -194,13 +194,29 @@ Use `<summary>` to define the block title.
 Comments written in this format are not rendered on the published page.
 Multi-line comment handling is currently out of scope.
 
+### Emoji
+
+```md
+:smile:
+:sad:
+:information:
+:warning:
+```
+
+![smile](/docs/images/emojis/smile.svg)
+
+![sad](/docs/images/emojis/sad.svg)
+
+![information](/docs/images/emojis/information.svg)
+
+![warning](/docs/images/emojis/warning.svg)
+
 ## Not Supported Yet
 
 The following items are not supported yet and are planned for future support.
 
 - Color Models
 - Relative Links
-- Confluence Emoji
 - Alerts
 - Mermaidjs Rendering
 - Tex Rendering

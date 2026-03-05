@@ -64,6 +64,14 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 			},
 		},
 		{
+			name:  "emoji shortcode",
+			input: ":smile: :warning:\n",
+			contains: []string{
+				`<ac:emoticon ac:name="smile" />`,
+				`<ac:emoticon ac:name="warning" />`,
+			},
+		},
+		{
 			name:  "task list",
 			input: "- [ ] Task 1\n- [x] Task 2\n",
 			contains: []string{
