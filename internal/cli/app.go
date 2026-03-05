@@ -7,9 +7,9 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/page"
 )
 
@@ -35,45 +35,58 @@ func New(client page.Client, stdout io.Writer) *App {
 
 // Run executes the requested page command.
 func (a *App) Run(ctx context.Context, args []string, workdir string) int {
-	if len(args) < 2 || args[0] != "page" {
-		a.println("usage: cfl page <new|sync> ...")
+	rootCmd := &cobra.Command{
+		Use:           "cfl",
+		SilenceErrors: true,
+		SilenceUsage:  true,
+	}
+	rootCmd.SetOut(a.stdout)
+	rootCmd.SetErr(a.stdout)
+	rootCmd.SetArgs(args)
+
+	pageCmd := &cobra.Command{
+		Use: "page",
+	}
+
+	var (
+		newSpaceID  string
+		newParentID string
+	)
+	pageNewCmd := &cobra.Command{
+		Use:   "new <title>.md",
+		Args:  cobra.ExactArgs(1),
+		Short: "Create a local markdown file and a Confluence page",
+		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
+			return a.runPageNew(cmd.Context(), workdir, cmdArgs[0], newSpaceID, newParentID)
+		},
+	}
+	pageNewCmd.Flags().StringVar(&newSpaceID, "space-id", "", "Confluence space id")
+	pageNewCmd.Flags().StringVar(&newParentID, "parent-id", "", "Confluence parent page id")
+	_ = pageNewCmd.MarkFlagRequired("space-id")
+
+	var syncWatch bool
+	pageSyncCmd := &cobra.Command{
+		Use:   "sync <file>.md",
+		Args:  cobra.ExactArgs(1),
+		Short: "Sync a local markdown file to Confluence",
+		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
+			return a.runPageSync(cmd.Context(), workdir, cmdArgs[0], syncWatch)
+		},
+	}
+	pageSyncCmd.Flags().BoolVar(&syncWatch, "watch", false, "Watch the file and sync on changes")
+
+	pageCmd.AddCommand(pageNewCmd, pageSyncCmd)
+	rootCmd.AddCommand(pageCmd)
+
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		a.println(err.Error())
 		return 1
 	}
 
-	switch args[1] {
-	case "new":
-		if err := a.runPageNew(ctx, args[2:], workdir); err != nil {
-			a.println(err.Error())
-			return 1
-		}
-		return 0
-	case "sync":
-		if err := a.runPageSync(ctx, args[2:], workdir); err != nil {
-			a.println(err.Error())
-			return 1
-		}
-		return 0
-	default:
-		a.println("usage: cfl page <new|sync> ...")
-		return 1
-	}
+	return 0
 }
 
-func (a *App) runPageNew(ctx context.Context, args []string, workdir string) error {
-	fileArg, options, err := splitArgs(args)
-	if err != nil {
-		return err
-	}
-	if fileArg == "" {
-		return errors.New("page new requires exactly one markdown file argument")
-	}
-
-	spaceID := options["space-id"]
-	parentID := options["parent-id"]
-	if spaceID == "" {
-		return errors.New("--space-id is required")
-	}
-
+func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, spaceID string, parentID string) error {
 	path := resolvePath(workdir, fileArg)
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("target file %q already exists", fileArg)
@@ -116,16 +129,7 @@ func (a *App) runPageNew(ctx context.Context, args []string, workdir string) err
 	return nil
 }
 
-func (a *App) runPageSync(ctx context.Context, args []string, workdir string) error {
-	fileArg, options, err := splitArgs(args)
-	if err != nil {
-		return err
-	}
-	if fileArg == "" {
-		return errors.New("page sync requires exactly one markdown file argument")
-	}
-	watch := options["watch"] == "true"
-
+func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, watch bool) error {
 	path := resolvePath(workdir, fileArg)
 	if !watch {
 		updated, err := a.syncFile(ctx, path)
@@ -247,32 +251,4 @@ func colorGreen(s string) string {
 
 func colorRed(s string) string {
 	return "\x1b[31m" + s + "\x1b[0m"
-}
-
-func splitArgs(args []string) (string, map[string]string, error) {
-	options := make(map[string]string)
-	var fileArg string
-
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
-		if strings.HasPrefix(arg, "--") {
-			name := strings.TrimPrefix(arg, "--")
-			if name == "watch" {
-				options[name] = "true"
-				continue
-			}
-			if i+1 >= len(args) {
-				return "", nil, fmt.Errorf("missing value for --%s", name)
-			}
-			options[name] = args[i+1]
-			i++
-			continue
-		}
-		if fileArg != "" {
-			return "", nil, errors.New("expected exactly one markdown file argument")
-		}
-		fileArg = arg
-	}
-
-	return fileArg, options, nil
 }
