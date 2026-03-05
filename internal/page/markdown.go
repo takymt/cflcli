@@ -22,6 +22,7 @@ var (
 	inlineCommentRE  = regexp.MustCompile(`<!--.*?-->`)
 	tableSepRE       = regexp.MustCompile(`^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$`)
 	emojiCodeRE      = regexp.MustCompile(`:([a-z][a-z0-9_-]*):`)
+	colorSpanRE      = regexp.MustCompile(`<span style="color:\s*rgb\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*\);\s*">([^<]*)</span>`)
 )
 
 // ConvertMarkdownToStorage converts the supported markdown subset to Confluence storage format.
@@ -417,6 +418,19 @@ func convertInline(text string) string {
 	text = codeSpanRE.ReplaceAllStringFunc(text, func(m string) string {
 		value := strings.TrimSuffix(strings.TrimPrefix(m, "`"), "`")
 		return stash("<code>" + html.EscapeString(value) + "</code>")
+	})
+	text = colorSpanRE.ReplaceAllStringFunc(text, func(m string) string {
+		sub := colorSpanRE.FindStringSubmatch(m)
+		if len(sub) != 2 {
+			return m
+		}
+		start := strings.Index(m, ">")
+		end := strings.LastIndex(m, "</span>")
+		if start < 0 || end < 0 || end <= start {
+			return m
+		}
+		openTag := m[:start+1]
+		return stash(openTag + html.EscapeString(sub[1]) + "</span>")
 	})
 	text = emojiCodeRE.ReplaceAllStringFunc(text, func(m string) string {
 		sub := emojiCodeRE.FindStringSubmatch(m)

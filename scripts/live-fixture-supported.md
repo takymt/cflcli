@@ -50,6 +50,7 @@ https://zenn.dev/zenn/articles/markdown-guide
 :sad:
 :information:
 :warning:
+<span style="color: rgb(255,0,0);">red text</span>
 
 | Head | Head | Head |
 | ---- | ---- | ---- |

@@ -72,6 +72,13 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 			},
 		},
 		{
+			name:  "color span",
+			input: `<span style="color: rgb(255,0,0);">red text</span>` + "\n",
+			contains: []string{
+				`<span style="color: rgb(255,0,0);">red text</span>`,
+			},
+		},
+		{
 			name:  "task list",
 			input: "- [ ] Task 1\n- [x] Task 2\n",
 			contains: []string{

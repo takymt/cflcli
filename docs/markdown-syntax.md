@@ -203,6 +203,7 @@ Multi-line comment handling is currently out of scope.
 :warning:
 ```
 
+
 ![smile](/docs/images/emojis/smile.svg)
 
 ![sad](/docs/images/emojis/sad.svg)
@@ -211,11 +212,18 @@ Multi-line comment handling is currently out of scope.
 
 ![warning](/docs/images/emojis/warning.svg)
 
+### Color
+
+```md
+<span style="color: rgb(255,0,0);">red text</span>
+```
+
+<span style="color: rgb(255,0,0);">red text</span>
+
 ## Not Supported Yet
 
 The following items are not supported yet and are planned for future support.
 
-- Color Models
 - Relative Links
 - Alerts
 - Mermaidjs Rendering
