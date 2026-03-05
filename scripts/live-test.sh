@@ -5,6 +5,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 created_files=()
+created_page_ids=()
+last_created_page_id=""
 results_dir="$repo_root/test_results"
 fixture_file="$repo_root/scripts/live-fixture-supported.md"
 
@@ -42,15 +44,25 @@ prepare_results_dir() {
 cleanup_on_error() {
   local status
   status=$?
-  if [[ "$status" -eq 0 ]]; then
-    return
-  fi
 
   local file
-  for file in "${created_files[@]}"; do
-    if [[ -f "$file" ]]; then
-      rm -f "$file"
-      echo "INFO: removed local file on failure: ${file}" >&2
+  if [[ "$status" -ne 0 ]]; then
+    for file in "${created_files[@]}"; do
+      if [[ -f "$file" ]]; then
+        rm -f "$file"
+        echo "INFO: removed local file on failure: ${file}" >&2
+      fi
+    done
+  fi
+
+  local page_id
+  for page_id in "${created_page_ids[@]}"; do
+    if [[ -n "$page_id" ]]; then
+      if ! scripts/delete-page.sh "$page_id" >/dev/null 2>&1; then
+        echo "WARN: failed to delete page ${page_id}" >&2
+      else
+        echo "INFO: deleted page ${page_id}" >&2
+      fi
     fi
   done
 }
@@ -80,7 +92,8 @@ new_page_file() {
     echo "ERROR: failed to parse page-id from: $url" >&2
     exit 1
   fi
-  printf '%s' "$page_id"
+  created_page_ids+=("$page_id")
+  last_created_page_id="$page_id"
 }
 
 prepare_sync_target_from_fixture() {
@@ -106,7 +119,8 @@ test_case_page_new() {
 
   echo "INFO: test_case_page_new"
   echo "INFO: running: ./cfl page new ${file_name} --parent-id ${PARENT_ID} --space-id ${SPACE_ID}"
-  ./cfl page new "$file_name" --parent-id "${PARENT_ID}" --space-id "${SPACE_ID}"
+  new_page_file "$file_name"
+  echo "INFO: created page id: ${last_created_page_id}"
   echo "INFO: created local file: ${file_name}"
 }
 
@@ -119,7 +133,8 @@ test_case_page_sync() {
 
   echo "INFO: test_case_page_sync"
   echo "INFO: creating seed page for sync target"
-  page_id="$(new_page_file "$seed_file")"
+  new_page_file "$seed_file"
+  page_id="$last_created_page_id"
   prepare_sync_target_from_fixture "$page_id" "$sync_file"
 
   echo "INFO: running: ./cfl page sync ${sync_file}"
@@ -136,7 +151,8 @@ test_case_page_sync_watch() {
 
   echo "INFO: test_case_page_sync_watch"
   echo "INFO: creating seed page for watch target"
-  page_id="$(new_page_file "$seed_file")"
+  new_page_file "$seed_file"
+  page_id="$last_created_page_id"
   prepare_sync_target_from_fixture "$page_id" "$watch_file"
 
   echo "INFO: running watch: ./cfl page sync ${watch_file} --watch"
