@@ -127,7 +127,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 		return err
 	}
 
-	a.println(created.URL)
+	a.printPageURL("Created page URL", created.URL)
 	if watch {
 		return a.runPageSync(ctx, workdir, fileArg, true)
 	}
@@ -142,7 +142,7 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 		if err != nil {
 			return err
 		}
-		a.println(updated.URL)
+		a.printPageURL("Synced page URL", updated.URL)
 		return nil
 	}
 
@@ -150,7 +150,7 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 	if err != nil {
 		a.println(colorRed("!") + " " + err.Error())
 	} else {
-		a.println(first.URL)
+		a.printPageURL("Synced page URL", first.URL)
 	}
 
 	watcher, err := newPollingWatcher(path, a.watchPollInterval)
@@ -241,6 +241,10 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 
 func (a *App) println(s string) {
 	_, _ = fmt.Fprintln(a.stdout, s)
+}
+
+func (a *App) printPageURL(prefix string, pageURL string) {
+	a.println(prefix + ": " + pageURL)
 }
 
 func resolvePath(workdir string, file string) string {
