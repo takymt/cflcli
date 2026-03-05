@@ -279,6 +279,18 @@ graph TD
 ```
 ~~~
 
+You can also set image options in the fence info:
+
+~~~md
+```mermaid width=900 align=right
+graph TD
+  A --> B
+```
+~~~
+
+- Supported options:
+  - `width=<number>`
+  - `align=left|center|right`
 - During `page sync`, `mermaid` fenced blocks are rendered into local SVG files and referenced as page attachments (`mermaid-1.svg`, `mermaid-2.svg`, ...).
 - Rendering uses [mermaid-cli](https://github.com/mermaid-js/mermaid-cli).
 - If one mermaid block exceeds 2000 characters, sync returns an error.
@@ -287,6 +299,5 @@ graph TD
 
 The following items are not supported yet and are planned for future support.
 
-- Relative Links
 - Tex Rendering
 - Footnotes
