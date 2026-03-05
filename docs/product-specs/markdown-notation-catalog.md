@@ -1,48 +1,50 @@
-# Markdown Notation Catalog for Confluence Sync
+# Markdown Notation Catalog for Confluence CLI
 
-## Purpose
+This document provides a concise catalog of Markdown notations for Confluence CLI.
 
-Define a clear, implementation-oriented catalog of Markdown notations that should be recognized for Confluence page sync.
-
-This document is based on observed content from Confluence page `1146968` in space `TEST`.
-
-## Scope
-
-This catalog describes user-facing notation and expected rendering intent.
-It does not prescribe parser internals or API payload shape.
-
-## Canonical Notations
-
-### Headings
+## Headings
 
 ```md
 # Heading 1
 ## Heading 2
 ### Heading 3
 #### Heading 4
+##### Heading 5
+###### Heading 6
 ```
 
-Expected intent: preserve heading levels.
+# Heading 1
+## Heading 2
+### Heading 3
+#### Heading 4
+##### Heading 5
+###### Heading 6
 
-### Unordered Lists (including nesting)
+### Unordered Lists
 
 ```md
 - Hello!
 - Hola!
   - Bonjour!
-  - Hi!
+    - Hi!
 ```
 
-Expected intent: preserve nested list hierarchy.
+- Hello!
+- Hola!
+  - Bonjour!
+    - Hi!
 
 ### Ordered Lists
 
 ```md
 1. First
 2. Second
+   1. Second-First
 ```
 
-Expected intent: render as ordered list.
+1. First
+2. Second
+   1. Second-First
 
 ### Links
 
@@ -50,7 +52,7 @@ Expected intent: render as ordered list.
 [Anchor text](https://developer.atlassian.com/cloud/confluence/)
 ```
 
-Expected intent: render as clickable inline link.
+[Anchor text](https://developer.atlassian.com/cloud/confluence/)
 
 ### Images and Caption Text
 
@@ -60,28 +62,26 @@ Expected intent: render as clickable inline link.
 _Caption (underscore)_
 ```
 
-Expected intent: render image with alt text and caption-like inline text formatting.
+![alt-text](https://developer.atlassian.com/favicon.ico)
+*Caption*
 
 ### Task Lists
 
 ```md
 - [ ] Task 1
 - [x] Task 2
-- [x] This is not intended as a task item if escaped or plain text
 ```
 
-Expected intent:
-- checked and unchecked task items should map to Confluence tasks
-- plain text that only looks similar should stay a normal list item
+- [ ] Task 1
+- [x] Task 2
 
 ### Blockquotes (including nesting)
 
 ```md
 > Quote
->> Nested quote
 ```
 
-Expected intent: preserve quote nesting.
+> Quote
 
 ### Horizontal Rule
 
@@ -89,21 +89,27 @@ Expected intent: preserve quote nesting.
 ---
 ```
 
-Expected intent: render a thematic break.
+---
 
 ### Inline Text Styles
 
 ```md
-*italic*
-_italic_
-**bold**
-__bold__
-~~strikethrough~~
-Inline `code`
-\*escaped literal asterisks\*
+- *italic*
+- _italic_
+- **bold**
+- __bold__
+- ~~strikethrough~~
+- Inline `code`
+- \*escaped literal asterisks\*
 ```
 
-Expected intent: preserve inline emphasis, code spans, and escaping.
+- *italic*
+- _italic_
+- **bold**
+- __bold__
+- ~~strikethrough~~
+- Inline `code`
+- \*escaped literal asterisks\*
 
 ### Underline (raw HTML fallback)
 
@@ -111,7 +117,7 @@ Expected intent: preserve inline emphasis, code spans, and escaping.
 <u>underline via raw html</u>
 ```
 
-Expected intent: when supported, preserve raw HTML underline semantics.
+<u>underline via raw html</u>
 
 ### URL Autolink / Link Card Candidate
 
@@ -129,6 +135,20 @@ Expected intent: keep as a valid link, optionally rendered as inline card by Con
 
 Expected intent: map to supported Confluence emoji where possible.
 
+### Table
+
+```md
+| Head | Head | Head |
+| ---- | ---- | ---- |
+| Text | Text | Text |
+| Text | Text | Text |
+```
+
+| Head | Head | Head |
+| ---- | ---- | ---- |
+| Text | Text | Text |
+| Text | Text | Text |
+
 ### Fenced Code Block
 
 ~~~md
@@ -137,20 +157,26 @@ const codeBlock = "this is code block";
 ```
 ~~~
 
-Expected intent: render as Confluence code block with language metadata.
+```javascript
+const codeBlock = "this is code block";
+```
 
 ### Expand (Details-like block)
 
 ```md
-<details>
-<summary>Collapsed title</summary>
-
-Collapsed body line 1
-Collapsed body line 2
-</details>
+:::details title
+- Collapsed body line 1
+- Collapsed body line 2
+:::
 ```
 
-Expected intent: map to Confluence expand/collapse structure.
+<details>
+<summary>title</summary>
+<ul>
+<li>Collapsed body line 1</li>
+<li>Collapsed body line 2</li>
+</ul>
+</details>
 
 ### Admonition-like Blocks
 
@@ -171,16 +197,13 @@ Expected intent: map to Confluence expand/collapse structure.
 > Error text
 ```
 
-Expected intent: map to Confluence informational panels (info, tip, note, warning) when possible.
+### Inline Comments
 
-## Non-Goals
+```md
+<!-- TODO: add details about this section -->
+```
 
-- Exact one-to-one macro parity for every Confluence storage extension.
-- Perfect round-trip between Markdown and storage format.
-- Defining behavior for unsupported third-party Markdown extensions not listed above.
+<!-- TODO: add details about this section -->
 
-## Acceptance Criteria
-
-- The CLI documentation and tests can reference this catalog as the canonical user-visible notation list.
-- Each listed notation has at least one test case in implementation test suites.
-- Unsupported notation must fail gracefully or degrade to readable plain text.
+Comments written in this format are not rendered on the published page.
+Multi-line comment handling is currently out of scope.
