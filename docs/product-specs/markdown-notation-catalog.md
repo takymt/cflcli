@@ -202,4 +202,5 @@ The following items are not supported yet and are planned for future support.
 - Alerts
 - Mermaidjs Rendering
 - Tex Rendering
+- Link Carts
 - Footnotes
