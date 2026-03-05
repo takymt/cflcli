@@ -58,9 +58,18 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 		},
 		{
 			name:  "images",
-			input: "![alt-text](https://developer.atlassian.com/favicon.ico)\n",
+			input: "![alt-text](https://developer.atlassian.com/favicon.ico)\n![local-image](./assets/diagram.png)\n",
 			contains: []string{
 				`<ac:image ac:alt="alt-text"><ri:url ri:value="https://developer.atlassian.com/favicon.ico" /></ac:image>`,
+				`<ac:image ac:alt="local-image"><ri:attachment ri:filename="diagram.png" /></ac:image>`,
+			},
+		},
+		{
+			name:  "relative markdown links become attachments",
+			input: "[Spec](./docs/spec.pdf)\n[Sibling](../files/sibling.txt)\n",
+			contains: []string{
+				`<ac:link><ri:attachment ri:filename="spec.pdf" /><ac:plain-text-link-body><![CDATA[Spec]]></ac:plain-text-link-body></ac:link>`,
+				`<ac:link><ri:attachment ri:filename="sibling.txt" /><ac:plain-text-link-body><![CDATA[Sibling]]></ac:plain-text-link-body></ac:link>`,
 			},
 		},
 		{
@@ -145,11 +154,13 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 		},
 		{
 			name:  "fenced code block",
-			input: "```javascript\nconst codeBlock = \"this is code block\";\n```\n",
+			input: "```javascript\nconst codeBlock = \"this is code block\";\n[Spec](./docs/spec.pdf)\n![img](./assets/diagram.png)\n```\n",
 			contains: []string{
 				`ac:name="code"`,
 				`<ac:parameter ac:name="language">javascript</ac:parameter>`,
 				`<![CDATA[const codeBlock = "this is code block";`,
+				`[Spec](./docs/spec.pdf)`,
+				`![img](./assets/diagram.png)`,
 			},
 		},
 		{

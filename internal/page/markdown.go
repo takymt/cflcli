@@ -3,6 +3,8 @@ package page
 import (
 	"fmt"
 	"html"
+	"net/url"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -11,7 +13,7 @@ import (
 var (
 	codeSpanRE       = regexp.MustCompile("`([^`]+)`")
 	imageRE          = regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-	linkRE           = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^)]+)\)`)
+	linkRE           = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 	autolinkRE       = regexp.MustCompile(`\bhttps?://[^\s<]+`)
 	strongItalicRE   = regexp.MustCompile(`\*\*\*([^*]+)\*\*\*`)
 	strongAsterisk   = regexp.MustCompile(`\*\*([^*]+)\*\*`)
@@ -507,14 +509,31 @@ func convertInline(text string) string {
 		if len(sub) != 3 {
 			return m
 		}
-		return stash(`<ac:image ac:alt="` + html.EscapeString(sub[1]) + `"><ri:url ri:value="` + html.EscapeString(sub[2]) + `" /></ac:image>`)
+		target := strings.TrimSpace(sub[2])
+		if isHTTPURL(target) {
+			return stash(`<ac:image ac:alt="` + html.EscapeString(sub[1]) + `"><ri:url ri:value="` + html.EscapeString(target) + `" /></ac:image>`)
+		}
+		filename := attachmentFilenameFromTarget(target)
+		if filename == "" {
+			return m
+		}
+		return stash(`<ac:image ac:alt="` + html.EscapeString(sub[1]) + `"><ri:attachment ri:filename="` + html.EscapeString(filename) + `" /></ac:image>`)
 	})
 	text = linkRE.ReplaceAllStringFunc(text, func(m string) string {
 		sub := linkRE.FindStringSubmatch(m)
 		if len(sub) != 3 {
 			return m
 		}
-		return stash(`<a href="` + html.EscapeString(sub[2]) + `">` + html.EscapeString(sub[1]) + `</a>`)
+		label := strings.TrimSpace(sub[1])
+		target := strings.TrimSpace(sub[2])
+		if isHTTPURL(target) {
+			return stash(`<a href="` + html.EscapeString(target) + `">` + html.EscapeString(label) + `</a>`)
+		}
+		filename := attachmentFilenameFromTarget(target)
+		if filename == "" {
+			return m
+		}
+		return stash(`<ac:link><ri:attachment ri:filename="` + html.EscapeString(filename) + `" /><ac:plain-text-link-body><![CDATA[` + label + `]]></ac:plain-text-link-body></ac:link>`)
 	})
 	text = autolinkRE.ReplaceAllStringFunc(text, func(m string) string {
 		return stash(`<a href="` + html.EscapeString(m) + `" data-card-appearance="inline">` + html.EscapeString(m) + `</a>`)
@@ -619,6 +638,25 @@ func parseTaskItem(line string) (status string, text string, ok bool) {
 	default:
 		return "", "", false
 	}
+}
+
+func isHTTPURL(value string) bool {
+	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
+}
+
+func attachmentFilenameFromTarget(target string) string {
+	parsed, err := url.Parse(target)
+	if err != nil {
+		return ""
+	}
+	if parsed.Path == "" {
+		return ""
+	}
+	name := path.Base(parsed.Path)
+	if name == "." || name == "/" || name == "" {
+		return ""
+	}
+	return name
 }
 
 func orderedListItem(line string) (bool, string) {
