@@ -71,7 +71,7 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 			if err != nil {
 				return "", err
 			}
-			parts = append(parts, `<ac:image><ri:attachment ri:filename="`+filename+`" /></ac:image>`)
+			parts = append(parts, `<ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="`+filename+`" /></ac:image>`)
 			continue
 		}
 		pending = append(pending, lines[i])

@@ -28,10 +28,10 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	if !strings.Contains(got, "<p>before</p>") {
 		t.Fatalf("converted storage = %q, want paragraph for 'before'", got)
 	}
-	if !strings.Contains(got, `<ac:image><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`) {
+	if !strings.Contains(got, `<ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`) {
 		t.Fatalf("converted storage = %q, want mermaid-1 attachment image macro", got)
 	}
-	if !strings.Contains(got, `<ac:image><ri:attachment ri:filename="mermaid-2.svg" /></ac:image>`) {
+	if !strings.Contains(got, `<ac:image ac:align="center" ac:layout="center"><ri:attachment ri:filename="mermaid-2.svg" /></ac:image>`) {
 		t.Fatalf("converted storage = %q, want mermaid-2 attachment image macro", got)
 	}
 	if !strings.Contains(got, "<p>middle</p>") {
