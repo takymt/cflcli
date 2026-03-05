@@ -2,15 +2,11 @@ package cli
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -234,104 +230,13 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 		return page.Page{}, err
 	}
 
-	converted, err := a.convertBodyWithMermaid(ctx, path, body)
+	converted, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body)
 	if err != nil {
 		return page.Page{}, err
 	}
 
 	title := page.TitleFromPath(path)
 	return a.client.UpdatePage(ctx, frontmatter.PageID, title, converted)
-}
-
-func (a *App) convertBodyWithMermaid(ctx context.Context, path string, body string) (string, error) {
-	lines := strings.Split(body, "\n")
-	var (
-		parts   []string
-		pending []string
-	)
-
-	flushPending := func() error {
-		if len(pending) == 0 {
-			return nil
-		}
-		converted, err := page.ConvertMarkdownToStorage(strings.Join(pending, "\n"))
-		if err != nil {
-			return err
-		}
-		if converted != "" {
-			parts = append(parts, converted)
-		}
-		pending = pending[:0]
-		return nil
-	}
-
-	for i := 0; i < len(lines); i++ {
-		trimmed := strings.TrimSpace(lines[i])
-		if strings.HasPrefix(trimmed, "```") && strings.TrimSpace(strings.TrimPrefix(trimmed, "```")) == "mermaid" {
-			if err := flushPending(); err != nil {
-				return "", err
-			}
-			start := i
-			i++
-			var mermaidLines []string
-			closed := false
-			for i < len(lines) {
-				if strings.HasPrefix(strings.TrimSpace(lines[i]), "```") {
-					closed = true
-					break
-				}
-				mermaidLines = append(mermaidLines, lines[i])
-				i++
-			}
-			if !closed {
-				pending = append(pending, lines[start:]...)
-				break
-			}
-
-			filename, err := renderMermaidSVG(ctx, path, strings.Join(mermaidLines, "\n"))
-			if err != nil {
-				return "", err
-			}
-			parts = append(parts, `<ac:image><ri:attachment ri:filename="`+filename+`" /></ac:image>`)
-			continue
-		}
-		pending = append(pending, lines[i])
-	}
-
-	if err := flushPending(); err != nil {
-		return "", err
-	}
-	return strings.Join(parts, "\n"), nil
-}
-
-func renderMermaidSVG(ctx context.Context, markdownPath string, source string) (string, error) {
-	sum := sha256.Sum256([]byte(source))
-	filename := "mermaid-" + hex.EncodeToString(sum[:])[:12] + ".svg"
-	svgPath := filepath.Join(filepath.Dir(markdownPath), filename)
-
-	tmpFile, err := os.CreateTemp("", "cfl-mermaid-*.mmd")
-	if err != nil {
-		return "", err
-	}
-	tmpPath := tmpFile.Name()
-	if _, err := tmpFile.WriteString(source); err != nil {
-		_ = tmpFile.Close()
-		_ = os.Remove(tmpPath)
-		return "", err
-	}
-	if err := tmpFile.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", err
-	}
-	defer func() {
-		_ = os.Remove(tmpPath)
-	}()
-
-	output, err := exec.CommandContext(ctx, "mmdc", "-i", tmpPath, "-o", svgPath).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("mmdc failed: %w: %s", err, strings.TrimSpace(string(output)))
-	}
-	return filename, nil
 }
 
 func (a *App) println(s string) {
