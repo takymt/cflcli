@@ -121,10 +121,12 @@ Nested blockquotes are unsupported (legacy in Confluence).
 ### URL Autolink / Link Card Candidate
 
 ```md
-https://zenn.dev/zenn/articles/markdown-guide
+https://github.com/takymt/cflcli/blob/main/docs/markdown-syntax.md
 ```
 
-Expected intent: keep as a valid link, optionally rendered as inline card by Confluence rules.
+https://github.com/takymt/cflcli/blob/main/docs/markdown-syntax.md
+
+Rendered in Confluence: Inline Smart Link (resolved), or raw URL (fallback).
 
 ### Line breaks
 
@@ -273,5 +275,4 @@ The following items are not supported yet and are planned for future support.
 - Relative Links
 - Mermaidjs Rendering
 - Tex Rendering
-- Link Carts
 - Footnotes
