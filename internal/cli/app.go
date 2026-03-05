@@ -167,6 +167,7 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 		timer  *time.Timer
 		timerC <-chan time.Time
 	)
+	quitCh := startWatchQuitListener()
 
 	stopTimer := func() {
 		if timer == nil {
@@ -183,6 +184,9 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 	for {
 		select {
 		case <-ctx.Done():
+			stopTimer()
+			return nil
+		case <-quitCh:
 			stopTimer()
 			return nil
 		case _, ok := <-events:
@@ -202,7 +206,7 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 			if err != nil {
 				a.println(colorRed("!") + " " + err.Error())
 			} else {
-				a.print(colorGreen("."))
+				a.println(colorGreen("."))
 			}
 			timerC = nil
 		}
@@ -233,10 +237,6 @@ func (a *App) println(s string) {
 	_, _ = fmt.Fprintln(a.stdout, s)
 }
 
-func (a *App) print(s string) {
-	_, _ = fmt.Fprint(a.stdout, s)
-}
-
 func resolvePath(workdir string, file string) string {
 	if filepath.IsAbs(file) {
 		return file
@@ -250,4 +250,29 @@ func colorGreen(s string) string {
 
 func colorRed(s string) string {
 	return "\x1b[31m" + s + "\x1b[0m"
+}
+
+func startWatchQuitListener() <-chan struct{} {
+	ch := make(chan struct{}, 1)
+
+	info, err := os.Stdin.Stat()
+	if err != nil || (info.Mode()&os.ModeCharDevice) == 0 {
+		return ch
+	}
+
+	go func() {
+		buf := make([]byte, 1)
+		for {
+			n, readErr := os.Stdin.Read(buf)
+			if readErr != nil {
+				return
+			}
+			if n == 1 && (buf[0] == 'q' || buf[0] == 'Q') {
+				ch <- struct{}{}
+				return
+			}
+		}
+	}()
+
+	return ch
 }

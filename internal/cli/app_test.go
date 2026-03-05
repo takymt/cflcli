@@ -303,6 +303,7 @@ func TestRunPageSyncWatch(t *testing.T) {
 		return page != nil && strings.Contains(page.Body, "<h1>Burst 2</h1>")
 	})
 
+	waitForStableUpdateCount(t, client, "400", 120*time.Millisecond)
 	syncedAfterBurst := client.updateCount("400")
 
 	otherPath := filepath.Join(dir, "other.md")
@@ -360,6 +361,28 @@ func waitFor(t *testing.T, timeout time.Duration, cond func() bool) {
 	}
 
 	t.Fatal("condition not met before timeout")
+}
+
+func waitForStableUpdateCount(t *testing.T, client *fakeClient, id string, stableFor time.Duration) {
+	t.Helper()
+
+	last := client.updateCount(id)
+	stableSince := time.Now()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+		current := client.updateCount(id)
+		if current != last {
+			last = current
+			stableSince = time.Now()
+			continue
+		}
+		if time.Since(stableSince) >= stableFor {
+			return
+		}
+	}
+
+	t.Fatal("update count did not stabilize before timeout")
 }
 
 func stripANSI(s string) string {
