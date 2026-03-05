@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -257,6 +258,58 @@ func TestRunPageSync(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestRunPageSync_MermaidCreatesSVGAndAttachmentStorage(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("mmdc"); err != nil {
+		t.Skip("mmdc is required for mermaid sync test")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "guide.md")
+	body := "---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n" +
+		"```mermaid\n" +
+		"graph TD\n" +
+		"A-->B\n" +
+		"```\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+	exit := app.Run(context.Background(), []string{"page", "sync", "guide.md"}, dir)
+	if exit != 0 {
+		t.Fatalf("Run() exit = %d, want 0; output=%q", exit, stdout.String())
+	}
+
+	updated := client.pageByID("400")
+	if updated == nil {
+		t.Fatal("expected page 400 to exist")
+	}
+	if !strings.Contains(updated.Body, `<ac:image><ri:attachment ri:filename="mermaid-`) {
+		t.Fatalf("updated body = %q, want mermaid attachment image macro", updated.Body)
+	}
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir() error = %v", err)
+	}
+	foundSVG := false
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), "mermaid-") && strings.HasSuffix(entry.Name(), ".svg") {
+			foundSVG = true
+			break
+		}
+	}
+	if !foundSVG {
+		t.Fatal("expected generated mermaid-*.svg file")
 	}
 }
 
