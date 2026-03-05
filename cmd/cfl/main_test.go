@@ -54,3 +54,43 @@ func TestNormalizeConfluenceDomain(t *testing.T) {
 		})
 	}
 }
+
+func TestToPageURL(t *testing.T) {
+	t.Parallel()
+
+	client := &httpClient{siteBaseURL: "https://example.atlassian.net"}
+
+	t.Run("uses webui path under wiki", func(t *testing.T) {
+		t.Parallel()
+
+		api := &apiPage{ID: "123"}
+		api.Links.WebUI = "/spaces/TEST/pages/123"
+		got := client.toPage(api)
+		want := "https://example.atlassian.net/wiki/spaces/TEST/pages/123"
+		if got.URL != want {
+			t.Fatalf("toPage().URL = %q, want %q", got.URL, want)
+		}
+	})
+
+	t.Run("uses absolute webui url", func(t *testing.T) {
+		t.Parallel()
+
+		api := &apiPage{ID: "123"}
+		api.Links.WebUI = "https://example.atlassian.net/wiki/spaces/TEST/pages/123"
+		got := client.toPage(api)
+		if got.URL != api.Links.WebUI {
+			t.Fatalf("toPage().URL = %q, want %q", got.URL, api.Links.WebUI)
+		}
+	})
+
+	t.Run("falls back to legacy viewpage url", func(t *testing.T) {
+		t.Parallel()
+
+		api := &apiPage{ID: "123"}
+		got := client.toPage(api)
+		want := "https://example.atlassian.net/wiki/pages/viewpage.action?pageId=123"
+		if got.URL != want {
+			t.Fatalf("toPage().URL = %q, want %q", got.URL, want)
+		}
+	})
+}

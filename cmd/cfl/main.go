@@ -344,13 +344,27 @@ func (c *httpClient) resolveNext(next string) string {
 }
 
 func (c *httpClient) toPage(api *apiPage) page.Page {
+	pageURL := c.siteBaseURL + "/wiki/pages/viewpage.action?pageId=" + api.ID
+	if api.Links.WebUI != "" {
+		switch {
+		case strings.HasPrefix(api.Links.WebUI, "http://"), strings.HasPrefix(api.Links.WebUI, "https://"):
+			pageURL = api.Links.WebUI
+		case strings.HasPrefix(api.Links.WebUI, "/wiki/"):
+			pageURL = c.siteBaseURL + api.Links.WebUI
+		case strings.HasPrefix(api.Links.WebUI, "/"):
+			pageURL = c.siteBaseURL + "/wiki" + api.Links.WebUI
+		default:
+			pageURL = c.siteBaseURL + "/wiki/" + api.Links.WebUI
+		}
+	}
+
 	return page.Page{
 		ID:       api.ID,
 		SpaceID:  api.SpaceID,
 		ParentID: api.ParentID,
 		Title:    api.Title,
 		Body:     api.Body.Storage.Value,
-		URL:      c.siteBaseURL + "/wiki/pages/viewpage.action?pageId=" + api.ID,
+		URL:      pageURL,
 	}
 }
 
@@ -397,4 +411,7 @@ type apiPage struct {
 			Value string `json:"value"`
 		} `json:"storage"`
 	} `json:"body"`
+	Links struct {
+		WebUI string `json:"webui"`
+	} `json:"_links"`
 }
