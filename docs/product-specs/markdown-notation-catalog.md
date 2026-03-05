@@ -163,11 +163,14 @@ const codeBlock = "this is code block";
 
 ### Expand (Details-like block)
 
+Wrap content with `<details>` to create an expand/collapse block.
+Use `<summary>` to define the block title.
+
 ```md
-:::details title
+<details><summary>title</summary>
 - Collapsed body line 1
 - Collapsed body line 2
-:::
+</details>
 ```
 
 <details>
@@ -179,6 +182,8 @@ const codeBlock = "this is code block";
 </details>
 
 ### Admonition-like Blocks
+
+[GitHub Markdown alerts](https://docs.github.com/en/get-started/writing-on-github/getting-started-with-writing-and-formatting-on-github/basic-writing-and-formatting-syntax#alerts) style.
 
 ```md
 > [!NOTE]
