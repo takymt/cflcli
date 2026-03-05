@@ -102,6 +102,8 @@ This document provides a concise catalog of Markdown notations for Confluence CL
 
 ### Blockquotes (including nesting)
 
+Nested blockquotes are not supported and will remain unsupported because this is a legacy capability on Confluence.
+
 ```md
 > Quote
 ```
@@ -204,4 +206,3 @@ The following items are not supported yet and are planned for future support.
 - Tex Rendering
 - Link Carts
 - Footnotes
-- Nested quote
