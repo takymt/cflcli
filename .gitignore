@@ -13,3 +13,4 @@ dist/
 # local
 .local/
 .env
+test_results/

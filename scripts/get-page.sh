@@ -66,12 +66,7 @@ main() {
       -H "Accept: application/json" \
       "https://${CONFLUENCE_DOMAIN}/wiki/api/v2/pages/${page_id}?body-format=${body_format}"
   )"
-
-  if command -v jq >/dev/null 2>&1; then
-    printf '%s\n' "$response" | jq .
-  else
-    printf '%s\n' "$response"
-  fi
+  printf '%s\n' "$response"
 }
 
 main "$@"

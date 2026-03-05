@@ -5,6 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
 created_file=""
+results_dir="$repo_root/test_results"
 
 load_env() {
   if [[ ! -f ".env" ]]; then
@@ -33,6 +34,10 @@ build_cfl() {
   mise run build
 }
 
+prepare_results_dir() {
+  mkdir -p "$results_dir"
+}
+
 cleanup_on_error() {
   local status
   status=$?
@@ -49,7 +54,7 @@ cleanup_on_error() {
 test_case_page_new() {
   local random_suffix file_name output
   random_suffix="$(date +%s)-$RANDOM"
-  file_name="page-new-${random_suffix}.md"
+  file_name="test_results/page-new-${random_suffix}.md"
   created_file="$file_name"
 
   echo "INFO: test_case_page_new"
@@ -63,6 +68,7 @@ main() {
   trap cleanup_on_error EXIT
   load_env
   require_env CONFLUENCE_DOMAIN CONFLUENCE_EMAIL CONFLUENCE_API_TOKEN SPACE_ID PARENT_ID
+  prepare_results_dir
   build_cfl
   test_case_page_new
 }
