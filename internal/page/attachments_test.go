@@ -37,7 +37,7 @@ func TestSyncAttachmentsFromStorage(t *testing.T) {
 
 		client := &fakeAttachmentClient{}
 		storage := `<ac:image><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`
-		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", filepath.Join(dir, "guide.md"), storage); err != nil {
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", filepath.Join(dir, "guide.md"), storage, nil); err != nil {
 			t.Fatalf("SyncAttachmentsFromStorage() error = %v", err)
 		}
 		if len(client.putCalls) != 1 {
@@ -56,10 +56,10 @@ func TestSyncAttachmentsFromStorage(t *testing.T) {
 		client := &fakeAttachmentClient{}
 		storage := `<ac:image><ri:attachment ri:filename="diagram.svg" /></ac:image>`
 		markdownPath := filepath.Join(dir, "guide.md")
-		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage); err != nil {
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage, nil); err != nil {
 			t.Fatalf("first SyncAttachmentsFromStorage() error = %v", err)
 		}
-		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage); err != nil {
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage, nil); err != nil {
 			t.Fatalf("second SyncAttachmentsFromStorage() error = %v", err)
 		}
 		if len(client.putCalls) != 1 {
@@ -78,10 +78,10 @@ func TestSyncAttachmentsFromStorage(t *testing.T) {
 		client := &fakeAttachmentClient{}
 		storage := `<ac:image><ri:attachment ri:filename="diagram.svg" /></ac:image>`
 		markdownPath := filepath.Join(dir, "guide.md")
-		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage); err != nil {
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage, nil); err != nil {
 			t.Fatalf("first SyncAttachmentsFromStorage() error = %v", err)
 		}
-		if err := SyncAttachmentsFromStorage(context.Background(), client, "401", markdownPath, storage); err != nil {
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "401", markdownPath, storage, nil); err != nil {
 			t.Fatalf("second SyncAttachmentsFromStorage() error = %v", err)
 		}
 		if len(client.putCalls) != 2 {
@@ -95,7 +95,7 @@ func TestSyncAttachmentsFromStorage(t *testing.T) {
 		dir := t.TempDir()
 		client := &fakeAttachmentClient{}
 		storage := `<ac:image><ri:attachment ri:filename="missing.svg" /></ac:image>`
-		err := SyncAttachmentsFromStorage(context.Background(), client, "400", filepath.Join(dir, "guide.md"), storage)
+		err := SyncAttachmentsFromStorage(context.Background(), client, "400", filepath.Join(dir, "guide.md"), storage, nil)
 		if err == nil {
 			t.Fatal("SyncAttachmentsFromStorage() error = nil, want non-nil")
 		}
@@ -110,9 +110,30 @@ func TestSyncAttachmentsFromStorage(t *testing.T) {
 		}
 		client := &fakeAttachmentClient{failPut: true}
 		storage := `<ac:image><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`
-		err := SyncAttachmentsFromStorage(context.Background(), client, "400", filepath.Join(dir, "guide.md"), storage)
+		err := SyncAttachmentsFromStorage(context.Background(), client, "400", filepath.Join(dir, "guide.md"), storage, nil)
 		if err == nil {
 			t.Fatal("SyncAttachmentsFromStorage() error = nil, want non-nil")
+		}
+	})
+
+	t.Run("uses cached mermaid asset path when local file is absent", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		markdownPath := filepath.Join(dir, "guide.md")
+		generatedPath := filepath.Join(dir, "generated-mermaid.svg")
+		if err := os.WriteFile(generatedPath, []byte("<svg></svg>"), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		client := &fakeAttachmentClient{}
+		storage := `<ac:image><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`
+		generated := map[string]string{"mermaid-1.svg": generatedPath}
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage, generated); err != nil {
+			t.Fatalf("SyncAttachmentsFromStorage() error = %v", err)
+		}
+		if len(client.putCalls) != 1 {
+			t.Fatalf("putCalls = %d, want 1", len(client.putCalls))
 		}
 	})
 }

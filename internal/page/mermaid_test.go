@@ -45,7 +45,11 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	}
 
 	for _, filename := range []string{"mermaid-1.svg", "mermaid-2.svg"} {
-		if _, err := os.Stat(filepath.Join(dir, filename)); err != nil {
+		svgPath, ok := generatedPaths[filename]
+		if !ok {
+			t.Fatalf("generatedPaths missing %s", filename)
+		}
+		if _, err := os.Stat(svgPath); err != nil {
 			t.Fatalf("expected generated %s: %v", filename, err)
 		}
 	}

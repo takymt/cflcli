@@ -34,10 +34,18 @@ func AttachmentFilenamesFromStorage(storage string) []string {
 }
 
 // SyncAttachmentsFromStorage uploads all referenced attachments before page body update.
-func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID string, markdownPath string, storage string) error {
+func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID string, markdownPath string, storage string, generatedMermaid map[string]string) error {
 	filenames := AttachmentFilenamesFromStorage(storage)
 	if len(filenames) == 0 {
 		return nil
+	}
+	mermaidCacheFile, err := mermaidCachePath(markdownPath)
+	if err != nil {
+		return err
+	}
+	mermaidCache, err := loadHashCache(mermaidCacheFile)
+	if err != nil {
+		return err
 	}
 
 	type fileEntry struct {
@@ -48,20 +56,28 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 	entries := make([]fileEntry, 0, len(filenames))
 	current := make(map[string]string, len(filenames))
 	for _, filename := range filenames {
-		attachmentPath := filepath.Join(filepath.Dir(markdownPath), filename)
-		if _, err := os.Stat(attachmentPath); err != nil {
-			return fmt.Errorf("attachment file %q not found: %w", filename, err)
+		entry := fileEntry{filename: filename}
+		if generatedPath, ok := generatedMermaid[filename]; ok {
+			entry.path = generatedPath
+			hash, hashErr := fileSHA256(generatedPath)
+			if hashErr != nil {
+				return fmt.Errorf("hash attachment %q: %w", filename, hashErr)
+			}
+			entry.hash = hash
+		} else if attachmentPath, resolveErr := resolveAttachmentPath(markdownPath, filename); resolveErr == nil {
+			entry.path = attachmentPath
+			hash, hashErr := fileSHA256(attachmentPath)
+			if hashErr != nil {
+				return fmt.Errorf("hash attachment %q: %w", filename, hashErr)
+			}
+			entry.hash = hash
+		} else if hash, ok := mermaidCache.Entries[filename]; ok {
+			entry.hash = hash
+		} else {
+			return fmt.Errorf("attachment file %q not found: %w", filename, os.ErrNotExist)
 		}
-		hash, err := fileSHA256(attachmentPath)
-		if err != nil {
-			return fmt.Errorf("hash attachment %q: %w", filename, err)
-		}
-		entries = append(entries, fileEntry{
-			filename: filename,
-			path:     attachmentPath,
-			hash:     hash,
-		})
-		current[filename] = hash
+		entries = append(entries, entry)
+		current[filename] = entry.hash
 	}
 
 	cachePath, err := attachmentCachePath(markdownPath)
@@ -88,6 +104,9 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 	}
 
 	for _, entry := range toUpload {
+		if entry.path == "" {
+			return fmt.Errorf("attachment %q changed but render output is unavailable", entry.filename)
+		}
 		if err := client.PutAttachment(ctx, pageID, entry.path); err != nil {
 			return fmt.Errorf("put attachment %q: %w", entry.filename, err)
 		}
@@ -99,4 +118,12 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 		return err
 	}
 	return nil
+}
+
+func resolveAttachmentPath(markdownPath string, filename string) (string, error) {
+	attachmentPath := filepath.Join(filepath.Dir(markdownPath), filename)
+	if _, err := os.Stat(attachmentPath); err == nil {
+		return attachmentPath, nil
+	}
+	return "", os.ErrNotExist
 }

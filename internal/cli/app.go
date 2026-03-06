@@ -261,18 +261,24 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 	if progress != nil {
 		progress.Set("Rendering Mermaid...")
 	}
-	converted, _, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
+	converted, generatedMermaid, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
 	if err != nil {
 		if progress != nil {
 			progress.Clear()
 		}
 		return page.Page{}, err
 	}
+	defer func() {
+		for _, generatedPath := range generatedMermaid {
+			_ = os.Remove(generatedPath)
+			_ = os.Remove(filepath.Dir(generatedPath))
+		}
+	}()
 
 	if progress != nil {
 		progress.Set("Uploading attachments...")
 	}
-	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, converted); err != nil {
+	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, converted, generatedMermaid); err != nil {
 		if progress != nil {
 			progress.Clear()
 		}

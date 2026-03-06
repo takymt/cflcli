@@ -41,16 +41,23 @@ func attachmentCachePath(markdownPath string) (string, error) {
 }
 
 func cachePathFor(kind string, markdownPath string) (string, error) {
-	base, err := os.UserCacheDir()
+	base, key, err := cacheBaseAndKey(markdownPath)
 	if err != nil {
 		return "", err
+	}
+	return filepath.Join(base, "cflcli", kind, key+".json"), nil
+}
+
+func cacheBaseAndKey(markdownPath string) (string, string, error) {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return "", "", err
 	}
 	abs := markdownPath
 	if resolved, absErr := filepath.Abs(markdownPath); absErr == nil {
 		abs = resolved
 	}
-	name := textSHA256(abs) + ".json"
-	return filepath.Join(base, "cflcli", kind, name), nil
+	return base, textSHA256(abs), nil
 }
 
 func loadHashCache(path string) (hashCache, error) {
