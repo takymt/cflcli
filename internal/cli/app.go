@@ -52,7 +52,7 @@ func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 	}
 
 	var (
-		newSpaceID  string
+		newSpaceKey string
 		newParentID string
 		newWatch    bool
 	)
@@ -61,13 +61,13 @@ func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 		Args:  cobra.ExactArgs(1),
 		Short: "Create a local markdown file and a Confluence page",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
-			return a.runPageNew(cmd.Context(), workdir, cmdArgs[0], newSpaceID, newParentID, newWatch)
+			return a.runPageNew(cmd.Context(), workdir, cmdArgs[0], newSpaceKey, newParentID, newWatch)
 		},
 	}
-	pageNewCmd.Flags().StringVar(&newSpaceID, "space-id", "", "Confluence space id")
+	pageNewCmd.Flags().StringVar(&newSpaceKey, "space-key", "", "Confluence space key")
 	pageNewCmd.Flags().StringVar(&newParentID, "parent-id", "", "Confluence parent page id")
 	pageNewCmd.Flags().BoolVar(&newWatch, "watch", false, "Watch the created file and sync on changes")
-	_ = pageNewCmd.MarkFlagRequired("space-id")
+	_ = pageNewCmd.MarkFlagRequired("space-key")
 
 	var syncWatch bool
 	pageSyncCmd := &cobra.Command{
@@ -120,7 +120,7 @@ func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 	return 0
 }
 
-func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, spaceID string, parentID string, watch bool) error {
+func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, spaceKey string, parentID string, watch bool) error {
 	path := resolvePath(workdir, fileArg)
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("target file %q already exists", fileArg)
@@ -129,8 +129,11 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 	}
 
 	title := page.TitleFromPath(fileArg)
+	spaceID, err := a.client.ResolveSpaceIDByKey(ctx, spaceKey)
+	if err != nil {
+		return fmt.Errorf("resolve space id: %w", err)
+	}
 	if parentID == "" {
-		var err error
 		parentID, err = a.client.ResolveSpaceRootPage(ctx, spaceID)
 		if err != nil {
 			return fmt.Errorf("resolve root parent: %w", err)
@@ -151,7 +154,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 	}
 
 	data := page.FormatMarkdownFile(page.Frontmatter{
-		SpaceID:  spaceID,
+		SpaceKey: spaceKey,
 		PageID:   created.ID,
 		ParentID: parentID,
 	}, "")
@@ -262,7 +265,7 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 		return page.Page{}, err
 	}
 
-	converted, generatedPaths, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body)
+	converted, generatedPaths, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
 	if err != nil {
 		return page.Page{}, err
 	}
@@ -277,7 +280,11 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 	}
 
 	title := page.TitleFromPath(path)
-	return a.client.UpdatePage(ctx, frontmatter.PageID, title, converted)
+	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, converted)
+	if err != nil {
+		return page.Page{}, err
+	}
+	return updated, nil
 }
 
 func (a *App) println(s string) {

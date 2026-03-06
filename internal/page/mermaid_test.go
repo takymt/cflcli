@@ -20,7 +20,7 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	path := filepath.Join(dir, "guide.md")
 	input := "before\n\n```mermaid\ngraph TD\nA-->B\n```\n\nmiddle\n\n```mermaid\ngraph TD\nB-->C\n```\n\nafter\n"
 
-	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
 	if err != nil {
 		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
 	}
@@ -62,7 +62,7 @@ func TestConvertMarkdownToStorageWithMermaid_WithWidthAndAlignOptions(t *testing
 	path := filepath.Join(dir, "guide.md")
 	input := "```mermaid width=900 align=right\ngraph TD\nA-->B\n```\n"
 
-	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
 	if err != nil {
 		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
 	}
@@ -84,11 +84,36 @@ func TestConvertMarkdownToStorageWithMermaid_OversizeReturnsError(t *testing.T) 
 	oversized := strings.Repeat("A", maxMermaidBlockChars+1)
 	input := "```mermaid\n" + oversized + "\n```\n"
 
-	_, _, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input)
+	_, _, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
 	if err == nil {
 		t.Fatal("ConvertMarkdownToStorageWithMermaid() error = nil, want oversize error")
 	}
 	if !strings.Contains(err.Error(), "exceeds") {
 		t.Fatalf("error = %q, want exceeds message", err.Error())
+	}
+}
+
+func TestConvertMarkdownToStorageWithMermaid_RelativeMarkdownLinkToWebUILinkCard(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	currentPath := filepath.Join(dir, "guide.md")
+	targetPath := filepath.Join(dir, "child.md")
+	target := "---\nspace-key: TEST\npage-id: 123\nparent-id: 200\n---\n# child\n"
+	if err := os.WriteFile(targetPath, []byte(target), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	input := "[Child](./child.md)\n"
+	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), currentPath, input, "https://example.atlassian.net")
+	if err != nil {
+		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
+	}
+	if len(generatedPaths) != 0 {
+		t.Fatalf("generatedPaths = %d, want 0", len(generatedPaths))
+	}
+	want := `<a href="https://example.atlassian.net/wiki/spaces/TEST/pages/123" data-card-appearance="inline">Child</a>`
+	if !strings.Contains(got, want) {
+		t.Fatalf("converted storage = %q, want %q", got, want)
 	}
 }

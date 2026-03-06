@@ -74,6 +74,26 @@ func newHTTPClientFromEnv() (page.Client, error) {
 	}, nil
 }
 
+func (c *httpClient) SiteBaseURL() string {
+	return c.siteBaseURL
+}
+
+func (c *httpClient) ResolveSpaceIDByKey(ctx context.Context, spaceKey string) (string, error) {
+	endpoint := c.apiBaseURL + "/spaces?keys=" + url.QueryEscape(spaceKey) + "&limit=1"
+	var response struct {
+		Results []struct {
+			ID string `json:"id"`
+		} `json:"results"`
+	}
+	if err := c.doJSON(ctx, http.MethodGet, endpoint, nil, &response); err != nil {
+		return "", err
+	}
+	if len(response.Results) == 0 || response.Results[0].ID == "" {
+		return "", fmt.Errorf("space key %q not found", spaceKey)
+	}
+	return response.Results[0].ID, nil
+}
+
 func (c *httpClient) ResolveSpaceRootPage(ctx context.Context, spaceID string) (string, error) {
 	var response struct {
 		HomepageID string `json:"homepageId"`

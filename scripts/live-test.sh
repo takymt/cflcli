@@ -84,7 +84,7 @@ extract_page_id_from_url() {
 new_page_file() {
   local file_name output url page_id
   file_name="$1"
-  output="$(./cfl page new "$file_name" --parent-id "${PARENT_ID}" --space-id "${SPACE_ID}")"
+  output="$(./cfl page new "$file_name" --parent-id "${PARENT_ID}" --space-key "${SPACE_KEY}")"
   echo "$output" >&2
   url="$(printf '%s' "$output" | tail -n1)"
   page_id="$(extract_page_id_from_url "$url")"
@@ -104,7 +104,7 @@ prepare_sync_target_from_fixture() {
   cp "$fixture_file" "$target_file"
   tmp="${target_file}.tmp"
   sed \
-    -e "s/__SPACE_ID__/${SPACE_ID}/g" \
+    -e "s/__SPACE_KEY__/${SPACE_KEY}/g" \
     -e "s/__PAGE_ID__/${page_id}/g" \
     -e "s/__PARENT_ID__/${PARENT_ID}/g" \
     "$target_file" >"$tmp"
@@ -118,7 +118,7 @@ test_case_page_new() {
   created_files+=("$file_name")
 
   echo "INFO: test_case_page_new"
-  echo "INFO: running: ./cfl page new ${file_name} --parent-id ${PARENT_ID} --space-id ${SPACE_ID}"
+  echo "INFO: running: ./cfl page new ${file_name} --parent-id ${PARENT_ID} --space-key ${SPACE_KEY}"
   new_page_file "$file_name"
   echo "INFO: created page id: ${last_created_page_id}"
   echo "INFO: created local file: ${file_name}"
@@ -194,7 +194,7 @@ EOF
 main() {
   trap cleanup EXIT
   load_env
-  require_env CONFLUENCE_DOMAIN CONFLUENCE_EMAIL CONFLUENCE_API_TOKEN SPACE_ID PARENT_ID
+  require_env CONFLUENCE_DOMAIN CONFLUENCE_EMAIL CONFLUENCE_API_TOKEN SPACE_KEY PARENT_ID
   prepare_results_dir
   build_cfl
   test_case_page_new

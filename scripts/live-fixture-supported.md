@@ -1,5 +1,5 @@
 ---
-space-id: __SPACE_ID__
+space-key: __SPACE_KEY__
 page-id: __PAGE_ID__
 parent-id: __PARENT_ID__
 ---

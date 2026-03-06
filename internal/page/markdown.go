@@ -527,6 +527,9 @@ func convertInline(text string) string {
 		label := strings.TrimSpace(sub[1])
 		target := strings.TrimSpace(sub[2])
 		if isHTTPURL(target) {
+			if strings.Contains(target, "/wiki/spaces/") {
+				return stash(`<a href="` + html.EscapeString(target) + `" data-card-appearance="inline">` + html.EscapeString(label) + `</a>`)
+			}
 			return stash(`<a href="` + html.EscapeString(target) + `">` + html.EscapeString(label) + `</a>`)
 		}
 		filename := attachmentFilenameFromTarget(target)

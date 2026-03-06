@@ -32,9 +32,9 @@ func TestRunPageNew(t *testing.T) {
 	}{
 		{
 			name:          "explicit parent",
-			args:          []string{"page", "new", "guide.md", "--space-id", "100", "--parent-id", "200"},
+			args:          []string{"page", "new", "guide.md", "--space-key", "TEST", "--parent-id", "200"},
 			wantExit:      0,
-			wantBody:      "---\nspace-id: 100\npage-id: 401\nparent-id: 200\n---\n",
+			wantBody:      "---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
 			wantParentID:  "200",
 			wantTitle:     "guide",
 			wantOutput:    "https://example.test/pages/401",
@@ -42,13 +42,14 @@ func TestRunPageNew(t *testing.T) {
 		},
 		{
 			name: "resolved root parent",
-			args: []string{"page", "new", "guide.md", "--space-id", "100"},
+			args: []string{"page", "new", "guide.md", "--space-key", "TEST"},
 			setup: func(t *testing.T, _ string, client *fakeClient) {
 				t.Helper()
 				client.spaceRoots["100"] = "300"
+				client.spaceKeyToID["TEST"] = "100"
 			},
 			wantExit:      0,
-			wantBody:      "---\nspace-id: 100\npage-id: 401\nparent-id: 300\n---\n",
+			wantBody:      "---\nspace-key: TEST\npage-id: 401\nparent-id: 300\n---\n",
 			wantParentID:  "300",
 			wantTitle:     "guide",
 			wantOutput:    "https://example.test/pages/401",
@@ -56,7 +57,7 @@ func TestRunPageNew(t *testing.T) {
 		},
 		{
 			name: "existing local file",
-			args: []string{"page", "new", "guide.md", "--space-id", "100", "--parent-id", "200"},
+			args: []string{"page", "new", "guide.md", "--space-key", "TEST", "--parent-id", "200"},
 			setup: func(t *testing.T, dir string, _ *fakeClient) {
 				t.Helper()
 				if err := os.WriteFile(filepath.Join(dir, "guide.md"), []byte("existing"), 0o644); err != nil {
@@ -69,7 +70,7 @@ func TestRunPageNew(t *testing.T) {
 		},
 		{
 			name: "duplicate sibling title",
-			args: []string{"page", "new", "guide.md", "--space-id", "100", "--parent-id", "200"},
+			args: []string{"page", "new", "guide.md", "--space-key", "TEST", "--parent-id", "200"},
 			setup: func(t *testing.T, _ string, client *fakeClient) {
 				t.Helper()
 				client.children["200"] = map[string]string{"guide": "999"}
@@ -80,9 +81,9 @@ func TestRunPageNew(t *testing.T) {
 		},
 		{
 			name:          "basename derived title",
-			args:          []string{"page", "new", "architecture-overview.md", "--space-id", "100", "--parent-id", "200"},
+			args:          []string{"page", "new", "architecture-overview.md", "--space-key", "TEST", "--parent-id", "200"},
 			wantExit:      0,
-			wantBody:      "---\nspace-id: 100\npage-id: 401\nparent-id: 200\n---\n",
+			wantBody:      "---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
 			wantParentID:  "200",
 			wantTitle:     "architecture-overview",
 			wantOutput:    "https://example.test/pages/401",
@@ -160,7 +161,7 @@ func TestRunPageSync(t *testing.T) {
 		{
 			name:     "valid file",
 			filename: "guide.md",
-			fileBody: "---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n# Title\n\nParagraph.\n",
+			fileBody: "---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Title\n\nParagraph.\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
 			},
@@ -172,7 +173,7 @@ func TestRunPageSync(t *testing.T) {
 		{
 			name:     "empty body",
 			filename: "guide.md",
-			fileBody: "---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n",
+			fileBody: "---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
 			},
@@ -191,21 +192,21 @@ func TestRunPageSync(t *testing.T) {
 		{
 			name:       "missing required key",
 			filename:   "guide.md",
-			fileBody:   "---\nspace-id: 100\npage-id: 400\n---\n",
+			fileBody:   "---\nspace-key: TEST\npage-id: 400\n---\n",
 			wantExit:   1,
 			wantOutput: "required",
 		},
 		{
 			name:       "malformed frontmatter",
 			filename:   "guide.md",
-			fileBody:   "---\nspace-id: [100\npage-id: 400\nparent-id: 200\n---\n",
+			fileBody:   "---\nspace-key: [TEST\npage-id: 400\nparent-id: 200\n---\n",
 			wantExit:   1,
 			wantOutput: "malformed",
 		},
 		{
 			name:     "title follows basename",
 			filename: "renamed-guide.md",
-			fileBody: "---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\nBody\n",
+			fileBody: "---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nBody\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", Title: "old-title", URL: "https://example.test/pages/400"}
 			},
@@ -301,7 +302,7 @@ func TestRunPageSync_AttachmentFailureDoesNotUpdateBody(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "guide.md")
-	content := "---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n```mermaid\ngraph TD\nA-->B\n```\n"
+	content := "---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n```mermaid\ngraph TD\nA-->B\n```\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -343,7 +344,7 @@ func TestRunPageSyncWatch(t *testing.T) {
 		}
 	}
 
-	write("---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n# Initial\n")
+	write("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Initial\n")
 
 	client := newFakeClient()
 	client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
@@ -365,9 +366,9 @@ func TestRunPageSyncWatch(t *testing.T) {
 		return strings.Contains(client.pageByID("400").Body, "<h1>Initial</h1>")
 	})
 
-	write("---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n# Burst 1\n")
+	write("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Burst 1\n")
 	time.Sleep(10 * time.Millisecond)
-	write("---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n# Burst 2\n")
+	write("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Burst 2\n")
 
 	waitFor(t, time.Second, func() bool {
 		page := client.pageByID("400")
@@ -391,7 +392,7 @@ func TestRunPageSyncWatch(t *testing.T) {
 		return strings.Contains(stripANSI(stdout.String()), "!")
 	})
 
-	write("---\nspace-id: 100\npage-id: 400\nparent-id: 200\n---\n# Recovered\n")
+	write("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Recovered\n")
 	waitFor(t, time.Second, func() bool {
 		page := client.pageByID("400")
 		return page != nil && strings.Contains(page.Body, "<h1>Recovered</h1>")
@@ -437,7 +438,7 @@ func TestRunPageNewWatch(t *testing.T) {
 
 	done := make(chan int, 1)
 	go func() {
-		done <- app.Run(ctx, []string{"page", "new", "guide.md", "--space-id", "100", "--parent-id", "200", "--watch"}, dir)
+		done <- app.Run(ctx, []string{"page", "new", "guide.md", "--space-key", "TEST", "--parent-id", "200", "--watch"}, dir)
 	}()
 
 	waitFor(t, time.Second, func() bool {
@@ -447,7 +448,7 @@ func TestRunPageNewWatch(t *testing.T) {
 		return client.updateCount("401") >= 1
 	})
 
-	if err := os.WriteFile(path, []byte("---\nspace-id: 100\npage-id: 401\nparent-id: 200\n---\n# Updated\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# Updated\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -520,6 +521,7 @@ type fakeClient struct {
 	mu                     sync.Mutex
 	nextID                 int
 	spaceRoots             map[string]string
+	spaceKeyToID           map[string]string
 	children               map[string]map[string]string
 	pages                  map[string]*page.Page
 	updateCalls            map[string]int
@@ -532,11 +534,27 @@ func newFakeClient() *fakeClient {
 	return &fakeClient{
 		nextID:                 401,
 		spaceRoots:             make(map[string]string),
+		spaceKeyToID:           map[string]string{"TEST": "100"},
 		children:               make(map[string]map[string]string),
 		pages:                  make(map[string]*page.Page),
 		updateCalls:            make(map[string]int),
 		failPutAttachmentNames: make(map[string]bool),
 	}
+}
+
+func (f *fakeClient) SiteBaseURL() string {
+	return "https://example.test"
+}
+
+func (f *fakeClient) ResolveSpaceIDByKey(ctx context.Context, spaceKey string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	id, ok := f.spaceKeyToID[spaceKey]
+	if !ok {
+		return "", page.ErrNotFound
+	}
+	return id, nil
 }
 
 func (f *fakeClient) ResolveSpaceRootPage(ctx context.Context, spaceID string) (string, error) {

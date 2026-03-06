@@ -78,6 +78,14 @@ type fakeAttachmentClient struct {
 	failPut  bool
 }
 
+func (f *fakeAttachmentClient) SiteBaseURL() string {
+	return "https://example.test"
+}
+
+func (f *fakeAttachmentClient) ResolveSpaceIDByKey(context.Context, string) (string, error) {
+	return "", nil
+}
+
 func (f *fakeAttachmentClient) ResolveSpaceRootPage(context.Context, string) (string, error) {
 	return "", nil
 }

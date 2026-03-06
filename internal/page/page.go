@@ -20,6 +20,8 @@ type Page struct {
 
 // Client defines the Confluence operations required by the page commands.
 type Client interface {
+	SiteBaseURL() string
+	ResolveSpaceIDByKey(ctx context.Context, spaceKey string) (string, error)
 	ResolveSpaceRootPage(ctx context.Context, spaceID string) (string, error)
 	PageExists(ctx context.Context, spaceID string, parentID string, title string) (bool, error)
 	CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string) (Page, error)

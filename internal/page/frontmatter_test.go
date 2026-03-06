@@ -17,13 +17,13 @@ func TestParseMarkdownFile(t *testing.T) {
 		{
 			name: "valid frontmatter",
 			input: "---\n" +
-				"space-id: 100\n" +
+				"space-key: TEST\n" +
 				"page-id: 200\n" +
 				"parent-id: 300\n" +
 				"---\n" +
 				"# hello\n",
 			wantFM: Frontmatter{
-				SpaceID:  "100",
+				SpaceKey: "TEST",
 				PageID:   "200",
 				ParentID: "300",
 			},
@@ -37,7 +37,7 @@ func TestParseMarkdownFile(t *testing.T) {
 		{
 			name: "missing required key",
 			input: "---\n" +
-				"space-id: 100\n" +
+				"space-key: TEST\n" +
 				"page-id: 200\n" +
 				"---\n",
 			wantError: true,
@@ -45,7 +45,7 @@ func TestParseMarkdownFile(t *testing.T) {
 		{
 			name: "unknown key",
 			input: "---\n" +
-				"space-id: 100\n" +
+				"space-key: TEST\n" +
 				"page-id: 200\n" +
 				"parent-id: 300\n" +
 				"title: hello\n" +
@@ -55,16 +55,16 @@ func TestParseMarkdownFile(t *testing.T) {
 		{
 			name: "malformed yaml",
 			input: "---\n" +
-				"space-id: [100\n" +
+				"space-key: [TEST\n" +
 				"page-id: 200\n" +
 				"parent-id: 300\n" +
 				"---\n",
 			wantError: true,
 		},
 		{
-			name: "non numeric id",
+			name: "invalid space key",
 			input: "---\n" +
-				"space-id: abc\n" +
+				"space-key: invalid key\n" +
 				"page-id: 200\n" +
 				"parent-id: 300\n" +
 				"---\n",
@@ -103,12 +103,12 @@ func TestFormatMarkdownFile(t *testing.T) {
 	t.Parallel()
 
 	got := string(FormatMarkdownFile(Frontmatter{
-		SpaceID:  "100",
+		SpaceKey: "TEST",
 		PageID:   "200",
 		ParentID: "300",
 	}, ""))
 
-	want := "---\nspace-id: 100\npage-id: 200\nparent-id: 300\n---\n"
+	want := "---\nspace-key: TEST\npage-id: 200\nparent-id: 300\n---\n"
 	if got != want {
 		t.Fatalf("FormatMarkdownFile() = %q, want %q", got, want)
 	}

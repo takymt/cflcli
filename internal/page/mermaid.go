@@ -3,6 +3,7 @@ package page
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,7 +15,9 @@ const maxMermaidBlockChars = 2000
 
 // ConvertMarkdownToStorageWithMermaid converts markdown to storage format and
 // turns mermaid fenced blocks into attachment image macros.
-func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string) (string, []string, error) {
+func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string, siteBaseURL string) (string, []string, error) {
+	markdown = resolveRelativeMarkdownLinks(markdownPath, markdown, strings.TrimSuffix(siteBaseURL, "/"))
+
 	lines := strings.Split(markdown, "\n")
 	var (
 		parts        []string
@@ -84,6 +87,79 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 		return "", nil, err
 	}
 	return strings.Join(parts, "\n"), generated, nil
+}
+
+func resolveRelativeMarkdownLinks(markdownPath string, markdown string, siteBaseURL string) string {
+	lines := strings.Split(markdown, "\n")
+	inFence := false
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
+		lines[i] = rewriteRelativeMarkdownLinksInLine(markdownPath, line, siteBaseURL)
+	}
+	return strings.Join(lines, "\n")
+}
+
+func rewriteRelativeMarkdownLinksInLine(markdownPath string, line string, siteBaseURL string) string {
+	matches := linkRE.FindAllStringSubmatchIndex(line, -1)
+	if len(matches) == 0 {
+		return line
+	}
+
+	var b strings.Builder
+	last := 0
+	for _, idx := range matches {
+		if len(idx) < 6 {
+			continue
+		}
+		start, end := idx[0], idx[1]
+		if start > 0 && line[start-1] == '!' {
+			continue
+		}
+
+		label := strings.TrimSpace(line[idx[2]:idx[3]])
+		target := strings.TrimSpace(line[idx[4]:idx[5]])
+
+		resolved := resolveRelativeMarkdownTarget(markdownPath, target, siteBaseURL)
+		b.WriteString(line[last:start])
+		if resolved != "" {
+			b.WriteString("[" + label + "](" + resolved + ")")
+		} else {
+			b.WriteString(line[start:end])
+		}
+		last = end
+	}
+	b.WriteString(line[last:])
+	return b.String()
+}
+
+func resolveRelativeMarkdownTarget(markdownPath string, target string, siteBaseURL string) string {
+	if target == "" || strings.HasPrefix(target, "/") || strings.Contains(target, "://") {
+		return ""
+	}
+	u, err := url.Parse(target)
+	if err != nil {
+		return ""
+	}
+	if u.Path == "" || !strings.HasSuffix(strings.ToLower(u.Path), ".md") {
+		return ""
+	}
+	absPath := filepath.Clean(filepath.Join(filepath.Dir(markdownPath), u.Path))
+	data, err := os.ReadFile(absPath)
+	if err != nil {
+		return ""
+	}
+	fm, _, err := ParseMarkdownFile(data)
+	if err != nil || fm.SpaceKey == "" || fm.PageID == "" {
+		return ""
+	}
+	return siteBaseURL + "/wiki/spaces/" + fm.SpaceKey + "/pages/" + fm.PageID
 }
 
 type mermaidOptions struct {
