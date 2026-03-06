@@ -419,6 +419,11 @@ func TestRunPageSyncWatch(t *testing.T) {
 	if !strings.Contains(output, "!") {
 		t.Fatalf("watch output = %q, want failure marker", output)
 	}
+	if strings.Contains(output, "Rendering Mermaid...") ||
+		strings.Contains(output, "Uploading attachments...") ||
+		strings.Contains(output, "Updating page...") {
+		t.Fatalf("watch output = %q, must not include progress lines on non-tty", output)
+	}
 }
 
 func TestRunPageSyncWatch_MissingFileReturnsError(t *testing.T) {
@@ -499,6 +504,11 @@ func TestRunPageNewWatch(t *testing.T) {
 	}
 	if strings.Count(output, ".") == 0 {
 		t.Fatalf("output = %q, want success dot from watch", output)
+	}
+	if strings.Contains(output, "Rendering Mermaid...") ||
+		strings.Contains(output, "Uploading attachments...") ||
+		strings.Contains(output, "Updating page...") {
+		t.Fatalf("output = %q, must not include progress lines on non-tty", output)
 	}
 }
 

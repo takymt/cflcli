@@ -153,8 +153,10 @@ func (a *App) runAttachmentDelete(ctx context.Context, pageID string, filename s
 }
 
 func (a *App) watchFile(ctx context.Context, path string, displayPath string, initialURL string, syncFirst bool) error {
+	progress := newProgressLine(a.stdout)
+
 	if syncFirst {
-		first, err := a.syncFile(ctx, path)
+		first, err := a.syncFileWithProgress(ctx, path, progress)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return err
@@ -172,7 +174,7 @@ func (a *App) watchFile(ctx context.Context, path string, displayPath string, in
 	if err != nil {
 		return err
 	}
-	watchErr := a.watchLoop(ctx, watcher.Events(), path)
+	watchErr := a.watchLoop(ctx, watcher.Events(), path, progress)
 	closeErr := watcher.Close()
 	if watchErr != nil {
 		return watchErr
@@ -184,7 +186,7 @@ func (a *App) watchFile(ctx context.Context, path string, displayPath string, in
 	return nil
 }
 
-func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string) error {
+func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string, progress syncProgress) error {
 	var (
 		timer  *time.Timer
 		timerC <-chan time.Time
@@ -224,11 +226,11 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 			}
 			timerC = timer.C
 		case <-timerC:
-			updated, err := a.syncFile(ctx, path)
+			_, err := a.syncFileWithProgress(ctx, path, progress)
 			if err != nil {
 				a.println(colorRed("!") + " " + err.Error())
 			} else {
-				a.println(colorGreen(".") + " Synced page URL: " + updated.URL)
+				a.println(colorGreen("."))
 			}
 			timerC = nil
 		}
@@ -236,6 +238,10 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 }
 
 func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
+	return a.syncFileWithProgress(ctx, path, nil)
+}
+
+func (a *App) syncFileWithProgress(ctx context.Context, path string, progress syncProgress) (page.Page, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return page.Page{}, err
@@ -249,8 +255,14 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 		return page.Page{}, err
 	}
 
+	if progress != nil {
+		progress.Set("Rendering Mermaid...")
+	}
 	converted, generatedPaths, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
 	if err != nil {
+		if progress != nil {
+			progress.Clear()
+		}
 		return page.Page{}, err
 	}
 	defer func() {
@@ -259,14 +271,29 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 		}
 	}()
 
+	if progress != nil {
+		progress.Set("Uploading attachments...")
+	}
 	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, converted); err != nil {
+		if progress != nil {
+			progress.Clear()
+		}
 		return page.Page{}, err
 	}
 
+	if progress != nil {
+		progress.Set("Updating page...")
+	}
 	title := page.TitleFromPath(path)
 	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, converted)
 	if err != nil {
+		if progress != nil {
+			progress.Clear()
+		}
 		return page.Page{}, err
+	}
+	if progress != nil {
+		progress.Clear()
 	}
 	return updated, nil
 }
