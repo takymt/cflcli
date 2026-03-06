@@ -6,8 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-
-	"golang.org/x/sync/errgroup"
 )
 
 var attachmentFilenameRE = regexp.MustCompile(`ri:attachment\s+ri:filename="([^"]+)"`)
@@ -66,7 +64,10 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 		current[filename] = hash
 	}
 
-	cachePath := attachmentCachePath(markdownPath)
+	cachePath, err := attachmentCachePath(markdownPath)
+	if err != nil {
+		return err
+	}
 	cache, err := loadAttachmentCache(cachePath)
 	if err != nil {
 		return err
@@ -86,25 +87,10 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 		toUpload = append(toUpload, entry)
 	}
 
-	eg, egCtx := errgroup.WithContext(ctx)
-	sem := make(chan struct{}, 4)
 	for _, entry := range toUpload {
-		entry := entry
-		eg.Go(func() error {
-			select {
-			case sem <- struct{}{}:
-			case <-egCtx.Done():
-				return egCtx.Err()
-			}
-			defer func() { <-sem }()
-			if err := client.PutAttachment(egCtx, pageID, entry.path); err != nil {
-				return fmt.Errorf("put attachment %q: %w", entry.filename, err)
-			}
-			return nil
-		})
-	}
-	if err := eg.Wait(); err != nil {
-		return err
+		if err := client.PutAttachment(ctx, pageID, entry.path); err != nil {
+			return fmt.Errorf("put attachment %q: %w", entry.filename, err)
+		}
 	}
 
 	cache.PageID = pageID

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/takymt/cflcli/internal/page"
+	"golang.org/x/term"
 )
 
 const defaultWatchDebounce = 800 * time.Millisecond
@@ -192,7 +193,8 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 		timer  *time.Timer
 		timerC <-chan time.Time
 	)
-	quitCh := startWatchQuitListener()
+	quitCh, restoreInput := startWatchQuitListener(isTerminalWriter(a.stdout))
+	defer restoreInput()
 
 	stopTimer := func() {
 		if timer == nil {
@@ -317,12 +319,24 @@ func colorRed(s string) string {
 	return "\x1b[31m" + s + "\x1b[0m"
 }
 
-func startWatchQuitListener() <-chan struct{} {
+func startWatchQuitListener(enable bool) (<-chan struct{}, func()) {
 	ch := make(chan struct{}, 1)
+	restore := func() {}
+	if !enable {
+		return ch, restore
+	}
 
 	info, err := os.Stdin.Stat()
 	if err != nil || (info.Mode()&os.ModeCharDevice) == 0 {
-		return ch
+		return ch, restore
+	}
+	fd := int(os.Stdin.Fd())
+	state, err := term.MakeRaw(fd)
+	if err != nil {
+		return ch, restore
+	}
+	restore = func() {
+		_ = term.Restore(fd, state)
 	}
 
 	go func() {
@@ -339,5 +353,5 @@ func startWatchQuitListener() <-chan struct{} {
 		}
 	}()
 
-	return ch
+	return ch, restore
 }

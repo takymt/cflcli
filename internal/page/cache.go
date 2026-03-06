@@ -32,12 +32,25 @@ func textSHA256(value string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-func mermaidCachePath(markdownPath string) string {
-	return markdownPath + ".mermaid-cache.json"
+func mermaidCachePath(markdownPath string) (string, error) {
+	return cachePathFor("mermaid", markdownPath)
 }
 
-func attachmentCachePath(markdownPath string) string {
-	return markdownPath + ".attachment-cache.json"
+func attachmentCachePath(markdownPath string) (string, error) {
+	return cachePathFor("attachments", markdownPath)
+}
+
+func cachePathFor(kind string, markdownPath string) (string, error) {
+	base, err := os.UserCacheDir()
+	if err != nil {
+		return "", err
+	}
+	abs := markdownPath
+	if resolved, absErr := filepath.Abs(markdownPath); absErr == nil {
+		abs = resolved
+	}
+	name := textSHA256(abs) + ".json"
+	return filepath.Join(base, "cflcli", kind, name), nil
 }
 
 func loadHashCache(path string) (hashCache, error) {
@@ -64,6 +77,9 @@ func saveHashCache(path string, cache hashCache) error {
 	}
 	data, err := json.MarshalIndent(cache, "", "  ")
 	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)

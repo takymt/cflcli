@@ -20,7 +20,10 @@ var mermaidWarmupOnce sync.Once
 // turns mermaid fenced blocks into attachment image macros.
 func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string, siteBaseURL string) (string, []string, error) {
 	markdown = resolveRelativeMarkdownLinks(markdownPath, markdown, strings.TrimSuffix(siteBaseURL, "/"))
-	cachePath := mermaidCachePath(markdownPath)
+	cachePath, err := mermaidCachePath(markdownPath)
+	if err != nil {
+		return "", nil, err
+	}
 	cache, err := loadHashCache(cachePath)
 	if err != nil {
 		return "", nil, err
