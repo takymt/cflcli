@@ -22,6 +22,8 @@
 
 ## Installation
 
+You can install it with `go install` or download a binary from [GitHub Releases](https://github.com/takymt/cflcli/releases).
+
 ```bash
 go install github.com/takymt/cflcli/cmd/cfl@latest
 ```
@@ -40,6 +42,24 @@ cfl --help
 
 ```bash
 cfl page new docs/cfl.md --space-key TEST --parent-id 123456 --watch
+```
+
+## Usage
+
+```console
+Usage:
+  cfl [command]
+
+Available Commands:
+  attachment  Manage page attachments
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  page        Manage Confluence pages
+
+Flags:
+  -h, --help   help for cfl
+
+Use "cfl [command] --help" for more information about a command.
 ```
 
 ## Markdown Support
