@@ -48,37 +48,7 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 		return err
 	}
 
-	type fileEntry struct {
-		filename string
-		path     string
-		hash     string
-	}
-	entries := make([]fileEntry, 0, len(filenames))
 	current := make(map[string]string, len(filenames))
-	for _, filename := range filenames {
-		entry := fileEntry{filename: filename}
-		if generatedPath, ok := generatedMermaid[filename]; ok {
-			entry.path = generatedPath
-			hash, hashErr := fileSHA256(generatedPath)
-			if hashErr != nil {
-				return fmt.Errorf("hash attachment %q: %w", filename, hashErr)
-			}
-			entry.hash = hash
-		} else if attachmentPath, resolveErr := resolveAttachmentPath(markdownPath, filename); resolveErr == nil {
-			entry.path = attachmentPath
-			hash, hashErr := fileSHA256(attachmentPath)
-			if hashErr != nil {
-				return fmt.Errorf("hash attachment %q: %w", filename, hashErr)
-			}
-			entry.hash = hash
-		} else if hash, ok := mermaidCache.Entries[filename]; ok {
-			entry.hash = hash
-		} else {
-			return fmt.Errorf("attachment file %q not found: %w", filename, os.ErrNotExist)
-		}
-		entries = append(entries, entry)
-		current[filename] = entry.hash
-	}
 
 	cachePath, err := attachmentCachePath(markdownPath)
 	if err != nil {
@@ -95,21 +65,25 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 		}
 	}
 
-	var toUpload []fileEntry
-	for _, entry := range entries {
-		if cached, ok := cache.Entries[entry.filename]; ok && cached == entry.hash {
-			continue
-		}
-		toUpload = append(toUpload, entry)
+	entries, err := collectAttachmentEntries(markdownPath, filenames, generatedMermaid, mermaidCache)
+	if err != nil {
+		return err
 	}
 
-	for _, entry := range toUpload {
+	for _, entry := range entries {
+		filename := entry.filename
+		hash := entry.hash
+		if cached, ok := cache.Entries[filename]; ok && cached == hash {
+			current[filename] = hash
+			continue
+		}
 		if entry.path == "" {
-			return fmt.Errorf("attachment %q changed but render output is unavailable", entry.filename)
+			return fmt.Errorf("attachment %q changed but render output is unavailable", filename)
 		}
 		if err := client.PutAttachment(ctx, pageID, entry.path); err != nil {
-			return fmt.Errorf("put attachment %q: %w", entry.filename, err)
+			return fmt.Errorf("put attachment %q: %w", filename, err)
 		}
+		current[filename] = hash
 	}
 
 	cache.PageID = pageID
@@ -118,6 +92,47 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 		return err
 	}
 	return nil
+}
+
+type attachmentEntry struct {
+	filename string
+	path     string
+	hash     string
+}
+
+func collectAttachmentEntries(markdownPath string, filenames []string, generatedMermaid map[string]string, mermaidCache hashCache) ([]attachmentEntry, error) {
+	entries := make([]attachmentEntry, 0, len(filenames))
+	for _, filename := range filenames {
+		entry, err := buildAttachmentEntry(markdownPath, filename, generatedMermaid, mermaidCache)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+func buildAttachmentEntry(markdownPath string, filename string, generatedMermaid map[string]string, mermaidCache hashCache) (attachmentEntry, error) {
+	if generatedPath, ok := generatedMermaid[filename]; ok {
+		hash, err := fileSHA256(generatedPath)
+		if err != nil {
+			return attachmentEntry{}, fmt.Errorf("hash attachment %q: %w", filename, err)
+		}
+		return attachmentEntry{filename: filename, path: generatedPath, hash: hash}, nil
+	}
+
+	if attachmentPath, err := resolveAttachmentPath(markdownPath, filename); err == nil {
+		hash, hashErr := fileSHA256(attachmentPath)
+		if hashErr != nil {
+			return attachmentEntry{}, fmt.Errorf("hash attachment %q: %w", filename, hashErr)
+		}
+		return attachmentEntry{filename: filename, path: attachmentPath, hash: hash}, nil
+	}
+
+	if hash, ok := mermaidCache.Entries[filename]; ok {
+		return attachmentEntry{filename: filename, hash: hash}, nil
+	}
+	return attachmentEntry{}, fmt.Errorf("attachment file %q not found: %w", filename, os.ErrNotExist)
 }
 
 func resolveAttachmentPath(markdownPath string, filename string) (string, error) {
