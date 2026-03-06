@@ -156,7 +156,8 @@ test_case_page_sync_watch() {
   prepare_sync_target_from_fixture "$page_id" "$watch_file"
 
   echo "INFO: running watch: ./cfl page sync ${watch_file} --watch"
-  ./cfl page sync "$watch_file" --watch >/dev/null 2>&1 &
+  echo "INFO: watch output follows until process stops"
+  ./cfl page sync "$watch_file" --watch &
   watch_pid=$!
   sleep 1
   if ! kill -0 "$watch_pid" 2>/dev/null; then

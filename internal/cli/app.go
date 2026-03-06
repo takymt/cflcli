@@ -224,11 +224,11 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 			}
 			timerC = timer.C
 		case <-timerC:
-			_, err := a.syncFile(ctx, path)
+			updated, err := a.syncFile(ctx, path)
 			if err != nil {
 				a.println(colorRed("!") + " " + err.Error())
 			} else {
-				a.println(colorGreen("."))
+				a.println(colorGreen(".") + " Synced page URL: " + updated.URL)
 			}
 			timerC = nil
 		}
