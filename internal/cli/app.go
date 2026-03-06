@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/takymt/cflcli/internal/page"
 )
 
@@ -18,6 +17,7 @@ const defaultWatchDebounce = 800 * time.Millisecond
 // App runs the page subcommands against a Confluence client.
 type App struct {
 	client            page.Client
+	clientLoader      func() (page.Client, error)
 	stdout            io.Writer
 	watchDebounce     time.Duration
 	watchPollInterval time.Duration
@@ -33,91 +33,40 @@ func New(client page.Client, stdout io.Writer) *App {
 	}
 }
 
+// NewLazy constructs a CLI app that resolves a client only when needed.
+func NewLazy(clientLoader func() (page.Client, error), stdout io.Writer) *App {
+	return &App{
+		clientLoader:      clientLoader,
+		stdout:            stdout,
+		watchDebounce:     defaultWatchDebounce,
+		watchPollInterval: 100 * time.Millisecond,
+	}
+}
+
 // Run executes the requested page command.
 func (a *App) Run(ctx context.Context, args []string, workdir string) int {
-	rootCmd := &cobra.Command{
-		Use:           "cfl",
-		SilenceErrors: true,
-		SilenceUsage:  true,
-	}
-	rootCmd.SetOut(a.stdout)
-	rootCmd.SetErr(a.stdout)
-	rootCmd.SetArgs(args)
-
-	pageCmd := &cobra.Command{
-		Use: "page",
-	}
-	attachmentCmd := &cobra.Command{
-		Use: "attachment",
-	}
-
-	var (
-		newSpaceKey string
-		newParentID string
-		newWatch    bool
-	)
-	pageNewCmd := &cobra.Command{
-		Use:   "new <title>.md",
-		Args:  cobra.ExactArgs(1),
-		Short: "Create a local markdown file and a Confluence page",
-		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
-			return a.runPageNew(cmd.Context(), workdir, cmdArgs[0], newSpaceKey, newParentID, newWatch)
-		},
-	}
-	pageNewCmd.Flags().StringVar(&newSpaceKey, "space-key", "", "Confluence space key")
-	pageNewCmd.Flags().StringVar(&newParentID, "parent-id", "", "Confluence parent page id")
-	pageNewCmd.Flags().BoolVar(&newWatch, "watch", false, "Watch the created file and sync on changes")
-	_ = pageNewCmd.MarkFlagRequired("space-key")
-
-	var syncWatch bool
-	pageSyncCmd := &cobra.Command{
-		Use:   "sync <file>.md",
-		Args:  cobra.ExactArgs(1),
-		Short: "Sync a local markdown file to Confluence",
-		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
-			return a.runPageSync(cmd.Context(), workdir, cmdArgs[0], syncWatch)
-		},
-	}
-	pageSyncCmd.Flags().BoolVar(&syncWatch, "watch", false, "Watch the file and sync on changes")
-
-	pageCmd.AddCommand(pageNewCmd, pageSyncCmd)
-
-	var (
-		attachmentPutPageID string
-		attachmentDelPageID string
-	)
-	attachmentPutCmd := &cobra.Command{
-		Use:   "put <file>",
-		Args:  cobra.ExactArgs(1),
-		Short: "Upload or update an attachment on a Confluence page",
-		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
-			filePath := resolvePath(workdir, cmdArgs[0])
-			return a.client.PutAttachment(cmd.Context(), attachmentPutPageID, filePath)
-		},
-	}
-	attachmentPutCmd.Flags().StringVar(&attachmentPutPageID, "page-id", "", "Confluence page id")
-	_ = attachmentPutCmd.MarkFlagRequired("page-id")
-
-	attachmentDeleteCmd := &cobra.Command{
-		Use:   "delete <filename>",
-		Args:  cobra.ExactArgs(1),
-		Short: "Delete an attachment from a Confluence page by filename",
-		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
-			return a.client.DeleteAttachment(cmd.Context(), attachmentDelPageID, cmdArgs[0])
-		},
-	}
-	attachmentDeleteCmd.Flags().StringVar(&attachmentDelPageID, "page-id", "", "Confluence page id")
-	_ = attachmentDeleteCmd.MarkFlagRequired("page-id")
-
-	attachmentCmd.AddCommand(attachmentPutCmd, attachmentDeleteCmd)
-	rootCmd.AddCommand(pageCmd, attachmentCmd)
-
+	rootCmd := a.newRootCommand(args, workdir)
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		a.println(err.Error())
 		return 1
 	}
 
 	return 0
+}
+
+func (a *App) ensureClient() error {
+	if a.client != nil {
+		return nil
+	}
+	if a.clientLoader == nil {
+		return errors.New("client is not configured")
+	}
+	client, err := a.clientLoader()
+	if err != nil {
+		return err
+	}
+	a.client = client
+	return nil
 }
 
 func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, spaceKey string, parentID string, watch bool) error {
@@ -129,6 +78,9 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 	}
 
 	title := page.TitleFromPath(fileArg)
+	if err := a.ensureClient(); err != nil {
+		return err
+	}
 	spaceID, err := a.client.ResolveSpaceIDByKey(ctx, spaceKey)
 	if err != nil {
 		return fmt.Errorf("resolve space id: %w", err)
@@ -203,6 +155,23 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 	return nil
 }
 
+func (a *App) runAttachmentPut(ctx context.Context, pageID string, filePath string) error {
+	if _, err := os.Stat(filePath); err != nil {
+		return err
+	}
+	if err := a.ensureClient(); err != nil {
+		return err
+	}
+	return a.client.PutAttachment(ctx, pageID, filePath)
+}
+
+func (a *App) runAttachmentDelete(ctx context.Context, pageID string, filename string) error {
+	if err := a.ensureClient(); err != nil {
+		return err
+	}
+	return a.client.DeleteAttachment(ctx, pageID, filename)
+}
+
 func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string) error {
 	var (
 		timer  *time.Timer
@@ -262,6 +231,9 @@ func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
 
 	frontmatter, body, err := page.ParseMarkdownFile(data)
 	if err != nil {
+		return page.Page{}, err
+	}
+	if err := a.ensureClient(); err != nil {
 		return page.Page{}, err
 	}
 

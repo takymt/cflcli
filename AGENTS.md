@@ -43,4 +43,5 @@ When the user has not specified otherwise, use these defaults:
 - preserve previously approved behavior
 - do not silently change product decisions already confirmed by the user
 - commit completed changes before asking for review or feedback, especially when the user requests incremental commits
+- when the user asks for an improvement loop, continue implementing remaining low-risk actionable fixes before asking for acknowledgement; only stop for explicit blockers or when no actionable fixes remain
 - do not run state-changing git commands such as `git add` and `git commit` in parallel
