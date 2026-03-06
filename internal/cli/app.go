@@ -352,7 +352,7 @@ func startWatchQuitListener(enable bool) (<-chan struct{}, func()) {
 			if readErr != nil {
 				return
 			}
-			if n == 1 && (buf[0] == 'q' || buf[0] == 'Q') {
+			if n == 1 && isWatchQuitByte(buf[0]) {
 				ch <- struct{}{}
 				return
 			}
@@ -360,4 +360,8 @@ func startWatchQuitListener(enable bool) (<-chan struct{}, func()) {
 	}()
 
 	return ch, restore
+}
+
+func isWatchQuitByte(b byte) bool {
+	return b == 'q' || b == 'Q' || b == 3
 }
