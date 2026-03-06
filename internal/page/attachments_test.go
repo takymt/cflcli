@@ -45,6 +45,50 @@ func TestSyncAttachmentsFromStorage(t *testing.T) {
 		}
 	})
 
+	t.Run("skips unchanged files using cache", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "diagram.svg"), []byte("<svg></svg>"), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		client := &fakeAttachmentClient{}
+		storage := `<ac:image><ri:attachment ri:filename="diagram.svg" /></ac:image>`
+		markdownPath := filepath.Join(dir, "guide.md")
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage); err != nil {
+			t.Fatalf("first SyncAttachmentsFromStorage() error = %v", err)
+		}
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage); err != nil {
+			t.Fatalf("second SyncAttachmentsFromStorage() error = %v", err)
+		}
+		if len(client.putCalls) != 1 {
+			t.Fatalf("putCalls = %d, want 1", len(client.putCalls))
+		}
+	})
+
+	t.Run("different page id invalidates cache", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, "diagram.svg"), []byte("<svg></svg>"), 0o644); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
+		}
+
+		client := &fakeAttachmentClient{}
+		storage := `<ac:image><ri:attachment ri:filename="diagram.svg" /></ac:image>`
+		markdownPath := filepath.Join(dir, "guide.md")
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage); err != nil {
+			t.Fatalf("first SyncAttachmentsFromStorage() error = %v", err)
+		}
+		if err := SyncAttachmentsFromStorage(context.Background(), client, "401", markdownPath, storage); err != nil {
+			t.Fatalf("second SyncAttachmentsFromStorage() error = %v", err)
+		}
+		if len(client.putCalls) != 2 {
+			t.Fatalf("putCalls = %d, want 2", len(client.putCalls))
+		}
+	})
+
 	t.Run("fails when file missing", func(t *testing.T) {
 		t.Parallel()
 

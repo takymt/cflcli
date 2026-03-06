@@ -9,14 +9,22 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 const maxMermaidBlockChars = 2000
+
+var mermaidWarmupOnce sync.Once
 
 // ConvertMarkdownToStorageWithMermaid converts markdown to storage format and
 // turns mermaid fenced blocks into attachment image macros.
 func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string, siteBaseURL string) (string, []string, error) {
 	markdown = resolveRelativeMarkdownLinks(markdownPath, markdown, strings.TrimSuffix(siteBaseURL, "/"))
+	cachePath := mermaidCachePath(markdownPath)
+	cache, err := loadHashCache(cachePath)
+	if err != nil {
+		return "", nil, err
+	}
 
 	lines := strings.Split(markdown, "\n")
 	var (
@@ -24,6 +32,7 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 		pending      []string
 		mermaidIndex int
 		generated    []string
+		seen         = make(map[string]struct{})
 	)
 
 	flushPending := func() error {
@@ -72,11 +81,26 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 				return "", nil, fmt.Errorf("mermaid block %d exceeds %d chars", mermaidIndex, maxMermaidBlockChars)
 			}
 
-			filename, generatedPath, err := renderMermaidSVG(ctx, markdownPath, source, mermaidIndex)
-			if err != nil {
-				return "", nil, err
+			filename := "mermaid-" + strconv.Itoa(mermaidIndex) + ".svg"
+			seen[filename] = struct{}{}
+			svgPath := filepath.Join(filepath.Dir(markdownPath), filename)
+			hash := textSHA256(source)
+			cachedHash, hasCache := cache.Entries[filename]
+
+			needRender := true
+			if hasCache && cachedHash == hash {
+				if _, statErr := os.Stat(svgPath); statErr == nil {
+					needRender = false
+				}
 			}
-			generated = append(generated, generatedPath)
+			if needRender {
+				renderedPath, renderErr := renderMermaidSVG(ctx, markdownPath, source, mermaidIndex)
+				if renderErr != nil {
+					return "", nil, renderErr
+				}
+				generated = append(generated, renderedPath)
+			}
+			cache.Entries[filename] = hash
 			parts = append(parts, buildMermaidImageStorage(filename, opts))
 			continue
 		}
@@ -84,6 +108,14 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 	}
 
 	if err := flushPending(); err != nil {
+		return "", nil, err
+	}
+	for filename := range cache.Entries {
+		if _, ok := seen[filename]; !ok {
+			delete(cache.Entries, filename)
+		}
+	}
+	if err := saveHashCache(cachePath, cache); err != nil {
 		return "", nil, err
 	}
 	return strings.Join(parts, "\n"), generated, nil
@@ -224,23 +256,58 @@ func buildMermaidImageStorage(filename string, opts mermaidOptions) string {
 	return `<ac:image ` + strings.Join(attrs, " ") + `><ri:attachment ri:filename="` + filename + `" /></ac:image>`
 }
 
-func renderMermaidSVG(ctx context.Context, markdownPath string, source string, index int) (string, string, error) {
+// WarmUpMermaidRenderer primes mmdc once to reduce first render latency in watch mode.
+func WarmUpMermaidRenderer(ctx context.Context) {
+	mermaidWarmupOnce.Do(func() {
+		tmpIn, err := os.CreateTemp("", "cfl-mermaid-warmup-*.mmd")
+		if err != nil {
+			return
+		}
+		inPath := tmpIn.Name()
+		if _, err := tmpIn.WriteString("graph TD\nA-->B\n"); err != nil {
+			_ = tmpIn.Close()
+			_ = os.Remove(inPath)
+			return
+		}
+		if err := tmpIn.Close(); err != nil {
+			_ = os.Remove(inPath)
+			return
+		}
+		defer func() {
+			_ = os.Remove(inPath)
+		}()
+
+		tmpOut, err := os.CreateTemp("", "cfl-mermaid-warmup-*.svg")
+		if err != nil {
+			return
+		}
+		outPath := tmpOut.Name()
+		_ = tmpOut.Close()
+		defer func() {
+			_ = os.Remove(outPath)
+		}()
+
+		_ = exec.CommandContext(ctx, "mmdc", "-i", inPath, "-o", outPath).Run()
+	})
+}
+
+func renderMermaidSVG(ctx context.Context, markdownPath string, source string, index int) (string, error) {
 	filename := "mermaid-" + strconv.Itoa(index) + ".svg"
 	svgPath := filepath.Join(filepath.Dir(markdownPath), filename)
 
 	tmpFile, err := os.CreateTemp("", "cfl-mermaid-*.mmd")
 	if err != nil {
-		return "", "", err
+		return "", err
 	}
 	tmpPath := tmpFile.Name()
 	if _, err := tmpFile.WriteString(source); err != nil {
 		_ = tmpFile.Close()
 		_ = os.Remove(tmpPath)
-		return "", "", err
+		return "", err
 	}
 	if err := tmpFile.Close(); err != nil {
 		_ = os.Remove(tmpPath)
-		return "", "", err
+		return "", err
 	}
 	defer func() {
 		_ = os.Remove(tmpPath)
@@ -248,7 +315,7 @@ func renderMermaidSVG(ctx context.Context, markdownPath string, source string, i
 
 	output, err := exec.CommandContext(ctx, "mmdc", "-i", tmpPath, "-o", svgPath).CombinedOutput()
 	if err != nil {
-		return "", "", fmt.Errorf("mmdc failed: %w: %s", err, strings.TrimSpace(string(output)))
+		return "", fmt.Errorf("mmdc failed: %w: %s", err, strings.TrimSpace(string(output)))
 	}
-	return filename, svgPath, nil
+	return svgPath, nil
 }

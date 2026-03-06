@@ -76,6 +76,34 @@ func TestConvertMarkdownToStorageWithMermaid_WithWidthAndAlignOptions(t *testing
 	}
 }
 
+func TestConvertMarkdownToStorageWithMermaid_UsesHashCache(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("mmdc"); err != nil {
+		t.Skip("mmdc is required for mermaid conversion test")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "guide.md")
+	input := "```mermaid\ngraph TD\nA-->B\n```\n"
+
+	_, firstGenerated, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
+	if err != nil {
+		t.Fatalf("first ConvertMarkdownToStorageWithMermaid() error = %v", err)
+	}
+	if len(firstGenerated) != 1 {
+		t.Fatalf("first generatedPaths = %d, want 1", len(firstGenerated))
+	}
+
+	_, secondGenerated, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
+	if err != nil {
+		t.Fatalf("second ConvertMarkdownToStorageWithMermaid() error = %v", err)
+	}
+	if len(secondGenerated) != 0 {
+		t.Fatalf("second generatedPaths = %d, want 0", len(secondGenerated))
+	}
+}
+
 func TestConvertMarkdownToStorageWithMermaid_OversizeReturnsError(t *testing.T) {
 	t.Parallel()
 

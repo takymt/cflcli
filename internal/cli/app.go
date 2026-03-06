@@ -118,6 +118,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 		a.printPageURL("Created page URL", created.URL)
 		return nil
 	}
+	go page.WarmUpMermaidRenderer(context.Background())
 	return a.watchFile(ctx, path, fileArg, created.URL, false)
 }
 
@@ -258,18 +259,13 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 	if progress != nil {
 		progress.Set("Rendering Mermaid...")
 	}
-	converted, generatedPaths, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
+	converted, _, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
 	if err != nil {
 		if progress != nil {
 			progress.Clear()
 		}
 		return page.Page{}, err
 	}
-	defer func() {
-		for _, generatedPath := range generatedPaths {
-			_ = os.Remove(generatedPath)
-		}
-	}()
 
 	if progress != nil {
 		progress.Set("Uploading attachments...")
