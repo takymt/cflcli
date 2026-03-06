@@ -7,7 +7,8 @@ if [[ -z "$matches" ]]; then
 fi
 
 # Confluence attachments upload/delete still requires v1 endpoint.
-allowed='cmd/cfl/main.go|internal/client/attachment.go|internal/client/attachment_test.go'
+# Keep v1 references isolated in the HTTP client attachment implementation.
+allowed='cmd/cfl/client_http.go'
 violations="$(printf '%s\n' "$matches" | rg -v "$allowed" || true)"
 if [[ -n "$violations" ]]; then
   printf '%s\n' "$violations"
