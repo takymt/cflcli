@@ -421,6 +421,25 @@ func TestRunPageSyncWatch(t *testing.T) {
 	}
 }
 
+func TestRunPageSyncWatch_MissingFileReturnsError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	client := newFakeClient()
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+	exit := app.Run(context.Background(), []string{"page", "sync", "missing.md", "--watch"}, dir)
+	if exit != 1 {
+		t.Fatalf("Run() exit = %d, want 1", exit)
+	}
+
+	out := stripANSI(stdout.String())
+	if strings.Contains(out, "Watching: ") {
+		t.Fatalf("output = %q, must not start watch for missing file", out)
+	}
+}
+
 func TestRunPageNewWatch(t *testing.T) {
 	t.Parallel()
 
@@ -442,11 +461,12 @@ func TestRunPageNewWatch(t *testing.T) {
 	}()
 
 	waitFor(t, time.Second, func() bool {
-		if _, err := os.Stat(path); err != nil {
-			return false
-		}
-		return client.updateCount("401") >= 1
+		_, err := os.Stat(path)
+		return err == nil
 	})
+	if got := client.updateCount("401"); got != 0 {
+		t.Fatalf("updateCount() before edits = %d, want 0", got)
+	}
 
 	if err := os.WriteFile(path, []byte("---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# Updated\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
@@ -470,6 +490,12 @@ func TestRunPageNewWatch(t *testing.T) {
 	output := stripANSI(stdout.String())
 	if !strings.Contains(output, "https://example.test/pages/401") {
 		t.Fatalf("output = %q, want page URL", output)
+	}
+	if !strings.Contains(output, "Watching: guide.md (press q to quit)") {
+		t.Fatalf("output = %q, want watch start message", output)
+	}
+	if !strings.Contains(output, "Stopped watching: guide.md") {
+		t.Fatalf("output = %q, want watch stop message", output)
 	}
 	if strings.Count(output, ".") == 0 {
 		t.Fatalf("output = %q, want success dot from watch", output)

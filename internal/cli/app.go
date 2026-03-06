@@ -114,12 +114,11 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 		return err
 	}
 
-	a.printPageURL("Created page URL", created.URL)
-	if watch {
-		return a.runPageSync(ctx, workdir, fileArg, true)
+	if !watch {
+		a.printPageURL("Created page URL", created.URL)
+		return nil
 	}
-
-	return nil
+	return a.watchFile(ctx, path, fileArg, created.URL, false)
 }
 
 func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, watch bool) error {
@@ -133,26 +132,7 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 		return nil
 	}
 
-	first, err := a.syncFile(ctx, path)
-	if err != nil {
-		a.println(colorRed("!") + " " + err.Error())
-	} else {
-		a.printPageURL("Synced page URL", first.URL)
-	}
-
-	watcher, err := newPollingWatcher(path, a.watchPollInterval)
-	if err != nil {
-		return err
-	}
-	watchErr := a.watchLoop(ctx, watcher.Events(), path)
-	closeErr := watcher.Close()
-	if watchErr != nil {
-		return watchErr
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	return nil
+	return a.watchFile(ctx, path, fileArg, "", true)
 }
 
 func (a *App) runAttachmentPut(ctx context.Context, pageID string, filePath string) error {
@@ -170,6 +150,38 @@ func (a *App) runAttachmentDelete(ctx context.Context, pageID string, filename s
 		return err
 	}
 	return a.client.DeleteAttachment(ctx, pageID, filename)
+}
+
+func (a *App) watchFile(ctx context.Context, path string, displayPath string, initialURL string, syncFirst bool) error {
+	if syncFirst {
+		first, err := a.syncFile(ctx, path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return err
+			}
+			a.println(colorRed("!") + " " + err.Error())
+		} else {
+			a.printPageURL("Synced page URL", first.URL)
+		}
+	} else if initialURL != "" {
+		a.printPageURL("Created page URL", initialURL)
+	}
+	a.println("Watching: " + displayPath + " (press q to quit)")
+
+	watcher, err := newPollingWatcher(path, a.watchPollInterval)
+	if err != nil {
+		return err
+	}
+	watchErr := a.watchLoop(ctx, watcher.Events(), path)
+	closeErr := watcher.Close()
+	if watchErr != nil {
+		return watchErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	a.println("Stopped watching: " + displayPath)
+	return nil
 }
 
 func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string) error {
