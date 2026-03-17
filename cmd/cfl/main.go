@@ -11,7 +11,7 @@ import (
 
 func main() {
 	app := cli.NewLazy(func() (page.Client, error) {
-		cfg, err := loadClientConfigFromEnv()
+		cfg, err := loadClientConfig()
 		if err != nil {
 			return nil, err
 		}

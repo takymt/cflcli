@@ -39,11 +39,36 @@ Download from [GitHub Releases](https://github.com/takymt/cflcli/releases)
 cfl --help
 ```
 
-## Environment Variables
+## Authentication
+
+`cfl` resolves credentials per key in this order:
+
+- environment variables
+- `${XDG_CONFIG_HOME:-~/.config}/cflcli/config.yml`
+
+Supported environment variables:
 
 - `CONFLUENCE_DOMAIN` (e.g. `example.atlassian.net`)
 - `CONFLUENCE_EMAIL`
 - `CONFLUENCE_API_TOKEN`
+
+Save credentials locally:
+
+```bash
+cfl auth
+
+# Or pass values explicitly
+cfl auth login --domain example.atlassian.net --email user@example.com --api-token <token>
+
+# Or skip validation
+cfl auth login --no-validate
+```
+
+Clear the saved config:
+
+```bash
+cfl auth logout
+```
 
 ## Quick Start
 

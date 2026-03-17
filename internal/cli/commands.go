@@ -20,6 +20,11 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 		Use:   "attachment",
 		Short: "Manage page attachments",
 	}
+	authCmd := &cobra.Command{
+		Use:   "auth",
+		Args:  cobra.NoArgs,
+		Short: "Manage Confluence authentication",
+	}
 
 	var (
 		newSpaceKey string
@@ -79,6 +84,48 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 	_ = attachmentDeleteCmd.MarkFlagRequired("page-id")
 
 	attachmentCmd.AddCommand(attachmentPutCmd, attachmentDeleteCmd)
-	rootCmd.AddCommand(pageCmd, attachmentCmd)
+
+	var authOpts authLoginOptions
+	authCmd.RunE = func(cmd *cobra.Command, cmdArgs []string) error {
+		return a.runAuthLogin(cmd.Context(), authOpts.domain, authOpts.email, authOpts.apiToken, authOpts.noValidate)
+	}
+	bindAuthLoginFlags(authCmd, &authOpts)
+
+	var authLoginOpts authLoginOptions
+	authLoginCmd := &cobra.Command{
+		Use:   "login",
+		Args:  cobra.NoArgs,
+		Short: "Save Confluence credentials",
+		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
+			return a.runAuthLogin(cmd.Context(), authLoginOpts.domain, authLoginOpts.email, authLoginOpts.apiToken, authLoginOpts.noValidate)
+		},
+	}
+	bindAuthLoginFlags(authLoginCmd, &authLoginOpts)
+
+	authLogoutCmd := &cobra.Command{
+		Use:   "logout",
+		Args:  cobra.NoArgs,
+		Short: "Clear saved Confluence credentials",
+		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
+			return a.runAuthLogout()
+		},
+	}
+
+	authCmd.AddCommand(authLoginCmd, authLogoutCmd)
+	rootCmd.AddCommand(pageCmd, attachmentCmd, authCmd)
 	return rootCmd
+}
+
+type authLoginOptions struct {
+	domain     string
+	email      string
+	apiToken   string
+	noValidate bool
+}
+
+func bindAuthLoginFlags(cmd *cobra.Command, opts *authLoginOptions) {
+	cmd.Flags().StringVar(&opts.domain, "domain", "", "Confluence domain")
+	cmd.Flags().StringVar(&opts.email, "email", "", "Confluence email")
+	cmd.Flags().StringVar(&opts.apiToken, "api-token", "", "Confluence API token")
+	cmd.Flags().BoolVar(&opts.noValidate, "no-validate", false, "Skip online credential validation before saving")
 }

@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/takymt/cflcli/internal/auth"
 	"github.com/takymt/cflcli/internal/page"
 )
 
@@ -32,26 +33,16 @@ type clientConfig struct {
 	token  string
 }
 
-func loadClientConfigFromEnv() (clientConfig, error) {
-	domain, err := normalizeConfluenceDomain(os.Getenv("CONFLUENCE_DOMAIN"))
+func loadClientConfig() (clientConfig, error) {
+	creds, err := auth.ResolveRuntimeCredentials(auth.NewXDGConfigStore())
 	if err != nil {
 		return clientConfig{}, err
 	}
 
-	email := firstNonEmpty(os.Getenv("CONFLUENCE_EMAIL"), os.Getenv("ATLASSIAN_EMAIL"))
-	if email == "" {
-		return clientConfig{}, errors.New("CONFLUENCE_EMAIL is required")
-	}
-
-	token := firstNonEmpty(os.Getenv("CONFLUENCE_API_TOKEN"), os.Getenv("ATLASSIAN_API_TOKEN"))
-	if token == "" {
-		return clientConfig{}, errors.New("CONFLUENCE_API_TOKEN is required")
-	}
-
 	return clientConfig{
-		domain: domain,
-		email:  email,
-		token:  token,
+		domain: creds.Domain,
+		email:  creds.Email,
+		token:  creds.APIToken,
 	}, nil
 }
 
@@ -66,8 +57,7 @@ func newHTTPClient(cfg clientConfig, httpTransport *http.Client) (page.Client, e
 		return nil, errors.New("token is required")
 	}
 
-	siteBaseURL := "https://" + cfg.domain
-	siteBaseURL = strings.TrimSuffix(siteBaseURL, "/wiki")
+	siteBaseURL := auth.SiteBaseURL(cfg.domain)
 	apiBaseURL := siteBaseURL + "/wiki/api/v2"
 	attachmentBaseURL := siteBaseURL + "/wiki/rest/api"
 	if httpTransport == nil {
@@ -395,36 +385,6 @@ func (c *httpClient) toPage(api *apiPage) page.Page {
 		Body:     api.Body.Storage.Value,
 		URL:      pageURL,
 	}
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func normalizeConfluenceDomain(value string) (string, error) {
-	domain := strings.TrimSpace(value)
-	if domain == "" {
-		return "", errors.New("CONFLUENCE_DOMAIN is required")
-	}
-	domain = strings.TrimPrefix(domain, "https://")
-	domain = strings.TrimPrefix(domain, "http://")
-	domain = strings.TrimSuffix(domain, "/")
-	if strings.Contains(domain, "/") {
-		return "", errors.New("CONFLUENCE_DOMAIN must be a host like example.atlassian.net")
-	}
-	if !strings.HasSuffix(domain, ".atlassian.net") {
-		return "", errors.New("CONFLUENCE_DOMAIN must end with .atlassian.net")
-	}
-	parts := strings.Split(domain, ".")
-	if len(parts) < 3 || parts[0] == "" {
-		return "", errors.New("CONFLUENCE_DOMAIN must be in the form <site>.atlassian.net")
-	}
-	return domain, nil
 }
 
 type apiPage struct {

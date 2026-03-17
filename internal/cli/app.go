@@ -7,8 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/takymt/cflcli/internal/auth"
 	"github.com/takymt/cflcli/internal/page"
 	"golang.org/x/term"
 )
@@ -20,6 +22,9 @@ type App struct {
 	client            page.Client
 	clientLoader      func() (page.Client, error)
 	stdout            io.Writer
+	authStore         auth.Store
+	authPrompter      auth.Prompter
+	authValidator     auth.Validator
 	watchDebounce     time.Duration
 	watchPollInterval time.Duration
 }
@@ -29,6 +34,9 @@ func New(client page.Client, stdout io.Writer) *App {
 	return &App{
 		client:            client,
 		stdout:            stdout,
+		authStore:         auth.NewXDGConfigStore(),
+		authPrompter:      auth.NewTerminalPrompter(os.Stdin, stdout),
+		authValidator:     auth.NewHTTPValidator(nil),
 		watchDebounce:     defaultWatchDebounce,
 		watchPollInterval: 100 * time.Millisecond,
 	}
@@ -39,6 +47,9 @@ func NewLazy(clientLoader func() (page.Client, error), stdout io.Writer) *App {
 	return &App{
 		clientLoader:      clientLoader,
 		stdout:            stdout,
+		authStore:         auth.NewXDGConfigStore(),
+		authPrompter:      auth.NewTerminalPrompter(os.Stdin, stdout),
+		authValidator:     auth.NewHTTPValidator(nil),
 		watchDebounce:     defaultWatchDebounce,
 		watchPollInterval: 100 * time.Millisecond,
 	}
@@ -152,6 +163,78 @@ func (a *App) runAttachmentDelete(ctx context.Context, pageID string, filename s
 		return err
 	}
 	return a.client.DeleteAttachment(ctx, pageID, filename)
+}
+
+func (a *App) runAuthLogin(ctx context.Context, domain string, email string, apiToken string, noValidate bool) error {
+	creds, err := a.collectAuthCredentials(domain, email, apiToken)
+	if err != nil {
+		return err
+	}
+
+	if !noValidate {
+		validationCreds, err := auth.ResolveValidationCredentials(creds)
+		if err != nil {
+			return err
+		}
+		if err := a.authValidator.Validate(ctx, validationCreds); err != nil {
+			return err
+		}
+	}
+
+	if err := a.authStore.Save(creds); err != nil {
+		return err
+	}
+
+	path, err := a.authStore.Path()
+	if err != nil {
+		return err
+	}
+	a.println("Saved credentials to " + path)
+	return nil
+}
+
+func (a *App) runAuthLogout() error {
+	path, err := a.authStore.Path()
+	if err != nil {
+		return err
+	}
+	if err := a.authStore.Clear(); err != nil {
+		return err
+	}
+	a.println("Cleared credentials in " + path)
+	return nil
+}
+
+func (a *App) collectAuthCredentials(domain string, email string, apiToken string) (auth.Credentials, error) {
+	creds := auth.Credentials{
+		Domain:   strings.TrimSpace(domain),
+		Email:    strings.TrimSpace(email),
+		APIToken: strings.TrimSpace(apiToken),
+	}
+
+	if creds.Domain == "" {
+		value, err := a.authPrompter.Prompt("Domain")
+		if err != nil {
+			return auth.Credentials{}, err
+		}
+		creds.Domain = strings.TrimSpace(value)
+	}
+	if creds.Email == "" {
+		value, err := a.authPrompter.Prompt("Email")
+		if err != nil {
+			return auth.Credentials{}, err
+		}
+		creds.Email = strings.TrimSpace(value)
+	}
+	if creds.APIToken == "" {
+		value, err := a.authPrompter.PromptSecret("API token")
+		if err != nil {
+			return auth.Credentials{}, err
+		}
+		creds.APIToken = strings.TrimSpace(value)
+	}
+
+	return auth.RequireCredentials(creds)
 }
 
 func (a *App) watchFile(ctx context.Context, path string, displayPath string, initialURL string, syncFirst bool) error {

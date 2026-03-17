@@ -2,54 +2,41 @@ package main
 
 import "testing"
 
-func TestNormalizeConfluenceDomain(t *testing.T) {
+func TestNewHTTPClientBuildsBaseURLFromRawDomain(t *testing.T) {
 	tests := []struct {
-		name      string
-		input     string
-		want      string
-		wantError bool
+		name   string
+		domain string
+		want   string
 	}{
 		{
-			name:  "plain domain",
-			input: "example.atlassian.net",
-			want:  "example.atlassian.net",
+			name:   "plain host",
+			domain: "example.atlassian.net",
+			want:   "https://example.atlassian.net",
 		},
 		{
-			name:  "https prefixed domain",
-			input: "https://example.atlassian.net",
-			want:  "example.atlassian.net",
-		},
-		{
-			name:      "empty",
-			input:     "",
-			wantError: true,
-		},
-		{
-			name:      "wrong host",
-			input:     "example.com",
-			wantError: true,
-		},
-		{
-			name:      "contains path",
-			input:     "example.atlassian.net/wiki",
-			wantError: true,
+			name:   "url with wiki path",
+			domain: "https://example.atlassian.net/wiki",
+			want:   "https://example.atlassian.net",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := normalizeConfluenceDomain(tt.input)
-			if tt.wantError {
-				if err == nil {
-					t.Fatal("normalizeConfluenceDomain() error = nil, want non-nil")
-				}
-				return
-			}
+			client, err := newHTTPClient(clientConfig{
+				domain: tt.domain,
+				email:  "user@example.com",
+				token:  "secret",
+			}, nil)
 			if err != nil {
-				t.Fatalf("normalizeConfluenceDomain() error = %v", err)
+				t.Fatalf("newHTTPClient() error = %v", err)
 			}
-			if got != tt.want {
-				t.Fatalf("normalizeConfluenceDomain() = %q, want %q", got, tt.want)
+
+			httpClient, ok := client.(*httpClient)
+			if !ok {
+				t.Fatalf("newHTTPClient() type = %T, want *httpClient", client)
+			}
+			if httpClient.siteBaseURL != tt.want {
+				t.Fatalf("siteBaseURL = %q, want %q", httpClient.siteBaseURL, tt.want)
 			}
 		})
 	}
