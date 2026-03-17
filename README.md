@@ -15,18 +15,25 @@
 - Resolves and embeds relative files
 - Uses diff/cache-based acceleration for faster sync
 
-## Requirements
-- Go 1.26+
-- [mmdc](https://github.com/mermaid-js/mermaid-cli) (required only when using Mermaid)
-- Confluence Cloud access
+**Note**: Mermaid diagram conversion requires [mmdc](https://github.com/mermaid-js/mermaid-cli)
 
 ## Installation
 
-You can install it with `go install` or download a binary from [GitHub Releases](https://github.com/takymt/cflcli/releases).
+### Homebrew
 
 ```bash
+brew install takymt/tap/cflcli
+```
+
+### go install
+
+```sh
 go install github.com/takymt/cflcli/cmd/cfl@latest
 ```
+
+### Download Binary
+
+Download from [GitHub Releases](https://github.com/takymt/cflcli/releases)
 
 ```bash
 cfl --help

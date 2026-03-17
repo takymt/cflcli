@@ -2,7 +2,8 @@ version: 2
 project_name: cfl
 
 builds:
-  - main: ./cmd/cfl
+  - id: cfl
+    main: ./cmd/cfl
     binary: cfl
     ldflags:
       - '-s -w -X main.revision={{ .ShortCommit }}'
@@ -42,6 +43,28 @@ signs:
 
 sboms:
   - artifacts: archive
+
+brews:
+  - ids:
+      - cfl
+    name: cflcli
+    repository:
+      owner: takymt
+      name: homebrew-tap
+      branch: main
+      token: '{{ .Env.GH_PAT }}'
+    directory: Formula
+    homepage: 'https://github.com/takymt/cflcli'
+    description: 'Confluence CLI for managing pages with local Markdown files'
+    license: MIT
+    install: |
+      bin.install "cfl"
+    test: |
+      system "#{bin}/cfl", "--help"
+    commit_author:
+      name: github-actions[bot]
+      email: github-actions[bot]@users.noreply.github.com
+    skip_upload: '{{ eq .Env.GH_PAT "" }}'
 
 release:
   github:

@@ -35,4 +35,5 @@ jobs:
           version: v2.13.3
           args: release --clean
         env:
+          GH_PAT: ${{ secrets.GH_PAT }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
