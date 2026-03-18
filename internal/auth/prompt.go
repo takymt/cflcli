@@ -11,16 +11,19 @@ import (
 	"golang.org/x/term"
 )
 
+// Prompter reads credential values from an interactive input source.
 type Prompter interface {
 	Prompt(label string) (string, error)
 	PromptSecret(label string) (string, error)
 }
 
+// TerminalPrompter implements Prompter using stdin/stdout.
 type TerminalPrompter struct {
 	stdin  *os.File
 	stdout io.Writer
 }
 
+// NewTerminalPrompter returns a terminal-backed credential prompter.
 func NewTerminalPrompter(stdin *os.File, stdout io.Writer) *TerminalPrompter {
 	if stdin == nil {
 		stdin = os.Stdin
@@ -34,6 +37,7 @@ func NewTerminalPrompter(stdin *os.File, stdout io.Writer) *TerminalPrompter {
 	}
 }
 
+// Prompt writes a label and reads a line of input.
 func (p *TerminalPrompter) Prompt(label string) (string, error) {
 	if _, err := fmt.Fprint(p.stdout, label+": "); err != nil {
 		return "", err
@@ -46,6 +50,7 @@ func (p *TerminalPrompter) Prompt(label string) (string, error) {
 	return strings.TrimSpace(line), nil
 }
 
+// PromptSecret writes a label and reads a password without echoing it.
 func (p *TerminalPrompter) PromptSecret(label string) (string, error) {
 	info, err := p.stdin.Stat()
 	if err != nil {

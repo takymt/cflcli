@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Store persists Confluence credentials between CLI runs.
 type Store interface {
 	Path() (string, error)
 	Load() (Credentials, error)
@@ -17,12 +18,15 @@ type Store interface {
 	Clear() error
 }
 
+// XDGConfigStore stores credentials in the user's XDG config directory.
 type XDGConfigStore struct{}
 
+// NewXDGConfigStore creates a store backed by the XDG config path.
 func NewXDGConfigStore() *XDGConfigStore {
 	return &XDGConfigStore{}
 }
 
+// Path returns the config file path used for persisted credentials.
 func (s *XDGConfigStore) Path() (string, error) {
 	baseDir, err := configBaseDir()
 	if err != nil {
@@ -31,6 +35,7 @@ func (s *XDGConfigStore) Path() (string, error) {
 	return filepath.Join(baseDir, "cflcli", "config.yml"), nil
 }
 
+// Load reads credentials from the config file if it exists.
 func (s *XDGConfigStore) Load() (Credentials, error) {
 	path, err := s.Path()
 	if err != nil {
@@ -52,6 +57,7 @@ func (s *XDGConfigStore) Load() (Credentials, error) {
 	}, nil
 }
 
+// Save writes validated credentials to the config file.
 func (s *XDGConfigStore) Save(creds Credentials) error {
 	path, err := s.Path()
 	if err != nil {
@@ -77,6 +83,7 @@ func (s *XDGConfigStore) Save(creds Credentials) error {
 	return writeConfigMap(path, config)
 }
 
+// Clear removes persisted credential fields from the config file.
 func (s *XDGConfigStore) Clear() error {
 	path, err := s.Path()
 	if err != nil {

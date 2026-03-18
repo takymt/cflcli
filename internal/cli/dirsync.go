@@ -76,26 +76,22 @@ func collectMarkdownFiles(dir string, maxFiles int) ([]collectResult, []skipResu
 			return errMarkdownFileLimitExceeded
 		}
 
-		data, err := os.ReadFile(path)
-		if err != nil {
+		if data, readErr := os.ReadFile(path); readErr != nil {
 			skipped = append(skipped, skipResult{
 				Display: displayPath(dir, path),
-				Reason:  err.Error(),
+				Reason:  readErr.Error(),
 			})
-			return nil
-		}
-		if _, _, err := page.ParseMarkdownFile(data); err != nil {
+		} else if _, _, parseErr := page.ParseMarkdownFile(data); parseErr != nil {
 			skipped = append(skipped, skipResult{
 				Display: displayPath(dir, path),
 				Reason:  "no valid frontmatter",
 			})
-			return nil
+		} else {
+			files = append(files, collectResult{
+				Path:    path,
+				Display: displayPath(dir, path),
+			})
 		}
-
-		files = append(files, collectResult{
-			Path:    path,
-			Display: displayPath(dir, path),
-		})
 		return nil
 	})
 	if err != nil {

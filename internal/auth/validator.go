@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,15 +10,18 @@ import (
 	"time"
 )
 
+// Validator validates Confluence credentials against the remote API.
 type Validator interface {
 	Validate(context.Context, Credentials) error
 }
 
+// HTTPValidator validates credentials using Confluence HTTP endpoints.
 type HTTPValidator struct {
 	client   *http.Client
 	buildURL func(string) string
 }
 
+// NewHTTPValidator builds an HTTP-based credential validator.
 func NewHTTPValidator(client *http.Client) *HTTPValidator {
 	if client == nil {
 		client = &http.Client{Timeout: 5 * time.Second}
@@ -28,6 +32,7 @@ func NewHTTPValidator(client *http.Client) *HTTPValidator {
 	}
 }
 
+// Validate checks whether the provided credentials can access Confluence.
 func (v *HTTPValidator) Validate(ctx context.Context, creds Credentials) error {
 	required, err := RequireCredentials(creds)
 	if err != nil {
@@ -50,7 +55,7 @@ func (v *HTTPValidator) Validate(ctx context.Context, creds Credentials) error {
 	closeErr := resp.Body.Close()
 	if readErr != nil {
 		if closeErr != nil {
-			return fmt.Errorf("validation response read failed: %v: %w", closeErr, readErr)
+			return fmt.Errorf("validation response read failed: %w", errors.Join(readErr, closeErr))
 		}
 		return fmt.Errorf("validation response read failed: %w", readErr)
 	}

@@ -320,19 +320,6 @@ func (c *httpClient) doJSON(ctx context.Context, method string, endpoint string,
 	return nil
 }
 
-func (c *httpClient) resolveNext(next string) string {
-	if next == "" {
-		return ""
-	}
-	if strings.HasPrefix(next, "http://") || strings.HasPrefix(next, "https://") {
-		return next
-	}
-	if strings.HasPrefix(next, "/") {
-		return c.siteBaseURL + next
-	}
-	return c.apiBaseURL + "/" + next
-}
-
 func (c *httpClient) toPage(api *apiPage) page.Page {
 	pageURL := c.siteBaseURL + "/wiki/pages/viewpage.action?pageId=" + api.ID
 	if api.Links.WebUI != "" {

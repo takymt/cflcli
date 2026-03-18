@@ -6,12 +6,14 @@ import (
 	"strings"
 )
 
+// Credentials contains the Confluence authentication values used by the CLI.
 type Credentials struct {
 	Domain   string `yaml:"domain"`
 	Email    string `yaml:"email"`
 	APIToken string `yaml:"api_token"`
 }
 
+// ResolveRuntimeCredentials loads credentials from env vars and config storage.
 func ResolveRuntimeCredentials(store Store) (Credentials, error) {
 	envCreds := credentialsFromEnv()
 	if hasAllCredentials(envCreds) {
@@ -30,10 +32,12 @@ func ResolveRuntimeCredentials(store Store) (Credentials, error) {
 	return RequireCredentials(mergeCredentials(configCreds, envCreds))
 }
 
+// ResolveValidationCredentials merges config credentials with env overrides for validation.
 func ResolveValidationCredentials(configCreds Credentials) (Credentials, error) {
 	return RequireCredentials(mergeCredentials(configCreds, credentialsFromEnv()))
 }
 
+// SiteBaseURL normalizes a Confluence site base URL from a domain-like input.
 func SiteBaseURL(domain string) string {
 	base := strings.TrimSpace(domain)
 	if base == "" {
@@ -68,6 +72,7 @@ func mergeCredentials(configCreds Credentials, envCreds Credentials) Credentials
 	}
 }
 
+// RequireCredentials validates that all required credential fields are present.
 func RequireCredentials(creds Credentials) (Credentials, error) {
 	trimmed := Credentials{
 		Domain:   strings.TrimSpace(creds.Domain),

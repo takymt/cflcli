@@ -16,6 +16,7 @@ const maxMermaidBlockChars = 2000
 
 var mermaidWarmupOnce sync.Once
 
+// MermaidResult contains converted storage output and generated attachment files.
 type MermaidResult struct {
 	Storage   string
 	Generated map[string]string

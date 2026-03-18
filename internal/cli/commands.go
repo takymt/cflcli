@@ -8,9 +8,7 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
-	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
-		return newUsageError(cmd, err)
-	})
+	rootCmd.SetFlagErrorFunc(newUsageError)
 	rootCmd.SetOut(a.stdout)
 	rootCmd.SetErr(a.stdout)
 	rootCmd.SetArgs(args)
