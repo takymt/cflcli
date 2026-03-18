@@ -95,6 +95,54 @@ Flags:
 Use "cfl [command] --help" for more information about a command.
 ```
 
+### Page
+
+```sh
+# Create a page and write <title>.md in the current directory
+cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456
+
+# Create a page and write the markdown file to a specific path
+cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456 --path docs/architecture-overview.md
+
+# Create a page and keep syncing on save
+cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456 --path docs/architecture-overview.md --watch
+
+# Sync one markdown file
+cfl page sync docs/architecture-overview.md
+
+# Watch one markdown file and sync on save
+cfl page sync docs/architecture-overview.md --watch
+
+# Sync all markdown files in a directory
+cfl page sync docs/
+```
+
+### Attachment
+
+```sh
+# Upload or update an attachment on a page
+cfl attachment put docs/diagram.svg --page-id 123456
+
+# Delete an attachment by filename
+cfl attachment delete diagram.svg --page-id 123456
+```
+
+### Auth
+
+```sh
+# Save credentials interactively
+cfl auth
+
+# Save credentials explicitly
+cfl auth login --domain example.atlassian.net --email user@example.com --api-token <token>
+
+# Save credentials without online validation
+cfl auth login --domain example.atlassian.net --email user@example.com --api-token <token> --no-validate
+
+# Clear saved credentials
+cfl auth logout
+```
+
 ## Markdown Support
 
 See [markdown-syntax.md](/docs/markdown-syntax.md).
