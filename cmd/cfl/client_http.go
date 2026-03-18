@@ -107,35 +107,6 @@ func (c *httpClient) ResolveSpaceRootPage(ctx context.Context, spaceID string) (
 	return response.HomepageID, nil
 }
 
-func (c *httpClient) PageExists(ctx context.Context, spaceID string, parentID string, title string) (bool, error) {
-	nextURL := c.apiBaseURL + "/pages?limit=250&space-id=" + url.QueryEscape(spaceID) + "&title=" + url.QueryEscape(title)
-
-	for nextURL != "" {
-		var response struct {
-			Results []struct {
-				ID       string `json:"id"`
-				ParentID string `json:"parentId"`
-				Title    string `json:"title"`
-			} `json:"results"`
-			Links struct {
-				Next string `json:"next"`
-			} `json:"_links"`
-		}
-
-		if err := c.doJSON(ctx, http.MethodGet, nextURL, nil, &response); err != nil {
-			return false, err
-		}
-		for _, result := range response.Results {
-			if result.Title == title && result.ParentID == parentID {
-				return true, nil
-			}
-		}
-		nextURL = c.resolveNext(response.Links.Next)
-	}
-
-	return false, nil
-}
-
 func (c *httpClient) CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string) (page.Page, error) {
 	payload := map[string]any{
 		"spaceId":  spaceID,

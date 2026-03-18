@@ -129,12 +129,3 @@ func TestFormatMarkdownFile(t *testing.T) {
 		t.Fatalf("FormatMarkdownFile() = %q, want %q", got, want)
 	}
 }
-
-func TestTitleFromPath(t *testing.T) {
-	t.Parallel()
-
-	got := TitleFromPath("nested/architecture-overview.md")
-	if got != "architecture-overview" {
-		t.Fatalf("TitleFromPath() = %q, want %q", got, "architecture-overview")
-	}
-}

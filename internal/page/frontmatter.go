@@ -3,7 +3,6 @@ package page
 import (
 	"errors"
 	"fmt"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -81,12 +80,6 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 func FormatMarkdownFile(frontmatter Frontmatter, body string) []byte {
 	return []byte(fmt.Sprintf("---\ntitle: %s\nspace-key: %s\npage-id: %s\nparent-id: %s\n---\n%s",
 		frontmatter.Title, frontmatter.SpaceKey, frontmatter.PageID, frontmatter.ParentID, body))
-}
-
-// TitleFromPath derives the Confluence page title from the file basename.
-func TitleFromPath(path string) string {
-	base := filepath.Base(path)
-	return strings.TrimSuffix(base, filepath.Ext(base))
 }
 
 func valueAsString(v any) string {

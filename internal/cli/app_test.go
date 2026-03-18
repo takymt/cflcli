@@ -581,7 +581,6 @@ type fakeClient struct {
 	nextID                 int
 	spaceRoots             map[string]string
 	spaceKeyToID           map[string]string
-	children               map[string]map[string]string
 	pages                  map[string]*page.Page
 	updateCalls            map[string]int
 	putAttachmentCalls     []string
@@ -594,7 +593,6 @@ func newFakeClient() *fakeClient {
 		nextID:                 401,
 		spaceRoots:             make(map[string]string),
 		spaceKeyToID:           map[string]string{"TEST": "100"},
-		children:               make(map[string]map[string]string),
 		pages:                  make(map[string]*page.Page),
 		updateCalls:            make(map[string]int),
 		failPutAttachmentNames: make(map[string]bool),
@@ -627,15 +625,6 @@ func (f *fakeClient) ResolveSpaceRootPage(ctx context.Context, spaceID string) (
 	return root, nil
 }
 
-func (f *fakeClient) PageExists(ctx context.Context, spaceID string, parentID string, title string) (bool, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
-	children := f.children[parentID]
-	_, ok := children[title]
-	return ok, nil
-}
-
 func (f *fakeClient) CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string) (page.Page, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -651,10 +640,6 @@ func (f *fakeClient) CreatePage(ctx context.Context, spaceID string, parentID st
 		URL:      "https://example.test/pages/" + strconv.Itoa(id),
 	}
 	f.pages[p.ID] = p
-	if _, ok := f.children[parentID]; !ok {
-		f.children[parentID] = make(map[string]string)
-	}
-	f.children[parentID][title] = p.ID
 	return *p, nil
 }
 

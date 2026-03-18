@@ -155,10 +155,6 @@ func (f *fakeAttachmentClient) ResolveSpaceRootPage(context.Context, string) (st
 	return "", nil
 }
 
-func (f *fakeAttachmentClient) PageExists(context.Context, string, string, string) (bool, error) {
-	return false, nil
-}
-
 func (f *fakeAttachmentClient) CreatePage(context.Context, string, string, string, string) (Page, error) {
 	return Page{}, nil
 }
