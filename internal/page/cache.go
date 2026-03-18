@@ -9,8 +9,13 @@ import (
 	"path/filepath"
 )
 
-type hashCache struct {
-	Entries map[string]string `json:"entries"`
+type mermaidCacheEntry struct {
+	Source string `json:"source"`
+	File   string `json:"file"`
+}
+
+type mermaidCache struct {
+	Entries map[string]mermaidCacheEntry `json:"entries"`
 }
 
 type attachmentCache struct {
@@ -60,27 +65,37 @@ func cacheBaseAndKey(markdownPath string) (string, string, error) {
 	return base, textSHA256(abs), nil
 }
 
-func loadHashCache(path string) (hashCache, error) {
+func loadMermaidCache(path string) (mermaidCache, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return hashCache{Entries: make(map[string]string)}, nil
+			return mermaidCache{Entries: make(map[string]mermaidCacheEntry)}, nil
 		}
-		return hashCache{}, err
+		return mermaidCache{}, err
 	}
-	var cache hashCache
+	var cache mermaidCache
 	if err := json.Unmarshal(data, &cache); err == nil {
 		if cache.Entries == nil {
-			cache.Entries = make(map[string]string)
+			cache.Entries = make(map[string]mermaidCacheEntry)
 		}
 		return cache, nil
 	}
-	return hashCache{Entries: make(map[string]string)}, nil
+
+	// Older cache files stored only the mermaid source hash. Force a re-render
+	// by treating that format as a cache miss instead of keeping unusable data.
+	var legacy struct {
+		Entries map[string]string `json:"entries"`
+	}
+	if err := json.Unmarshal(data, &legacy); err == nil {
+		return mermaidCache{Entries: make(map[string]mermaidCacheEntry)}, nil
+	}
+
+	return mermaidCache{Entries: make(map[string]mermaidCacheEntry)}, nil
 }
 
-func saveHashCache(path string, cache hashCache) error {
+func saveMermaidCache(path string, cache mermaidCache) error {
 	if cache.Entries == nil {
-		cache.Entries = make(map[string]string)
+		cache.Entries = make(map[string]mermaidCacheEntry)
 	}
 	data, err := json.MarshalIndent(cache, "", "  ")
 	if err != nil {

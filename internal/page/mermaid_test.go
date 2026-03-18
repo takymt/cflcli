@@ -20,10 +20,12 @@ func TestConvertMarkdownToStorageWithMermaid(t *testing.T) {
 	path := filepath.Join(dir, "guide.md")
 	input := "before\n\n```mermaid\ngraph TD\nA-->B\n```\n\nmiddle\n\n```mermaid\ngraph TD\nB-->C\n```\n\nafter\n"
 
-	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
+	result, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
 	if err != nil {
 		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
 	}
+	got := result.Storage
+	generatedPaths := result.Generated
 	if len(generatedPaths) != 2 {
 		t.Fatalf("generatedPaths = %d, want 2", len(generatedPaths))
 	}
@@ -66,10 +68,12 @@ func TestConvertMarkdownToStorageWithMermaid_WithWidthAndAlignOptions(t *testing
 	path := filepath.Join(dir, "guide.md")
 	input := "```mermaid width=900 align=right\ngraph TD\nA-->B\n```\n"
 
-	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
+	result, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
 	if err != nil {
 		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
 	}
+	got := result.Storage
+	generatedPaths := result.Generated
 	if len(generatedPaths) != 1 {
 		t.Fatalf("generatedPaths = %d, want 1", len(generatedPaths))
 	}
@@ -91,20 +95,23 @@ func TestConvertMarkdownToStorageWithMermaid_UsesHashCache(t *testing.T) {
 	path := filepath.Join(dir, "guide.md")
 	input := "```mermaid\ngraph TD\nA-->B\n```\n"
 
-	_, firstGenerated, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
+	first, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
 	if err != nil {
 		t.Fatalf("first ConvertMarkdownToStorageWithMermaid() error = %v", err)
 	}
-	if len(firstGenerated) != 1 {
-		t.Fatalf("first generatedPaths = %d, want 1", len(firstGenerated))
+	if len(first.Generated) != 1 {
+		t.Fatalf("first generatedPaths = %d, want 1", len(first.Generated))
+	}
+	if err := first.SaveCache(); err != nil {
+		t.Fatalf("first SaveCache() error = %v", err)
 	}
 
-	_, secondGenerated, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
+	second, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
 	if err != nil {
 		t.Fatalf("second ConvertMarkdownToStorageWithMermaid() error = %v", err)
 	}
-	if len(secondGenerated) != 0 {
-		t.Fatalf("second generatedPaths = %d, want 0", len(secondGenerated))
+	if len(second.Generated) != 0 {
+		t.Fatalf("second generatedPaths = %d, want 0", len(second.Generated))
 	}
 }
 
@@ -116,7 +123,7 @@ func TestConvertMarkdownToStorageWithMermaid_OversizeReturnsError(t *testing.T) 
 	oversized := strings.Repeat("A", maxMermaidBlockChars+1)
 	input := "```mermaid\n" + oversized + "\n```\n"
 
-	_, _, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
+	_, err := ConvertMarkdownToStorageWithMermaid(context.Background(), path, input, "https://example.test")
 	if err == nil {
 		t.Fatal("ConvertMarkdownToStorageWithMermaid() error = nil, want oversize error")
 	}
@@ -137,10 +144,12 @@ func TestConvertMarkdownToStorageWithMermaid_RelativeMarkdownLinkToWebUILinkCard
 	}
 
 	input := "[Child](./child.md)\n"
-	got, generatedPaths, err := ConvertMarkdownToStorageWithMermaid(context.Background(), currentPath, input, "https://example.atlassian.net")
+	result, err := ConvertMarkdownToStorageWithMermaid(context.Background(), currentPath, input, "https://example.atlassian.net")
 	if err != nil {
 		t.Fatalf("ConvertMarkdownToStorageWithMermaid() error = %v", err)
 	}
+	got := result.Storage
+	generatedPaths := result.Generated
 	if len(generatedPaths) != 0 {
 		t.Fatalf("generatedPaths = %d, want 0", len(generatedPaths))
 	}

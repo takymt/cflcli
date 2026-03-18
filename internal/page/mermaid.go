@@ -16,17 +16,27 @@ const maxMermaidBlockChars = 2000
 
 var mermaidWarmupOnce sync.Once
 
+type MermaidResult struct {
+	Storage   string
+	Generated map[string]string
+	SaveCache func() error
+}
+
 // ConvertMarkdownToStorageWithMermaid converts markdown to storage format and
 // turns mermaid fenced blocks into attachment image macros.
-func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string, siteBaseURL string) (string, map[string]string, error) {
+func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string, siteBaseURL string) (MermaidResult, error) {
+	result := MermaidResult{
+		Generated: make(map[string]string),
+		SaveCache: func() error { return nil },
+	}
 	markdown = resolveRelativeMarkdownLinks(markdownPath, markdown, strings.TrimSuffix(siteBaseURL, "/"))
 	cachePath, err := mermaidCachePath(markdownPath)
 	if err != nil {
-		return "", nil, err
+		return MermaidResult{}, err
 	}
-	cache, err := loadHashCache(cachePath)
+	cache, err := loadMermaidCache(cachePath)
 	if err != nil {
-		return "", nil, err
+		return MermaidResult{}, err
 	}
 
 	lines := strings.Split(markdown, "\n")
@@ -34,7 +44,6 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 		parts        []string
 		pending      []string
 		mermaidIndex int
-		generated    = make(map[string]string)
 		seen         = make(map[string]struct{})
 	)
 
@@ -58,7 +67,7 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 		opts, isMermaidFence := parseMermaidFence(trimmed)
 		if isMermaidFence {
 			if err := flushPending(); err != nil {
-				return "", nil, err
+				return MermaidResult{}, err
 			}
 			start := i
 			i++
@@ -81,23 +90,31 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 			mermaidIndex++
 			source := strings.Join(mermaidLines, "\n")
 			if len(source) > maxMermaidBlockChars {
-				return "", nil, fmt.Errorf("mermaid block %d exceeds %d chars", mermaidIndex, maxMermaidBlockChars)
+				return MermaidResult{}, fmt.Errorf("mermaid block %d exceeds %d chars", mermaidIndex, maxMermaidBlockChars)
 			}
 
 			filename := "mermaid-" + strconv.Itoa(mermaidIndex) + ".svg"
 			seen[filename] = struct{}{}
-			hash := textSHA256(source + "\n---\n" + mermaidOptionsKey(opts))
-			cachedHash, hasCache := cache.Entries[filename]
-
-			needRender := !hasCache || cachedHash != hash
+			sourceHash := textSHA256(source + "\n---\n" + mermaidOptionsKey(opts))
+			cached, hasCache := cache.Entries[filename]
+			needRender := !hasCache || cached.Source != sourceHash
 			if needRender {
 				renderedPath, renderErr := renderMermaidSVG(ctx, source, filename)
 				if renderErr != nil {
-					return "", nil, renderErr
+					return MermaidResult{}, renderErr
 				}
-				generated[filename] = renderedPath
+				fileHash, hashErr := fileSHA256(renderedPath)
+				if hashErr != nil {
+					_ = os.Remove(renderedPath)
+					_ = os.Remove(filepath.Dir(renderedPath))
+					return MermaidResult{}, hashErr
+				}
+				result.Generated[filename] = renderedPath
+				cache.Entries[filename] = mermaidCacheEntry{
+					Source: sourceHash,
+					File:   fileHash,
+				}
 			}
-			cache.Entries[filename] = hash
 			parts = append(parts, buildMermaidImageStorage(filename, opts))
 			continue
 		}
@@ -105,17 +122,18 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 	}
 
 	if err := flushPending(); err != nil {
-		return "", nil, err
+		return MermaidResult{}, err
 	}
 	for filename := range cache.Entries {
 		if _, ok := seen[filename]; !ok {
 			delete(cache.Entries, filename)
 		}
 	}
-	if err := saveHashCache(cachePath, cache); err != nil {
-		return "", nil, err
+	result.Storage = strings.Join(parts, "\n")
+	result.SaveCache = func() error {
+		return saveMermaidCache(cachePath, cache)
 	}
-	return strings.Join(parts, "\n"), generated, nil
+	return result, nil
 }
 
 func mermaidOptionsKey(opts mermaidOptions) string {

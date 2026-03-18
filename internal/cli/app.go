@@ -386,7 +386,7 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 	if progress != nil {
 		progress.Set("Rendering Mermaid...")
 	}
-	converted, generatedMermaid, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
+	mermaidResult, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
 	if err != nil {
 		if progress != nil {
 			progress.Clear()
@@ -394,7 +394,7 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 		return page.Page{}, err
 	}
 	defer func() {
-		for _, generatedPath := range generatedMermaid {
+		for _, generatedPath := range mermaidResult.Generated {
 			_ = os.Remove(generatedPath)
 			_ = os.Remove(filepath.Dir(generatedPath))
 		}
@@ -403,7 +403,13 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 	if progress != nil {
 		progress.Set("Uploading attachments...")
 	}
-	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, converted, generatedMermaid); err != nil {
+	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, mermaidResult.Storage, mermaidResult.Generated); err != nil {
+		if progress != nil {
+			progress.Clear()
+		}
+		return page.Page{}, err
+	}
+	if err := mermaidResult.SaveCache(); err != nil {
 		if progress != nil {
 			progress.Clear()
 		}
@@ -414,7 +420,7 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 		progress.Set("Updating page...")
 	}
 	title := frontmatter.Title
-	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, converted)
+	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, mermaidResult.Storage)
 	if err != nil {
 		if progress != nil {
 			progress.Clear()

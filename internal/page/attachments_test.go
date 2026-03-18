@@ -138,6 +138,78 @@ func TestSyncAttachmentsFromStorage(t *testing.T) {
 	})
 }
 
+func TestSyncAttachments_MermaidReRenderAfterSourceChange(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	markdownPath := filepath.Join(dir, "guide.md")
+	firstPath := filepath.Join(dir, "generated-a.svg")
+	secondPath := filepath.Join(dir, "generated-b.svg")
+	if err := os.WriteFile(firstPath, []byte("<svg>A</svg>"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+	if err := os.WriteFile(secondPath, []byte("<svg>B</svg>"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := &fakeAttachmentClient{}
+	storage := `<ac:image><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`
+	if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage, map[string]string{"mermaid-1.svg": firstPath}); err != nil {
+		t.Fatalf("first SyncAttachmentsFromStorage() error = %v", err)
+	}
+	if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage, map[string]string{"mermaid-1.svg": secondPath}); err != nil {
+		t.Fatalf("second SyncAttachmentsFromStorage() error = %v", err)
+	}
+	if len(client.putCalls) != 2 {
+		t.Fatalf("putCalls = %d, want 2", len(client.putCalls))
+	}
+}
+
+func TestSyncAttachments_MermaidUnchangedUsesFileCacheHash(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	markdownPath := filepath.Join(dir, "guide.md")
+	generatedPath := filepath.Join(dir, "generated.svg")
+	if err := os.WriteFile(generatedPath, []byte("<svg>stable</svg>"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := &fakeAttachmentClient{}
+	storage := `<ac:image><ri:attachment ri:filename="mermaid-1.svg" /></ac:image>`
+	if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage, map[string]string{"mermaid-1.svg": generatedPath}); err != nil {
+		t.Fatalf("first SyncAttachmentsFromStorage() error = %v", err)
+	}
+
+	fileHash, err := fileSHA256(generatedPath)
+	if err != nil {
+		t.Fatalf("fileSHA256() error = %v", err)
+	}
+	cachePath, err := mermaidCachePath(markdownPath)
+	if err != nil {
+		t.Fatalf("mermaidCachePath() error = %v", err)
+	}
+	cache := mermaidCache{
+		Entries: map[string]mermaidCacheEntry{
+			"mermaid-1.svg": {
+				Source: "source-hash",
+				File:   fileHash,
+			},
+		},
+	}
+	if err := saveMermaidCache(cachePath, cache); err != nil {
+		t.Fatalf("saveMermaidCache() error = %v", err)
+	}
+
+	client.putCalls = nil
+	if err := SyncAttachmentsFromStorage(context.Background(), client, "400", markdownPath, storage, nil); err != nil {
+		t.Fatalf("second SyncAttachmentsFromStorage() error = %v", err)
+	}
+	if len(client.putCalls) != 0 {
+		t.Fatalf("putCalls = %d, want 0", len(client.putCalls))
+	}
+}
+
 type fakeAttachmentClient struct {
 	putCalls []string
 	failPut  bool

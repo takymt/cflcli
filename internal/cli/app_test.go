@@ -355,6 +355,56 @@ func TestRunPageSync_AttachmentFailureDoesNotUpdateBody(t *testing.T) {
 	}
 }
 
+func TestRunPageSync_MermaidRetryAfterUploadFailure(t *testing.T) {
+	t.Parallel()
+
+	if _, err := exec.LookPath("mmdc"); err != nil {
+		t.Skip("mmdc is required for mermaid attachment retry test")
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "guide.md")
+	content := "---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n```mermaid\ngraph TD\nA-->B\n```\n"
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{
+		ID:    "400",
+		Title: "guide",
+		Body:  "<p>old body</p>",
+		URL:   "https://example.test/pages/400",
+	}
+	client.failPutAttachmentNames["mermaid-1.svg"] = true
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+
+	firstExit := app.Run(context.Background(), []string{"page", "sync", "guide.md"}, dir)
+	if firstExit != 1 {
+		t.Fatalf("first Run() exit = %d, want 1", firstExit)
+	}
+
+	delete(client.failPutAttachmentNames, "mermaid-1.svg")
+	secondExit := app.Run(context.Background(), []string{"page", "sync", "guide.md"}, dir)
+	if secondExit != 0 {
+		t.Fatalf("second Run() exit = %d, want 0 (output: %q)", secondExit, stdout.String())
+	}
+
+	if len(client.putAttachmentCalls) != 1 {
+		t.Fatalf("putAttachmentCalls = %d, want 1", len(client.putAttachmentCalls))
+	}
+
+	p := client.pageByID("400")
+	if p == nil {
+		t.Fatal("expected page 400 to exist")
+	}
+	if !strings.Contains(p.Body, `ri:filename="mermaid-1.svg"`) {
+		t.Fatalf("page body = %q, want mermaid attachment macro", p.Body)
+	}
+}
+
 func TestRunPageSyncWatch(t *testing.T) {
 	t.Parallel()
 
