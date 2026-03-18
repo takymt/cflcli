@@ -47,19 +47,19 @@ func TestRunShowsCommandUsageForInputErrors(t *testing.T) {
 			name:         "page sync missing arg",
 			args:         []string{"page", "sync"},
 			wantError:    "accepts 1 arg(s), received 0",
-			wantUsageFor: "cfl page sync <file>.md",
+			wantUsageFor: "cfl page sync <path>",
 		},
 		{
 			name:         "page sync extra arg",
 			args:         []string{"page", "sync", "one.md", "two.md"},
 			wantError:    "accepts 1 arg(s), received 2",
-			wantUsageFor: "cfl page sync <file>.md",
+			wantUsageFor: "cfl page sync <path>",
 		},
 		{
 			name:         "page sync unknown flag",
 			args:         []string{"page", "sync", "one.md", "--bogus"},
 			wantError:    "unknown flag: --bogus",
-			wantUsageFor: "cfl page sync <file>.md",
+			wantUsageFor: "cfl page sync <path>",
 		},
 		{
 			name:         "attachment put missing arg",

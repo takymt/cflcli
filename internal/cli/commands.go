@@ -49,9 +49,9 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 
 	var syncWatch bool
 	pageSyncCmd := &cobra.Command{
-		Use:   "sync <file>.md",
+		Use:   "sync <path>",
 		Args:  exactArgsWithUsage(1),
-		Short: "Sync a local markdown file to Confluence",
+		Short: "Sync a local markdown file or directory to Confluence",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
 			return a.runPageSync(cmd.Context(), workdir, cmdArgs[0], syncWatch)
 		},

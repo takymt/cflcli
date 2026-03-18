@@ -65,6 +65,10 @@ func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 			a.println(strings.TrimRight(uerr.cmd.UsageString(), "\n"))
 			return 1
 		}
+		var serr interface{ Silent() bool }
+		if errors.As(err, &serr) && serr.Silent() {
+			return 1
+		}
 		a.println(err.Error())
 		return 1
 	}
@@ -142,6 +146,35 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 
 func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, watch bool) error {
 	path := resolvePath(workdir, fileArg)
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	if info.IsDir() {
+		if watch {
+			return errors.New("--watch is only supported for a single markdown file")
+		}
+
+		files, skipped, err := collectMarkdownFiles(path, defaultDirSyncMaxFiles)
+		if err != nil {
+			return err
+		}
+		if len(files) == 0 {
+			a.printSkipped(skipped)
+			a.println("No markdown files with valid frontmatter found")
+			return nil
+		}
+		if err := a.ensureClient(); err != nil {
+			return err
+		}
+
+		results := a.syncDir(ctx, files, defaultDirSyncConcurrency)
+		if failures := a.printSyncSummary(results, skipped); failures > 0 {
+			return newSilentError(fmt.Errorf("%d files failed during sync", failures))
+		}
+		return nil
+	}
+
 	if !watch {
 		updated, err := a.syncFile(ctx, path)
 		if err != nil {

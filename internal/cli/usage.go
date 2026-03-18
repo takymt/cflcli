@@ -12,12 +12,31 @@ type usageError struct {
 	err error
 }
 
+type silentError struct {
+	err error
+}
+
 func (e *usageError) Error() string {
 	return e.err.Error()
 }
 
 func (e *usageError) Unwrap() error {
 	return e.err
+}
+
+func (e *silentError) Error() string {
+	if e.err == nil {
+		return ""
+	}
+	return e.err.Error()
+}
+
+func (e *silentError) Unwrap() error {
+	return e.err
+}
+
+func (e *silentError) Silent() bool {
+	return true
 }
 
 func newUsageError(cmd *cobra.Command, err error) error {
@@ -28,6 +47,13 @@ func newUsageError(cmd *cobra.Command, err error) error {
 		cmd: cmd,
 		err: err,
 	}
+}
+
+func newSilentError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return &silentError{err: err}
 }
 
 func exactArgsWithUsage(n int) cobra.PositionalArgs {
