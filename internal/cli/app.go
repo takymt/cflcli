@@ -91,7 +91,7 @@ func (a *App) ensureClient() error {
 	return nil
 }
 
-func (a *App) runPageNew(ctx context.Context, workdir string, title string, pathArg string, spaceKey string, parentID string, watch bool) error {
+func (a *App) runPageNew(ctx context.Context, workdir string, title string, pathArg string, spaceKey string, parentID string, private bool, watch bool) error {
 	title, err := normalizePageTitle(title)
 	if err != nil {
 		return err
@@ -126,6 +126,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, title string, path
 		SpaceKey: spaceKey,
 		PageID:   created.ID,
 		ParentID: parentID,
+		Private:  private,
 	}, "")
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return err
