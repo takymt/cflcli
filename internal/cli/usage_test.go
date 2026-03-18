@@ -38,6 +38,12 @@ func TestRunShowsCommandUsageForInputErrors(t *testing.T) {
 			wantUsageFor: "cfl page new <title>.md",
 		},
 		{
+			name:         "page new unknown flag",
+			args:         []string{"page", "new", "one.md", "--space-key", "TEST", "--bogus"},
+			wantError:    "unknown flag: --bogus",
+			wantUsageFor: "cfl page new <title>.md",
+		},
+		{
 			name:         "page sync missing arg",
 			args:         []string{"page", "sync"},
 			wantError:    "accepts 1 arg(s), received 0",
@@ -74,6 +80,12 @@ func TestRunShowsCommandUsageForInputErrors(t *testing.T) {
 			wantUsageFor: "cfl attachment put <file>",
 		},
 		{
+			name:         "attachment put unknown flag",
+			args:         []string{"attachment", "put", "--page-id", "400", "a.svg", "--bogus"},
+			wantError:    "unknown flag: --bogus",
+			wantUsageFor: "cfl attachment put <file>",
+		},
+		{
 			name:         "attachment delete missing arg",
 			args:         []string{"attachment", "delete", "--page-id", "400"},
 			wantError:    "accepts 1 arg(s), received 0",
@@ -90,6 +102,24 @@ func TestRunShowsCommandUsageForInputErrors(t *testing.T) {
 			args:         []string{"attachment", "delete", "a.svg"},
 			wantError:    `required flag(s) "page-id" not set`,
 			wantUsageFor: "cfl attachment delete <filename>",
+		},
+		{
+			name:         "attachment delete unknown flag",
+			args:         []string{"attachment", "delete", "--page-id", "400", "a.svg", "--bogus"},
+			wantError:    "unknown flag: --bogus",
+			wantUsageFor: "cfl attachment delete <filename>",
+		},
+		{
+			name:         "auth unknown flag",
+			args:         []string{"auth", "--bogus"},
+			wantError:    "unknown flag: --bogus",
+			wantUsageFor: "cfl auth [flags]",
+		},
+		{
+			name:         "auth unknown command",
+			args:         []string{"auth", "bogus"},
+			wantError:    `unknown command "bogus" for "cfl auth"`,
+			wantUsageFor: "cfl auth [flags]",
 		},
 		{
 			name:         "auth login extra arg",
