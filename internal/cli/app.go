@@ -59,6 +59,12 @@ func NewLazy(clientLoader func() (page.Client, error), stdout io.Writer) *App {
 func (a *App) Run(ctx context.Context, args []string, workdir string) int {
 	rootCmd := a.newRootCommand(args, workdir)
 	if err := rootCmd.ExecuteContext(ctx); err != nil {
+		var uerr *usageError
+		if errors.As(err, &uerr) {
+			a.println(err.Error())
+			a.println(strings.TrimRight(uerr.cmd.UsageString(), "\n"))
+			return 1
+		}
 		a.println(err.Error())
 		return 1
 	}

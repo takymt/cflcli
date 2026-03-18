@@ -8,6 +8,9 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
+	rootCmd.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+		return newUsageError(cmd, err)
+	})
 	rootCmd.SetOut(a.stdout)
 	rootCmd.SetErr(a.stdout)
 	rootCmd.SetArgs(args)
@@ -22,7 +25,7 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 	}
 	authCmd := &cobra.Command{
 		Use:   "auth",
-		Args:  cobra.NoArgs,
+		Args:  noArgsWithUsage(),
 		Short: "Manage Confluence authentication",
 	}
 
@@ -32,9 +35,10 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 		newWatch    bool
 	)
 	pageNewCmd := &cobra.Command{
-		Use:   "new <title>.md",
-		Args:  cobra.ExactArgs(1),
-		Short: "Create a local markdown file and a Confluence page",
+		Use:     "new <title>.md",
+		Args:    exactArgsWithUsage(1),
+		PreRunE: requireFlagsWithUsage("space-key"),
+		Short:   "Create a local markdown file and a Confluence page",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
 			return a.runPageNew(cmd.Context(), workdir, cmdArgs[0], newSpaceKey, newParentID, newWatch)
 		},
@@ -42,12 +46,11 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 	pageNewCmd.Flags().StringVar(&newSpaceKey, "space-key", "", "Confluence space key")
 	pageNewCmd.Flags().StringVar(&newParentID, "parent-id", "", "Confluence parent page id")
 	pageNewCmd.Flags().BoolVar(&newWatch, "watch", false, "Watch the created file and sync on changes")
-	_ = pageNewCmd.MarkFlagRequired("space-key")
 
 	var syncWatch bool
 	pageSyncCmd := &cobra.Command{
 		Use:   "sync <file>.md",
-		Args:  cobra.ExactArgs(1),
+		Args:  exactArgsWithUsage(1),
 		Short: "Sync a local markdown file to Confluence",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
 			return a.runPageSync(cmd.Context(), workdir, cmdArgs[0], syncWatch)
@@ -61,27 +64,27 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 		attachmentDelPageID string
 	)
 	attachmentPutCmd := &cobra.Command{
-		Use:   "put <file>",
-		Args:  cobra.ExactArgs(1),
-		Short: "Upload or update an attachment on a Confluence page",
+		Use:     "put <file>",
+		Args:    exactArgsWithUsage(1),
+		PreRunE: requireFlagsWithUsage("page-id"),
+		Short:   "Upload or update an attachment on a Confluence page",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
 			filePath := resolvePath(workdir, cmdArgs[0])
 			return a.runAttachmentPut(cmd.Context(), attachmentPutPageID, filePath)
 		},
 	}
 	attachmentPutCmd.Flags().StringVar(&attachmentPutPageID, "page-id", "", "Confluence page id")
-	_ = attachmentPutCmd.MarkFlagRequired("page-id")
 
 	attachmentDeleteCmd := &cobra.Command{
-		Use:   "delete <filename>",
-		Args:  cobra.ExactArgs(1),
-		Short: "Delete an attachment from a Confluence page by filename",
+		Use:     "delete <filename>",
+		Args:    exactArgsWithUsage(1),
+		PreRunE: requireFlagsWithUsage("page-id"),
+		Short:   "Delete an attachment from a Confluence page by filename",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
 			return a.runAttachmentDelete(cmd.Context(), attachmentDelPageID, cmdArgs[0])
 		},
 	}
 	attachmentDeleteCmd.Flags().StringVar(&attachmentDelPageID, "page-id", "", "Confluence page id")
-	_ = attachmentDeleteCmd.MarkFlagRequired("page-id")
 
 	attachmentCmd.AddCommand(attachmentPutCmd, attachmentDeleteCmd)
 
@@ -94,7 +97,7 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 	var authLoginOpts authLoginOptions
 	authLoginCmd := &cobra.Command{
 		Use:   "login",
-		Args:  cobra.NoArgs,
+		Args:  noArgsWithUsage(),
 		Short: "Save Confluence credentials",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
 			return a.runAuthLogin(cmd.Context(), authLoginOpts.domain, authLoginOpts.email, authLoginOpts.apiToken, authLoginOpts.noValidate)
@@ -104,7 +107,7 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 
 	authLogoutCmd := &cobra.Command{
 		Use:   "logout",
-		Args:  cobra.NoArgs,
+		Args:  noArgsWithUsage(),
 		Short: "Clear saved Confluence credentials",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
 			return a.runAuthLogout()
