@@ -164,6 +164,15 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 			},
 		},
 		{
+			name:  "tilde fenced code block",
+			input: "~~~javascript\nconst codeBlock = \"this is tilde code block\";\n~~~\n",
+			contains: []string{
+				`ac:name="code"`,
+				`<ac:parameter ac:name="language">javascript</ac:parameter>`,
+				`<![CDATA[const codeBlock = "this is tilde code block";`,
+			},
+		},
+		{
 			name:  "details expand",
 			input: "<details><summary>title</summary>\n- Collapsed body line 1\n- Collapsed body line 2\n</details>\n",
 			contains: []string{
@@ -208,6 +217,59 @@ func TestConvertMarkdownToStorage_EmptyBody(t *testing.T) {
 
 	if got != "" {
 		t.Fatalf("ConvertMarkdownToStorage() = %q, want empty string", got)
+	}
+}
+
+func TestConvertMarkdownToStorage_MixedFenceEscapes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "backticks escape tilde fence",
+			input: "```md\n~~~mermaid\ngraph TD\nA-->B\n~~~\n```\n",
+			want: []string{
+				`<ac:parameter ac:name="language">md</ac:parameter>`,
+				`~~~mermaid`,
+				`graph TD`,
+				`A-->B`,
+				`~~~`,
+			},
+		},
+		{
+			name:  "tildes escape backtick fence",
+			input: "~~~md\n```mermaid\ngraph TD\nA-->B\n```\n~~~\n",
+			want: []string{
+				`<ac:parameter ac:name="language">md</ac:parameter>`,
+				"```mermaid",
+				`graph TD`,
+				`A-->B`,
+				"```",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ConvertMarkdownToStorage(tt.input)
+			if err != nil {
+				t.Fatalf("ConvertMarkdownToStorage() error = %v", err)
+			}
+			if strings.Contains(got, "<ac:image") {
+				t.Fatalf("ConvertMarkdownToStorage() = %q, want literal fenced content", got)
+			}
+			for _, want := range tt.want {
+				if !strings.Contains(got, want) {
+					t.Fatalf("ConvertMarkdownToStorage() = %q, missing %q", got, want)
+				}
+			}
+		})
 	}
 }
 

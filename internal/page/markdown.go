@@ -140,15 +140,15 @@ func convertHorizontalRule(line string) (string, bool) {
 }
 
 func convertFencedCode(lines []string, start int) (string, int, bool) {
-	trimmed := strings.TrimSpace(lines[start])
-	if !strings.HasPrefix(trimmed, "```") {
+	fence, ok := parseFenceStart(lines[start])
+	if !ok {
 		return "", start, false
 	}
-	lang := strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
+	lang := fence.info
 	var block []string
 	i := start + 1
 	for i < len(lines) {
-		if strings.HasPrefix(strings.TrimSpace(lines[i]), "```") {
+		if isFenceClose(lines[i], fence.marker) {
 			i++
 			break
 		}
@@ -593,7 +593,7 @@ func isBlockStart(lines []string, index int) bool {
 	if _, ok := convertHorizontalRule(line); ok {
 		return true
 	}
-	if strings.HasPrefix(line, "```") ||
+	if _, ok := parseFenceStart(line); ok ||
 		strings.HasPrefix(line, "<details><summary>") ||
 		alertStartRE.MatchString(line) ||
 		textAlignParaRE.MatchString(line) ||

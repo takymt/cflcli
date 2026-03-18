@@ -64,6 +64,7 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 
 	for i := 0; i < len(lines); i++ {
 		trimmed := strings.TrimSpace(lines[i])
+		fence, hasFence := parseFenceStart(trimmed)
 		opts, isMermaidFence := parseMermaidFence(trimmed)
 		if isMermaidFence {
 			if err := flushPending(); err != nil {
@@ -75,7 +76,7 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 			var mermaidLines []string
 			closed := false
 			for i < len(lines) {
-				if strings.HasPrefix(strings.TrimSpace(lines[i]), "```") {
+				if isFenceClose(lines[i], fence.marker) {
 					closed = true
 					break
 				}
@@ -117,6 +118,24 @@ func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath strin
 			}
 			parts = append(parts, buildMermaidImageStorage(filename, opts))
 			continue
+		}
+		if hasFence {
+			start := i
+			i++
+			closed := false
+			for i < len(lines) {
+				if isFenceClose(lines[i], fence.marker) {
+					closed = true
+					break
+				}
+				i++
+			}
+			if closed {
+				pending = append(pending, lines[start:i+1]...)
+				continue
+			}
+			pending = append(pending, lines[start:]...)
+			break
 		}
 		pending = append(pending, lines[i])
 	}
@@ -209,14 +228,18 @@ func renderMermaidSVG(ctx context.Context, source string, filename string) (stri
 
 func resolveRelativeMarkdownLinks(markdownPath string, markdown string, siteBaseURL string) string {
 	lines := strings.Split(markdown, "\n")
-	inFence := false
+	var currentFence string
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "```") {
-			inFence = !inFence
+		if currentFence != "" {
+			if isFenceClose(trimmed, currentFence) {
+				currentFence = ""
+			}
 			continue
 		}
-		if inFence {
+		fence, ok := parseFenceStart(trimmed)
+		if ok {
+			currentFence = fence.marker
 			continue
 		}
 		lines[i] = rewriteRelativeMarkdownLinksInLine(markdownPath, line, siteBaseURL)
@@ -286,10 +309,11 @@ type mermaidOptions struct {
 }
 
 func parseMermaidFence(line string) (mermaidOptions, bool) {
-	if !strings.HasPrefix(line, "```") {
+	fence, ok := parseFenceStart(line)
+	if !ok {
 		return mermaidOptions{}, false
 	}
-	info := strings.TrimSpace(strings.TrimPrefix(line, "```"))
+	info := fence.info
 	if info == "" {
 		return mermaidOptions{}, false
 	}
