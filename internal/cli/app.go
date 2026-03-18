@@ -128,6 +128,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 	}
 
 	data := page.FormatMarkdownFile(page.Frontmatter{
+		Title:    title,
 		SpaceKey: spaceKey,
 		PageID:   created.ID,
 		ParentID: parentID,

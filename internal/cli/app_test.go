@@ -34,7 +34,7 @@ func TestRunPageNew(t *testing.T) {
 			name:          "explicit parent",
 			args:          []string{"page", "new", "guide.md", "--space-key", "TEST", "--parent-id", "200"},
 			wantExit:      0,
-			wantBody:      "---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
+			wantBody:      "---\ntitle: guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
 			wantParentID:  "200",
 			wantTitle:     "guide",
 			wantOutput:    "https://example.test/pages/401",
@@ -49,7 +49,7 @@ func TestRunPageNew(t *testing.T) {
 				client.spaceKeyToID["TEST"] = "100"
 			},
 			wantExit:      0,
-			wantBody:      "---\nspace-key: TEST\npage-id: 401\nparent-id: 300\n---\n",
+			wantBody:      "---\ntitle: guide\nspace-key: TEST\npage-id: 401\nparent-id: 300\n---\n",
 			wantParentID:  "300",
 			wantTitle:     "guide",
 			wantOutput:    "https://example.test/pages/401",
@@ -83,7 +83,7 @@ func TestRunPageNew(t *testing.T) {
 			name:          "basename derived title",
 			args:          []string{"page", "new", "architecture-overview.md", "--space-key", "TEST", "--parent-id", "200"},
 			wantExit:      0,
-			wantBody:      "---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
+			wantBody:      "---\ntitle: architecture-overview\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
 			wantParentID:  "200",
 			wantTitle:     "architecture-overview",
 			wantOutput:    "https://example.test/pages/401",
@@ -161,7 +161,7 @@ func TestRunPageSync(t *testing.T) {
 		{
 			name:     "valid file",
 			filename: "guide.md",
-			fileBody: "---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Title\n\nParagraph.\n",
+			fileBody: "---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Title\n\nParagraph.\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
 			},
@@ -173,7 +173,7 @@ func TestRunPageSync(t *testing.T) {
 		{
 			name:     "empty body",
 			filename: "guide.md",
-			fileBody: "---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n",
+			fileBody: "---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
 			},
@@ -192,21 +192,21 @@ func TestRunPageSync(t *testing.T) {
 		{
 			name:       "missing required key",
 			filename:   "guide.md",
-			fileBody:   "---\nspace-key: TEST\npage-id: 400\n---\n",
+			fileBody:   "---\ntitle: guide\nspace-key: TEST\npage-id: 400\n---\n",
 			wantExit:   1,
 			wantOutput: "required",
 		},
 		{
 			name:       "malformed frontmatter",
 			filename:   "guide.md",
-			fileBody:   "---\nspace-key: [TEST\npage-id: 400\nparent-id: 200\n---\n",
+			fileBody:   "---\ntitle: guide\nspace-key: [TEST\npage-id: 400\nparent-id: 200\n---\n",
 			wantExit:   1,
 			wantOutput: "malformed",
 		},
 		{
 			name:     "title follows basename",
 			filename: "renamed-guide.md",
-			fileBody: "---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nBody\n",
+			fileBody: "---\ntitle: renamed-guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nBody\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", Title: "old-title", URL: "https://example.test/pages/400"}
 			},
@@ -302,7 +302,7 @@ func TestRunPageSync_AttachmentFailureDoesNotUpdateBody(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "guide.md")
-	content := "---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n```mermaid\ngraph TD\nA-->B\n```\n"
+	content := "---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n```mermaid\ngraph TD\nA-->B\n```\n"
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
@@ -344,7 +344,7 @@ func TestRunPageSyncWatch(t *testing.T) {
 		}
 	}
 
-	write("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Initial\n")
+	write("---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Initial\n")
 
 	client := newFakeClient()
 	client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
@@ -366,9 +366,9 @@ func TestRunPageSyncWatch(t *testing.T) {
 		return strings.Contains(client.pageByID("400").Body, "<h1>Initial</h1>")
 	})
 
-	write("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Burst 1\n")
+	write("---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Burst 1\n")
 	time.Sleep(10 * time.Millisecond)
-	write("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Burst 2\n")
+	write("---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Burst 2\n")
 
 	waitFor(t, time.Second, func() bool {
 		page := client.pageByID("400")
@@ -392,7 +392,7 @@ func TestRunPageSyncWatch(t *testing.T) {
 		return strings.Contains(stripANSI(stdout.String()), "!")
 	})
 
-	write("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Recovered\n")
+	write("---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Recovered\n")
 	waitFor(t, time.Second, func() bool {
 		page := client.pageByID("400")
 		return page != nil && strings.Contains(page.Body, "<h1>Recovered</h1>")
@@ -473,7 +473,7 @@ func TestRunPageNewWatch(t *testing.T) {
 		t.Fatalf("updateCount() before edits = %d, want 0", got)
 	}
 
-	if err := os.WriteFile(path, []byte("---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# Updated\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("---\ntitle: guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# Updated\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 

@@ -36,8 +36,8 @@ func TestCollectMarkdownFiles_ValidAndInvalid(t *testing.T) {
 
 	root := filepath.Join(t.TempDir(), "docs")
 	mustMkdirAll(t, filepath.Join(root, "nested"))
-	writeTestFile(t, filepath.Join(root, "guide-a.md"), []byte("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# A\n"))
-	writeTestFile(t, filepath.Join(root, "nested", "guide-b.md"), []byte("---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# B\n"))
+	writeTestFile(t, filepath.Join(root, "guide-a.md"), []byte("---\ntitle: guide-a\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# A\n"))
+	writeTestFile(t, filepath.Join(root, "nested", "guide-b.md"), []byte("---\ntitle: guide-b\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# B\n"))
 	writeTestFile(t, filepath.Join(root, "draft.md"), []byte("# no frontmatter\n"))
 	writeTestFile(t, filepath.Join(root, "notes.txt"), []byte("ignored\n"))
 
@@ -72,8 +72,8 @@ func TestCollectMarkdownFiles_NestedDirs(t *testing.T) {
 
 	root := filepath.Join(t.TempDir(), "docs")
 	mustMkdirAll(t, filepath.Join(root, "product", "api"))
-	writeTestFile(t, filepath.Join(root, "product", "guide.md"), []byte("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nbody\n"))
-	writeTestFile(t, filepath.Join(root, "product", "api", "reference.md"), []byte("---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\nbody\n"))
+	writeTestFile(t, filepath.Join(root, "product", "guide.md"), []byte("---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nbody\n"))
+	writeTestFile(t, filepath.Join(root, "product", "api", "reference.md"), []byte("---\ntitle: reference\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\nbody\n"))
 
 	files, skipped, err := collectMarkdownFiles(root, 500)
 	if err != nil {
@@ -98,9 +98,9 @@ func TestCollectMarkdownFiles_MaxFilesExceeded(t *testing.T) {
 
 	root := filepath.Join(t.TempDir(), "docs")
 	mustMkdirAll(t, root)
-	writeTestFile(t, filepath.Join(root, "one.md"), []byte("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n"))
-	writeTestFile(t, filepath.Join(root, "two.md"), []byte("---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n"))
-	writeTestFile(t, filepath.Join(root, "three.md"), []byte("---\nspace-key: TEST\npage-id: 402\nparent-id: 200\n---\n"))
+	writeTestFile(t, filepath.Join(root, "one.md"), []byte("---\ntitle: one\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n"))
+	writeTestFile(t, filepath.Join(root, "two.md"), []byte("---\ntitle: two\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n"))
+	writeTestFile(t, filepath.Join(root, "three.md"), []byte("---\ntitle: three\nspace-key: TEST\npage-id: 402\nparent-id: 200\n---\n"))
 
 	_, _, err := collectMarkdownFiles(root, 2)
 	if err == nil {
@@ -117,8 +117,8 @@ func TestRunPageSync_Directory(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "docs")
 	mustMkdirAll(t, filepath.Join(root, "nested"))
-	writeTestFile(t, filepath.Join(root, "guide-a.md"), []byte("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# A\n"))
-	writeTestFile(t, filepath.Join(root, "nested", "guide-b.md"), []byte("---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# B\n"))
+	writeTestFile(t, filepath.Join(root, "guide-a.md"), []byte("---\ntitle: guide-a\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# A\n"))
+	writeTestFile(t, filepath.Join(root, "nested", "guide-b.md"), []byte("---\ntitle: guide-b\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# B\n"))
 
 	client := newFakeClient()
 	client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
@@ -156,8 +156,8 @@ func TestRunPageSync_DirectoryPartialFailure(t *testing.T) {
 	dir := t.TempDir()
 	root := filepath.Join(dir, "docs")
 	mustMkdirAll(t, root)
-	writeTestFile(t, filepath.Join(root, "guide-a.md"), []byte("---\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# A\n"))
-	writeTestFile(t, filepath.Join(root, "guide-b.md"), []byte("---\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# B\n"))
+	writeTestFile(t, filepath.Join(root, "guide-a.md"), []byte("---\ntitle: guide-a\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# A\n"))
+	writeTestFile(t, filepath.Join(root, "guide-b.md"), []byte("---\ntitle: guide-b\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n# B\n"))
 	writeTestFile(t, filepath.Join(root, "draft.md"), []byte("# invalid\n"))
 
 	client := newFakeClient()

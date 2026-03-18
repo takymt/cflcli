@@ -14,6 +14,7 @@ var numericIDPattern = regexp.MustCompile(`^[0-9]+$`)
 
 // Frontmatter is the required metadata stored in local markdown files.
 type Frontmatter struct {
+	Title    string
 	SpaceKey string
 	PageID   string
 	ParentID string
@@ -41,6 +42,7 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 	}
 
 	allowed := map[string]bool{
+		"title":     true,
 		"space-key": true,
 		"page-id":   true,
 		"parent-id": true,
@@ -52,12 +54,13 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 	}
 
 	fm := Frontmatter{
+		Title:    valueAsString(fields["title"]),
 		SpaceKey: valueAsString(fields["space-key"]),
 		PageID:   valueAsString(fields["page-id"]),
 		ParentID: valueAsString(fields["parent-id"]),
 	}
-	if fm.SpaceKey == "" || fm.PageID == "" || fm.ParentID == "" {
-		return Frontmatter{}, "", errors.New("frontmatter is missing required keys: space-key, page-id, parent-id")
+	if fm.Title == "" || fm.SpaceKey == "" || fm.PageID == "" || fm.ParentID == "" {
+		return Frontmatter{}, "", errors.New("frontmatter is missing required keys: title, space-key, page-id, parent-id")
 	}
 	if strings.ContainsAny(fm.SpaceKey, " \t\r\n") {
 		return Frontmatter{}, "", errors.New("frontmatter space-key must not contain whitespace")
@@ -76,8 +79,8 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 
 // FormatMarkdownFile renders a markdown file with the required frontmatter.
 func FormatMarkdownFile(frontmatter Frontmatter, body string) []byte {
-	return []byte(fmt.Sprintf("---\nspace-key: %s\npage-id: %s\nparent-id: %s\n---\n%s",
-		frontmatter.SpaceKey, frontmatter.PageID, frontmatter.ParentID, body))
+	return []byte(fmt.Sprintf("---\ntitle: %s\nspace-key: %s\npage-id: %s\nparent-id: %s\n---\n%s",
+		frontmatter.Title, frontmatter.SpaceKey, frontmatter.PageID, frontmatter.ParentID, body))
 }
 
 // TitleFromPath derives the Confluence page title from the file basename.

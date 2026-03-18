@@ -131,7 +131,7 @@ func TestConvertMarkdownToStorageWithMermaid_RelativeMarkdownLinkToWebUILinkCard
 	dir := t.TempDir()
 	currentPath := filepath.Join(dir, "guide.md")
 	targetPath := filepath.Join(dir, "child.md")
-	target := "---\nspace-key: TEST\npage-id: 123\nparent-id: 200\n---\n# child\n"
+	target := "---\ntitle: child\nspace-key: TEST\npage-id: 123\nparent-id: 200\n---\n# child\n"
 	if err := os.WriteFile(targetPath, []byte(target), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
