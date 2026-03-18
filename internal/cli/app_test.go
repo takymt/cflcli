@@ -184,25 +184,25 @@ func TestRunPageSync(t *testing.T) {
 		{
 			name:     "valid file",
 			filename: "guide.md",
-			fileBody: "---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Title\n\nParagraph.\n",
+			fileBody: "---\ntitle: Guide Title\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Title\n\nParagraph.\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
 			},
 			wantExit:      0,
 			wantOutput:    "https://example.test/pages/400",
-			wantPageTitle: "guide",
+			wantPageTitle: "Guide Title",
 			wantPageBody:  []string{"<h1>Title</h1>", "<p>Paragraph.</p>"},
 		},
 		{
 			name:     "empty body",
 			filename: "guide.md",
-			fileBody: "---\ntitle: guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n",
+			fileBody: "---\ntitle: Empty Body\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
 			},
 			wantExit:      0,
 			wantOutput:    "https://example.test/pages/400",
-			wantPageTitle: "guide",
+			wantPageTitle: "Empty Body",
 			wantPageBody:  []string{""},
 		},
 		{
@@ -227,15 +227,15 @@ func TestRunPageSync(t *testing.T) {
 			wantOutput: "malformed",
 		},
 		{
-			name:     "title follows basename",
+			name:     "title comes from frontmatter",
 			filename: "renamed-guide.md",
-			fileBody: "---\ntitle: renamed-guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nBody\n",
+			fileBody: "---\ntitle: Guide From Frontmatter\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nBody\n",
 			setup: func(client *fakeClient) {
 				client.pages["400"] = &page.Page{ID: "400", Title: "old-title", URL: "https://example.test/pages/400"}
 			},
 			wantExit:      0,
 			wantOutput:    "https://example.test/pages/400",
-			wantPageTitle: "renamed-guide",
+			wantPageTitle: "Guide From Frontmatter",
 			wantPageBody:  []string{"<p>Body</p>"},
 		},
 	}

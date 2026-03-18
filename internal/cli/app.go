@@ -413,7 +413,7 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 	if progress != nil {
 		progress.Set("Updating page...")
 	}
-	title := page.TitleFromPath(path)
+	title := frontmatter.Title
 	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, converted)
 	if err != nil {
 		if progress != nil {
