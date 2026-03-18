@@ -213,7 +213,7 @@ func (a *App) collectAuthCredentials(domain string, email string, apiToken strin
 	}
 
 	if creds.Domain == "" {
-		value, err := a.authPrompter.Prompt("Domain")
+		value, err := a.authPrompter.Prompt("Domain (e.g. example.atlassian.net)")
 		if err != nil {
 			return auth.Credentials{}, err
 		}

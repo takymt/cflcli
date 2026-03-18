@@ -33,6 +33,12 @@ func TestRunAuthAliasPromptsAndSavesCredentials(t *testing.T) {
 	if exit != 0 {
 		t.Fatalf("Run(auth) exit = %d, want 0", exit)
 	}
+	if len(app.authPrompter.(*fakePrompter).prompts) == 0 {
+		t.Fatal("prompt labels are empty, want domain prompt")
+	}
+	if got := app.authPrompter.(*fakePrompter).prompts[0]; got != "Domain (e.g. example.atlassian.net)" {
+		t.Fatalf("domain prompt = %q, want %q", got, "Domain (e.g. example.atlassian.net)")
+	}
 
 	if len(validator.calls) != 1 {
 		t.Fatalf("validator calls = %d, want 1", len(validator.calls))
@@ -214,9 +220,11 @@ type fakePrompter struct {
 	secretValues []string
 	promptErr    error
 	secretErr    error
+	prompts      []string
 }
 
 func (f *fakePrompter) Prompt(label string) (string, error) {
+	f.prompts = append(f.prompts, label)
 	if f.promptErr != nil {
 		return "", f.promptErr
 	}
