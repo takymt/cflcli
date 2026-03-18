@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"encoding/hex"
 	"errors"
 	"os"
 	"os/exec"
@@ -25,8 +24,7 @@ func TestRunPageNew(t *testing.T) {
 		args          []string
 		setup         func(t *testing.T, dir string, client *fakeClient)
 		wantExit      int
-		wantFilename  string
-		wantGenerated bool
+		wantPath      string
 		wantBody      string
 		wantParentID  string
 		wantTitle     string
@@ -35,9 +33,9 @@ func TestRunPageNew(t *testing.T) {
 	}{
 		{
 			name:          "explicit parent",
-			args:          []string{"page", "new", "--title", "Guide", "--slug", "guide-local", "--space-key", "TEST", "--parent-id", "200"},
+			args:          []string{"page", "new", "--title", "Guide", "--space-key", "TEST", "--parent-id", "200"},
 			wantExit:      0,
-			wantFilename:  "guide-local.md",
+			wantPath:      "Guide.md",
 			wantBody:      "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
 			wantParentID:  "200",
 			wantTitle:     "Guide",
@@ -53,7 +51,7 @@ func TestRunPageNew(t *testing.T) {
 				client.spaceKeyToID["TEST"] = "100"
 			},
 			wantExit:      0,
-			wantGenerated: true,
+			wantPath:      "Guide.md",
 			wantBody:      "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 300\n---\n",
 			wantParentID:  "300",
 			wantTitle:     "Guide",
@@ -61,11 +59,28 @@ func TestRunPageNew(t *testing.T) {
 			wantPageCount: 1,
 		},
 		{
-			name: "existing local file",
-			args: []string{"page", "new", "--title", "Guide", "--slug", "guide-local", "--space-key", "TEST", "--parent-id", "200"},
+			name: "explicit path",
+			args: []string{"page", "new", "--title", "Guide", "--path", "docs/guide.md", "--space-key", "TEST", "--parent-id", "200"},
 			setup: func(t *testing.T, dir string, _ *fakeClient) {
 				t.Helper()
-				if err := os.WriteFile(filepath.Join(dir, "guide-local.md"), []byte("existing"), 0o644); err != nil {
+				if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+					t.Fatalf("MkdirAll() error = %v", err)
+				}
+			},
+			wantExit:      0,
+			wantPath:      "docs/guide.md",
+			wantBody:      "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
+			wantParentID:  "200",
+			wantTitle:     "Guide",
+			wantOutput:    "https://example.test/pages/401",
+			wantPageCount: 1,
+		},
+		{
+			name: "existing local file",
+			args: []string{"page", "new", "--title", "Guide", "--space-key", "TEST", "--parent-id", "200"},
+			setup: func(t *testing.T, dir string, _ *fakeClient) {
+				t.Helper()
+				if err := os.WriteFile(filepath.Join(dir, "Guide.md"), []byte("existing"), 0o644); err != nil {
 					t.Fatalf("WriteFile() error = %v", err)
 				}
 			},
@@ -74,21 +89,48 @@ func TestRunPageNew(t *testing.T) {
 			wantPageCount: 0,
 		},
 		{
-			name:          "custom slug",
-			args:          []string{"page", "new", "--title", "Architecture Overview", "--slug", "architecture notes", "--space-key", "TEST", "--parent-id", "200"},
+			name:          "sanitizes title for default filename",
+			args:          []string{"page", "new", "--title", "Architecture: Overview / Draft?", "--space-key", "TEST", "--parent-id", "200"},
 			wantExit:      0,
-			wantFilename:  "architecture notes.md",
-			wantBody:      "---\ntitle: Architecture Overview\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
+			wantPath:      "Architecture Overview Draft.md",
+			wantBody:      "---\ntitle: Architecture: Overview / Draft?\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
 			wantParentID:  "200",
-			wantTitle:     "Architecture Overview",
+			wantTitle:     "Architecture: Overview / Draft?",
 			wantOutput:    "https://example.test/pages/401",
 			wantPageCount: 1,
 		},
 		{
-			name:          "slug too long",
-			args:          []string{"page", "new", "--title", "Guide", "--slug", strings.Repeat("a", 129), "--space-key", "TEST", "--parent-id", "200"},
+			name:          "windows reserved default filename",
+			args:          []string{"page", "new", "--title", "CON", "--space-key", "TEST", "--parent-id", "200"},
 			wantExit:      1,
-			wantOutput:    "128 characters or fewer",
+			wantOutput:    "pass --path",
+			wantPageCount: 0,
+		},
+		{
+			name:          "path must be markdown",
+			args:          []string{"page", "new", "--title", "Guide", "--path", "guide.txt", "--space-key", "TEST", "--parent-id", "200"},
+			wantExit:      1,
+			wantOutput:    "ending in .md",
+			wantPageCount: 0,
+		},
+		{
+			name:          "path parent must exist",
+			args:          []string{"page", "new", "--title", "Guide", "--path", "missing/guide.md", "--space-key", "TEST", "--parent-id", "200"},
+			wantExit:      1,
+			wantOutput:    "parent directory",
+			wantPageCount: 0,
+		},
+		{
+			name: "path must not be directory",
+			args: []string{"page", "new", "--title", "Guide", "--path", "guide.md", "--space-key", "TEST", "--parent-id", "200"},
+			setup: func(t *testing.T, dir string, _ *fakeClient) {
+				t.Helper()
+				if err := os.Mkdir(filepath.Join(dir, "guide.md"), 0o755); err != nil {
+					t.Fatalf("Mkdir() error = %v", err)
+				}
+			},
+			wantExit:      1,
+			wantOutput:    "is a directory",
 			wantPageCount: 0,
 		},
 	}
@@ -123,29 +165,7 @@ func TestRunPageNew(t *testing.T) {
 				return
 			}
 
-			filename := tt.wantFilename
-			if tt.wantGenerated {
-				entries, err := os.ReadDir(dir)
-				if err != nil {
-					t.Fatalf("ReadDir() error = %v", err)
-				}
-				if len(entries) != 1 {
-					t.Fatalf("ReadDir() len = %d, want 1", len(entries))
-				}
-				filename = entries[0].Name()
-				if filepath.Ext(filename) != ".md" {
-					t.Fatalf("generated filename = %q, want .md suffix", filename)
-				}
-				slug := strings.TrimSuffix(filename, ".md")
-				if len(slug) != 16 {
-					t.Fatalf("generated slug len = %d, want 16", len(slug))
-				}
-				if _, err := hex.DecodeString(slug); err != nil {
-					t.Fatalf("generated slug = %q, want hex: %v", slug, err)
-				}
-			}
-
-			got, err := os.ReadFile(filepath.Join(dir, filename))
+			got, err := os.ReadFile(filepath.Join(dir, tt.wantPath))
 			if err != nil {
 				t.Fatalf("ReadFile() error = %v", err)
 			}
@@ -535,7 +555,7 @@ func TestRunPageNewWatch(t *testing.T) {
 
 	done := make(chan int, 1)
 	go func() {
-		done <- app.Run(ctx, []string{"page", "new", "--title", "Guide", "--slug", "guide", "--space-key", "TEST", "--parent-id", "200", "--watch"}, dir)
+		done <- app.Run(ctx, []string{"page", "new", "--title", "Guide", "--path", "guide.md", "--space-key", "TEST", "--parent-id", "200", "--watch"}, dir)
 	}()
 
 	waitFor(t, time.Second, func() bool {

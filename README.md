@@ -73,7 +73,7 @@ cfl auth logout
 ## Quick Start
 
 ```bash
-cfl page new docs/cfl.md --space-key TEST --parent-id 123456 --watch
+cfl page new --title "CFL CLI" --space-key TEST --parent-id 123456 --path docs/cfl.md --watch
 ```
 
 ## Usage
@@ -84,6 +84,7 @@ Usage:
 
 Available Commands:
   attachment  Manage page attachments
+  auth        Manage Confluence authentication
   completion  Generate the autocompletion script for the specified shell
   help        Help about any command
   page        Manage Confluence pages

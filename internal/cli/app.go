@@ -91,22 +91,14 @@ func (a *App) ensureClient() error {
 	return nil
 }
 
-func (a *App) runPageNew(ctx context.Context, workdir string, title string, slug string, spaceKey string, parentID string, watch bool) error {
-	if slug == "" {
-		var err error
-		slug, err = page.GenerateSlug()
-		if err != nil {
-			return err
-		}
-	} else if err := page.ValidateSlug(slug); err != nil {
+func (a *App) runPageNew(ctx context.Context, workdir string, title string, pathArg string, spaceKey string, parentID string, watch bool) error {
+	title, err := normalizePageTitle(title)
+	if err != nil {
 		return err
 	}
 
-	filename := slug + ".md"
-	path := resolvePath(workdir, filename)
-	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("target file %q already exists", filename)
-	} else if !errors.Is(err, os.ErrNotExist) {
+	path, displayPath, err := resolvePageNewTarget(workdir, title, pathArg)
+	if err != nil {
 		return err
 	}
 
@@ -144,7 +136,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, title string, slug
 		return nil
 	}
 	go page.WarmUpMermaidRenderer(context.Background())
-	return a.watchFile(ctx, path, filename, created.URL, false)
+	return a.watchFile(ctx, path, displayPath, created.URL, false)
 }
 
 func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, watch bool) error {

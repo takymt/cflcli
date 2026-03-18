@@ -50,6 +50,12 @@ func TestRunShowsCommandUsageForInputErrors(t *testing.T) {
 			wantUsageFor: "cfl page new",
 		},
 		{
+			name:         "page new removed slug flag",
+			args:         []string{"page", "new", "--space-key", "TEST", "--title", "One", "--slug", "one"},
+			wantError:    "unknown flag: --slug",
+			wantUsageFor: "cfl page new",
+		},
+		{
 			name:         "page sync missing arg",
 			args:         []string{"page", "sync"},
 			wantError:    "accepts 1 arg(s), received 0",
@@ -185,14 +191,19 @@ func TestRunDoesNotShowUsageForRuntimeErrors(t *testing.T) {
 	}{
 		{
 			name: "page new existing file",
-			args: []string{"page", "new", "--title", "Guide", "--slug", "guide", "--space-key", "TEST"},
+			args: []string{"page", "new", "--title", "Guide", "--space-key", "TEST"},
 			setup: func(t *testing.T, dir string, app *App) {
 				t.Helper()
-				if err := os.WriteFile(filepath.Join(dir, "guide.md"), []byte("existing"), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(dir, "Guide.md"), []byte("existing"), 0o644); err != nil {
 					t.Fatalf("WriteFile() error = %v", err)
 				}
 			},
 			wantOutput: "already exists",
+		},
+		{
+			name:       "page new empty title",
+			args:       []string{"page", "new", "--title", "   ", "--space-key", "TEST"},
+			wantOutput: "title must not be empty",
 		},
 		{
 			name:       "page sync missing file",
