@@ -20,118 +20,31 @@ func TestRunPageNew(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		args          []string
-		setup         func(t *testing.T, dir string, client *fakeClient)
-		wantExit      int
-		wantPath      string
-		wantBody      string
-		wantParentID  string
-		wantTitle     string
-		wantOutput    string
-		wantPageCount int
+		name         string
+		args         []string
+		wantPath     string
+		wantBody     string
+		wantParentID string
+		wantTitle    string
+		wantOutput   string
 	}{
 		{
-			name:          "explicit parent",
-			args:          []string{"page", "new", "--title", "Guide", "--space-key", "TEST", "--parent-id", "200"},
-			wantExit:      0,
-			wantPath:      "Guide.md",
-			wantBody:      "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
-			wantParentID:  "200",
-			wantTitle:     "Guide",
-			wantOutput:    "https://example.test/pages/401",
-			wantPageCount: 1,
+			name:         "explicit parent",
+			args:         []string{"page", "new", "--title", "Guide", "--space-key", "TEST", "--parent-id", "200"},
+			wantPath:     "Guide.md",
+			wantBody:     "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
+			wantParentID: "200",
+			wantTitle:    "Guide",
+			wantOutput:   "https://example.test/pages/401",
 		},
 		{
-			name: "resolved root parent",
-			args: []string{"page", "new", "--title", "Guide", "--space-key", "TEST"},
-			setup: func(t *testing.T, _ string, client *fakeClient) {
-				t.Helper()
-				client.spaceRoots["100"] = "300"
-				client.spaceKeyToID["TEST"] = "100"
-			},
-			wantExit:      0,
-			wantPath:      "Guide.md",
-			wantBody:      "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 300\n---\n",
-			wantParentID:  "300",
-			wantTitle:     "Guide",
-			wantOutput:    "https://example.test/pages/401",
-			wantPageCount: 1,
-		},
-		{
-			name: "explicit path",
-			args: []string{"page", "new", "--title", "Guide", "--path", "docs/guide.md", "--space-key", "TEST", "--parent-id", "200"},
-			setup: func(t *testing.T, dir string, _ *fakeClient) {
-				t.Helper()
-				if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
-					t.Fatalf("MkdirAll() error = %v", err)
-				}
-			},
-			wantExit:      0,
-			wantPath:      "docs/guide.md",
-			wantBody:      "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
-			wantParentID:  "200",
-			wantTitle:     "Guide",
-			wantOutput:    "https://example.test/pages/401",
-			wantPageCount: 1,
-		},
-		{
-			name: "existing local file",
-			args: []string{"page", "new", "--title", "Guide", "--space-key", "TEST", "--parent-id", "200"},
-			setup: func(t *testing.T, dir string, _ *fakeClient) {
-				t.Helper()
-				if err := os.WriteFile(filepath.Join(dir, "Guide.md"), []byte("existing"), 0o644); err != nil {
-					t.Fatalf("WriteFile() error = %v", err)
-				}
-			},
-			wantExit:      1,
-			wantOutput:    "already exists",
-			wantPageCount: 0,
-		},
-		{
-			name:          "sanitizes title for default filename",
-			args:          []string{"page", "new", "--title", "Architecture: Overview / Draft?", "--space-key", "TEST", "--parent-id", "200"},
-			wantExit:      0,
-			wantPath:      "Architecture Overview Draft.md",
-			wantBody:      "---\ntitle: Architecture: Overview / Draft?\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
-			wantParentID:  "200",
-			wantTitle:     "Architecture: Overview / Draft?",
-			wantOutput:    "https://example.test/pages/401",
-			wantPageCount: 1,
-		},
-		{
-			name:          "windows reserved default filename",
-			args:          []string{"page", "new", "--title", "CON", "--space-key", "TEST", "--parent-id", "200"},
-			wantExit:      1,
-			wantOutput:    "pass --path",
-			wantPageCount: 0,
-		},
-		{
-			name:          "path must be markdown",
-			args:          []string{"page", "new", "--title", "Guide", "--path", "guide.txt", "--space-key", "TEST", "--parent-id", "200"},
-			wantExit:      1,
-			wantOutput:    "ending in .md",
-			wantPageCount: 0,
-		},
-		{
-			name:          "path parent must exist",
-			args:          []string{"page", "new", "--title", "Guide", "--path", "missing/guide.md", "--space-key", "TEST", "--parent-id", "200"},
-			wantExit:      1,
-			wantOutput:    "parent directory",
-			wantPageCount: 0,
-		},
-		{
-			name: "path must not be directory",
-			args: []string{"page", "new", "--title", "Guide", "--path", "guide.md", "--space-key", "TEST", "--parent-id", "200"},
-			setup: func(t *testing.T, dir string, _ *fakeClient) {
-				t.Helper()
-				if err := os.Mkdir(filepath.Join(dir, "guide.md"), 0o755); err != nil {
-					t.Fatalf("Mkdir() error = %v", err)
-				}
-			},
-			wantExit:      1,
-			wantOutput:    "is a directory",
-			wantPageCount: 0,
+			name:         "sanitizes title for default filename",
+			args:         []string{"page", "new", "--title", "Architecture: Overview / Draft?", "--space-key", "TEST", "--parent-id", "200"},
+			wantPath:     "Architecture Overview Draft.md",
+			wantBody:     "---\ntitle: Architecture: Overview / Draft?\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
+			wantParentID: "200",
+			wantTitle:    "Architecture: Overview / Draft?",
+			wantOutput:   "https://example.test/pages/401",
 		},
 	}
 
@@ -141,122 +54,204 @@ func TestRunPageNew(t *testing.T) {
 
 			dir := t.TempDir()
 			client := newFakeClient()
-			if tt.setup != nil {
-				tt.setup(t, dir, client)
-			}
-
-			var stdout bytes.Buffer
-			app := New(client, &stdout)
-
-			exit := app.Run(context.Background(), tt.args, dir)
-			if exit != tt.wantExit {
-				t.Fatalf("Run() exit = %d, want %d", exit, tt.wantExit)
-			}
-
-			if !strings.Contains(stdout.String(), tt.wantOutput) {
-				t.Fatalf("Run() output = %q, want substring %q", stdout.String(), tt.wantOutput)
-			}
-
-			if len(client.pages) != tt.wantPageCount {
-				t.Fatalf("page count = %d, want %d", len(client.pages), tt.wantPageCount)
-			}
-
-			if tt.wantExit != 0 {
-				return
-			}
-
-			got, err := os.ReadFile(filepath.Join(dir, tt.wantPath))
-			if err != nil {
-				t.Fatalf("ReadFile() error = %v", err)
-			}
-
-			if string(got) != tt.wantBody {
-				t.Fatalf("created file = %q, want %q", string(got), tt.wantBody)
-			}
-
-			if gotPage := client.pageByID("401"); gotPage == nil {
-				t.Fatal("expected created page to exist")
-			} else {
-				if gotPage.ParentID != tt.wantParentID {
-					t.Fatalf("created page parent = %q, want %q", gotPage.ParentID, tt.wantParentID)
-				}
-				if gotPage.Title != tt.wantTitle {
-					t.Fatalf("created page title = %q, want %q", gotPage.Title, tt.wantTitle)
-				}
-			}
+			assertRunPageNewSuccess(t, dir, client, tt.args, tt.wantPath, tt.wantBody, tt.wantParentID, tt.wantTitle, tt.wantOutput)
 		})
 	}
 }
 
-func TestRunPageSync(t *testing.T) {
+func TestRunPageNewErrors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name          string
-		filename      string
-		fileBody      string
-		setup         func(*fakeClient)
-		wantExit      int
-		wantOutput    string
-		wantPageTitle string
-		wantPageBody  []string
+		name       string
+		args       []string
+		wantOutput string
 	}{
 		{
-			name:     "valid file",
-			filename: "guide.md",
-			fileBody: "---\ntitle: Guide Title\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Title\n\nParagraph.\n",
-			setup: func(client *fakeClient) {
-				client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
-			},
-			wantExit:      0,
-			wantOutput:    "https://example.test/pages/400",
-			wantPageTitle: "Guide Title",
-			wantPageBody:  []string{"<h1>Title</h1>", "<p>Paragraph.</p>"},
+			name:       "default filename reserved on windows",
+			args:       []string{"page", "new", "--title", "CON", "--space-key", "TEST", "--parent-id", "200"},
+			wantOutput: "pass --path",
 		},
 		{
-			name:     "empty body",
-			filename: "guide.md",
-			fileBody: "---\ntitle: Empty Body\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n",
-			setup: func(client *fakeClient) {
-				client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
-			},
-			wantExit:      0,
-			wantOutput:    "https://example.test/pages/400",
-			wantPageTitle: "Empty Body",
-			wantPageBody:  []string{""},
+			name:       "path must be markdown",
+			args:       []string{"page", "new", "--title", "Guide", "--path", "guide.txt", "--space-key", "TEST", "--parent-id", "200"},
+			wantOutput: "ending in .md",
 		},
+		{
+			name:       "path parent must exist",
+			args:       []string{"page", "new", "--title", "Guide", "--path", "missing/guide.md", "--space-key", "TEST", "--parent-id", "200"},
+			wantOutput: "parent directory",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assertRunPageNewError(t, t.TempDir(), newFakeClient(), tt.args, tt.wantOutput)
+		})
+	}
+}
+
+func TestRunPageNew_ResolvedRootParent(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	client := newFakeClient()
+	client.spaceRoots["100"] = "300"
+	client.spaceKeyToID["TEST"] = "100"
+
+	assertRunPageNewSuccess(
+		t,
+		dir,
+		client,
+		[]string{"page", "new", "--title", "Guide", "--space-key", "TEST"},
+		"Guide.md",
+		"---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 300\n---\n",
+		"300",
+		"Guide",
+		"https://example.test/pages/401",
+	)
+}
+
+func TestRunPageNew_ExplicitPath(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+	client := newFakeClient()
+
+	assertRunPageNewSuccess(
+		t,
+		dir,
+		client,
+		[]string{"page", "new", "--title", "Guide", "--path", "docs/guide.md", "--space-key", "TEST", "--parent-id", "200"},
+		"docs/guide.md",
+		"---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\n---\n",
+		"200",
+		"Guide",
+		"https://example.test/pages/401",
+	)
+}
+
+func TestRunPageNew_ExistingFileReturnsError(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "Guide.md"), []byte("existing"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	assertRunPageNewError(
+		t,
+		dir,
+		newFakeClient(),
+		[]string{"page", "new", "--title", "Guide", "--space-key", "TEST", "--parent-id", "200"},
+		"already exists",
+	)
+}
+
+func TestRunPageNew_PathMustNotBeDirectory(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "guide.md"), 0o755); err != nil {
+		t.Fatalf("Mkdir() error = %v", err)
+	}
+
+	assertRunPageNewError(
+		t,
+		dir,
+		newFakeClient(),
+		[]string{"page", "new", "--title", "Guide", "--path", "guide.md", "--space-key", "TEST", "--parent-id", "200"},
+		"is a directory",
+	)
+}
+
+func assertRunPageNewSuccess(t *testing.T, dir string, client *fakeClient, args []string, wantPath string, wantBody string, wantParentID string, wantTitle string, wantOutput string) {
+	t.Helper()
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+
+	exit := app.Run(context.Background(), args, dir)
+	if exit != 0 {
+		t.Fatalf("Run() exit = %d, want 0", exit)
+	}
+
+	if !strings.Contains(stdout.String(), wantOutput) {
+		t.Fatalf("Run() output = %q, want substring %q", stdout.String(), wantOutput)
+	}
+
+	if len(client.pages) != 1 {
+		t.Fatalf("page count = %d, want 1", len(client.pages))
+	}
+
+	got, err := os.ReadFile(filepath.Join(dir, wantPath))
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	if string(got) != wantBody {
+		t.Fatalf("created file = %q, want %q", string(got), wantBody)
+	}
+
+	if gotPage := client.pageByID("401"); gotPage == nil {
+		t.Fatal("expected created page to exist")
+	} else {
+		if gotPage.ParentID != wantParentID {
+			t.Fatalf("created page parent = %q, want %q", gotPage.ParentID, wantParentID)
+		}
+		if gotPage.Title != wantTitle {
+			t.Fatalf("created page title = %q, want %q", gotPage.Title, wantTitle)
+		}
+	}
+}
+
+func assertRunPageNewError(t *testing.T, dir string, client *fakeClient, args []string, wantOutput string) {
+	t.Helper()
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+
+	exit := app.Run(context.Background(), args, dir)
+	if exit != 1 {
+		t.Fatalf("Run() exit = %d, want 1", exit)
+	}
+
+	if !strings.Contains(stdout.String(), wantOutput) {
+		t.Fatalf("Run() output = %q, want substring %q", stdout.String(), wantOutput)
+	}
+
+	if len(client.pages) != 0 {
+		t.Fatalf("page count = %d, want 0", len(client.pages))
+	}
+}
+
+func TestRunPageSyncErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		fileBody   string
+		wantOutput string
+	}{
 		{
 			name:       "missing frontmatter",
-			filename:   "guide.md",
 			fileBody:   "# no frontmatter\n",
-			wantExit:   1,
 			wantOutput: "frontmatter",
 		},
 		{
 			name:       "missing required key",
-			filename:   "guide.md",
 			fileBody:   "---\ntitle: guide\nspace-key: TEST\npage-id: 400\n---\n",
-			wantExit:   1,
 			wantOutput: "required",
 		},
 		{
 			name:       "malformed frontmatter",
-			filename:   "guide.md",
 			fileBody:   "---\ntitle: guide\nspace-key: [TEST\npage-id: 400\nparent-id: 200\n---\n",
-			wantExit:   1,
 			wantOutput: "malformed",
-		},
-		{
-			name:     "title comes from frontmatter",
-			filename: "renamed-guide.md",
-			fileBody: "---\ntitle: Guide From Frontmatter\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nBody\n",
-			setup: func(client *fakeClient) {
-				client.pages["400"] = &page.Page{ID: "400", Title: "old-title", URL: "https://example.test/pages/400"}
-			},
-			wantExit:      0,
-			wantOutput:    "https://example.test/pages/400",
-			wantPageTitle: "Guide From Frontmatter",
-			wantPageBody:  []string{"<p>Body</p>"},
 		},
 	}
 
@@ -265,44 +260,101 @@ func TestRunPageSync(t *testing.T) {
 			t.Parallel()
 
 			dir := t.TempDir()
-			path := filepath.Join(dir, tt.filename)
+			path := filepath.Join(dir, "guide.md")
 			if err := os.WriteFile(path, []byte(tt.fileBody), 0o644); err != nil {
 				t.Fatalf("WriteFile() error = %v", err)
 			}
 
-			client := newFakeClient()
-			if tt.setup != nil {
-				tt.setup(client)
-			}
-
-			var stdout bytes.Buffer
-			app := New(client, &stdout)
-			exit := app.Run(context.Background(), []string{"page", "sync", tt.filename}, dir)
-			if exit != tt.wantExit {
-				t.Fatalf("Run() exit = %d, want %d", exit, tt.wantExit)
-			}
-
-			if !strings.Contains(stdout.String(), tt.wantOutput) {
-				t.Fatalf("Run() output = %q, want substring %q", stdout.String(), tt.wantOutput)
-			}
-
-			if tt.wantExit != 0 {
-				return
-			}
-
-			if gotPage := client.pageByID("400"); gotPage == nil {
-				t.Fatal("expected page 400 to exist")
-			} else {
-				if gotPage.Title != tt.wantPageTitle {
-					t.Fatalf("updated page title = %q, want %q", gotPage.Title, tt.wantPageTitle)
-				}
-				for _, want := range tt.wantPageBody {
-					if !strings.Contains(gotPage.Body, want) {
-						t.Fatalf("updated page body = %q, want substring %q", gotPage.Body, want)
-					}
-				}
-			}
+			assertRunPageSyncError(t, dir, newFakeClient(), "guide.md", tt.wantOutput)
 		})
+	}
+}
+
+func TestRunPageSync_ValidFile(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "guide.md")
+	if err := os.WriteFile(path, []byte("---\ntitle: Guide Title\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n# Title\n\nParagraph.\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
+
+	assertRunPageSyncSuccess(t, dir, client, "guide.md", "Guide Title", "https://example.test/pages/400", "<h1>Title</h1>", "<p>Paragraph.</p>")
+}
+
+func TestRunPageSync_EmptyBody(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "guide.md")
+	if err := os.WriteFile(path, []byte("---\ntitle: Empty Body\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
+
+	assertRunPageSyncSuccess(t, dir, client, "guide.md", "Empty Body", "https://example.test/pages/400", "")
+}
+
+func TestRunPageSync_TitleComesFromFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "renamed-guide.md")
+	if err := os.WriteFile(path, []byte("---\ntitle: Guide From Frontmatter\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nBody\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{ID: "400", Title: "old-title", URL: "https://example.test/pages/400"}
+
+	assertRunPageSyncSuccess(t, dir, client, "renamed-guide.md", "Guide From Frontmatter", "https://example.test/pages/400", "<p>Body</p>")
+}
+
+func assertRunPageSyncSuccess(t *testing.T, dir string, client *fakeClient, filename string, wantPageTitle string, wantOutput string, wantPageBody ...string) {
+	t.Helper()
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+	exit := app.Run(context.Background(), []string{"page", "sync", filename}, dir)
+	if exit != 0 {
+		t.Fatalf("Run() exit = %d, want 0", exit)
+	}
+
+	if !strings.Contains(stdout.String(), wantOutput) {
+		t.Fatalf("Run() output = %q, want substring %q", stdout.String(), wantOutput)
+	}
+
+	if gotPage := client.pageByID("400"); gotPage == nil {
+		t.Fatal("expected page 400 to exist")
+	} else {
+		if gotPage.Title != wantPageTitle {
+			t.Fatalf("updated page title = %q, want %q", gotPage.Title, wantPageTitle)
+		}
+		for _, want := range wantPageBody {
+			if !strings.Contains(gotPage.Body, want) {
+				t.Fatalf("updated page body = %q, want substring %q", gotPage.Body, want)
+			}
+		}
+	}
+}
+
+func assertRunPageSyncError(t *testing.T, dir string, client *fakeClient, filename string, wantOutput string) {
+	t.Helper()
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+	exit := app.Run(context.Background(), []string{"page", "sync", filename}, dir)
+	if exit != 1 {
+		t.Fatalf("Run() exit = %d, want 1", exit)
+	}
+
+	if !strings.Contains(stdout.String(), wantOutput) {
+		t.Fatalf("Run() output = %q, want substring %q", stdout.String(), wantOutput)
 	}
 }
 

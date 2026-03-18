@@ -73,11 +73,6 @@ func validatePageNewPath(workdir string, pathArg string) (string, string, error)
 
 	display := filepath.Clean(trimmed)
 	resolved := resolvePath(workdir, trimmed)
-	if info, err := os.Stat(resolved); err == nil && info.IsDir() {
-		return "", "", fmt.Errorf("target path %q is a directory", display)
-	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", "", err
-	}
 	if !strings.EqualFold(filepath.Ext(resolved), ".md") {
 		return "", "", errors.New("--path must point to a markdown file ending in .md")
 	}
@@ -87,8 +82,10 @@ func validatePageNewPath(workdir string, pathArg string) (string, string, error)
 		return "", "", errors.New("--path must include a filename before .md")
 	}
 
-	_, err := os.Stat(resolved)
+	info, err := os.Stat(resolved)
 	switch {
+	case err == nil && info.IsDir():
+		return "", "", fmt.Errorf("target path %q is a directory", display)
 	case err == nil:
 		return "", "", fmt.Errorf("target file %q already exists", display)
 	case !errors.Is(err, os.ErrNotExist):
