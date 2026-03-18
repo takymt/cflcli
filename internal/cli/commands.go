@@ -31,19 +31,23 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 
 	var (
 		newSpaceKey string
+		newTitle    string
+		newSlug     string
 		newParentID string
 		newWatch    bool
 	)
 	pageNewCmd := &cobra.Command{
-		Use:     "new <title>.md",
-		Args:    exactArgsWithUsage(1),
-		PreRunE: requireFlagsWithUsage("space-key"),
+		Use:     "new",
+		Args:    noArgsWithUsage(),
+		PreRunE: requireFlagsWithUsage("space-key", "title"),
 		Short:   "Create a local markdown file and a Confluence page",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
-			return a.runPageNew(cmd.Context(), workdir, cmdArgs[0], newSpaceKey, newParentID, newWatch)
+			return a.runPageNew(cmd.Context(), workdir, newTitle, newSlug, newSpaceKey, newParentID, newWatch)
 		},
 	}
 	pageNewCmd.Flags().StringVar(&newSpaceKey, "space-key", "", "Confluence space key")
+	pageNewCmd.Flags().StringVar(&newTitle, "title", "", "Confluence page title")
+	pageNewCmd.Flags().StringVar(&newSlug, "slug", "", "Local filename slug")
 	pageNewCmd.Flags().StringVar(&newParentID, "parent-id", "", "Confluence parent page id")
 	pageNewCmd.Flags().BoolVar(&newWatch, "watch", false, "Watch the created file and sync on changes")
 

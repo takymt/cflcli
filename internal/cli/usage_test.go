@@ -20,28 +20,34 @@ func TestRunShowsCommandUsageForInputErrors(t *testing.T) {
 		wantUsageFor string
 	}{
 		{
-			name:         "page new missing arg",
+			name:         "page new missing required flags",
 			args:         []string{"page", "new"},
-			wantError:    "accepts 1 arg(s), received 0",
-			wantUsageFor: "cfl page new <title>.md",
+			wantError:    `required flag(s) "space-key", "title" not set`,
+			wantUsageFor: "cfl page new",
 		},
 		{
-			name:         "page new extra arg",
-			args:         []string{"page", "new", "one.md", "two.md", "--space-key", "TEST"},
-			wantError:    "accepts 1 arg(s), received 2",
-			wantUsageFor: "cfl page new <title>.md",
+			name:         "page new unexpected arg",
+			args:         []string{"page", "new", "one.md", "--space-key", "TEST", "--title", "One"},
+			wantError:    `unknown command "one.md" for "cfl page new"`,
+			wantUsageFor: "cfl page new",
 		},
 		{
-			name:         "page new missing required flag",
-			args:         []string{"page", "new", "one.md"},
+			name:         "page new missing title flag",
+			args:         []string{"page", "new", "--space-key", "TEST"},
+			wantError:    `required flag(s) "title" not set`,
+			wantUsageFor: "cfl page new",
+		},
+		{
+			name:         "page new missing space key flag",
+			args:         []string{"page", "new", "--title", "One"},
 			wantError:    `required flag(s) "space-key" not set`,
-			wantUsageFor: "cfl page new <title>.md",
+			wantUsageFor: "cfl page new",
 		},
 		{
 			name:         "page new unknown flag",
-			args:         []string{"page", "new", "one.md", "--space-key", "TEST", "--bogus"},
+			args:         []string{"page", "new", "--space-key", "TEST", "--title", "One", "--bogus"},
 			wantError:    "unknown flag: --bogus",
-			wantUsageFor: "cfl page new <title>.md",
+			wantUsageFor: "cfl page new",
 		},
 		{
 			name:         "page sync missing arg",
@@ -179,7 +185,7 @@ func TestRunDoesNotShowUsageForRuntimeErrors(t *testing.T) {
 	}{
 		{
 			name: "page new existing file",
-			args: []string{"page", "new", "guide.md", "--space-key", "TEST"},
+			args: []string{"page", "new", "--title", "Guide", "--slug", "guide", "--space-key", "TEST"},
 			setup: func(t *testing.T, dir string, app *App) {
 				t.Helper()
 				if err := os.WriteFile(filepath.Join(dir, "guide.md"), []byte("existing"), 0o644); err != nil {

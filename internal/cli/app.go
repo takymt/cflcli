@@ -91,15 +91,25 @@ func (a *App) ensureClient() error {
 	return nil
 }
 
-func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, spaceKey string, parentID string, watch bool) error {
-	path := resolvePath(workdir, fileArg)
+func (a *App) runPageNew(ctx context.Context, workdir string, title string, slug string, spaceKey string, parentID string, watch bool) error {
+	if slug == "" {
+		var err error
+		slug, err = page.GenerateSlug()
+		if err != nil {
+			return err
+		}
+	} else if err := page.ValidateSlug(slug); err != nil {
+		return err
+	}
+
+	filename := slug + ".md"
+	path := resolvePath(workdir, filename)
 	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("target file %q already exists", fileArg)
+		return fmt.Errorf("target file %q already exists", filename)
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
 
-	title := page.TitleFromPath(fileArg)
 	if err := a.ensureClient(); err != nil {
 		return err
 	}
@@ -112,14 +122,6 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 		if err != nil {
 			return fmt.Errorf("resolve root parent: %w", err)
 		}
-	}
-
-	exists, err := a.client.PageExists(ctx, spaceID, parentID, title)
-	if err != nil {
-		return err
-	}
-	if exists {
-		return fmt.Errorf("page %q already exists under parent %s", title, parentID)
 	}
 
 	created, err := a.client.CreatePage(ctx, spaceID, parentID, title, "")
@@ -142,7 +144,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, fileArg string, sp
 		return nil
 	}
 	go page.WarmUpMermaidRenderer(context.Background())
-	return a.watchFile(ctx, path, fileArg, created.URL, false)
+	return a.watchFile(ctx, path, filename, created.URL, false)
 }
 
 func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, watch bool) error {
