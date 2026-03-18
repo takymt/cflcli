@@ -91,7 +91,7 @@ func (a *App) ensureClient() error {
 	return nil
 }
 
-func (a *App) runPageNew(ctx context.Context, workdir string, title string, pathArg string, spaceKey string, parentID string, private bool, watch bool) error {
+func (a *App) runPageNew(ctx context.Context, workdir string, title string, pathArg string, spaceKey string, parentID string, draft bool, watch bool) error {
 	title, err := normalizePageTitle(title)
 	if err != nil {
 		return err
@@ -116,7 +116,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, title string, path
 		}
 	}
 
-	created, err := a.client.CreatePage(ctx, spaceID, parentID, title, "")
+	created, err := a.client.CreatePage(ctx, spaceID, parentID, title, "", draft)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func (a *App) runPageNew(ctx context.Context, workdir string, title string, path
 		SpaceKey: spaceKey,
 		PageID:   created.ID,
 		ParentID: parentID,
-		Private:  private,
+		Draft:    draft,
 	}, "")
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		return err
@@ -413,7 +413,7 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 		progress.Set("Updating page...")
 	}
 	title := frontmatter.Title
-	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, mermaidResult.Storage)
+	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, mermaidResult.Storage, frontmatter.Draft)
 	if err != nil {
 		if progress != nil {
 			progress.Clear()

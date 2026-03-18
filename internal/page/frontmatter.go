@@ -17,7 +17,7 @@ type Frontmatter struct {
 	SpaceKey string
 	PageID   string
 	ParentID string
-	Private  bool
+	Draft    bool
 }
 
 // ParseMarkdownFile parses and validates the required YAML frontmatter.
@@ -46,7 +46,7 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 		"space-key": true,
 		"page-id":   true,
 		"parent-id": true,
-		"private":   true,
+		"draft":     true,
 	}
 	for key := range fields {
 		if !allowed[key] {
@@ -60,11 +60,11 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 		PageID:   valueAsString(fields["page-id"]),
 		ParentID: valueAsString(fields["parent-id"]),
 	}
-	private, err := valueAsBool(fields["private"])
+	draft, err := valueAsBool(fields["draft"])
 	if err != nil {
-		return Frontmatter{}, "", fmt.Errorf("frontmatter private must be a boolean")
+		return Frontmatter{}, "", fmt.Errorf("frontmatter draft must be a boolean")
 	}
-	fm.Private = private
+	fm.Draft = draft
 	if fm.Title == "" || fm.SpaceKey == "" || fm.PageID == "" || fm.ParentID == "" {
 		return Frontmatter{}, "", errors.New("frontmatter is missing required keys: title, space-key, page-id, parent-id")
 	}
@@ -85,8 +85,8 @@ func ParseMarkdownFile(data []byte) (Frontmatter, string, error) {
 
 // FormatMarkdownFile renders a markdown file with the required frontmatter.
 func FormatMarkdownFile(frontmatter Frontmatter, body string) []byte {
-	return []byte(fmt.Sprintf("---\ntitle: %s\nspace-key: %s\npage-id: %s\nparent-id: %s\nprivate: %t\n---\n%s",
-		frontmatter.Title, frontmatter.SpaceKey, frontmatter.PageID, frontmatter.ParentID, frontmatter.Private, body))
+	return []byte(fmt.Sprintf("---\ntitle: %s\nspace-key: %s\npage-id: %s\nparent-id: %s\ndraft: %t\n---\n%s",
+		frontmatter.Title, frontmatter.SpaceKey, frontmatter.PageID, frontmatter.ParentID, frontmatter.Draft, body))
 }
 
 func valueAsString(v any) string {

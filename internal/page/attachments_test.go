@@ -227,11 +227,11 @@ func (f *fakeAttachmentClient) ResolveSpaceRootPage(context.Context, string) (st
 	return "", nil
 }
 
-func (f *fakeAttachmentClient) CreatePage(context.Context, string, string, string, string) (Page, error) {
+func (f *fakeAttachmentClient) CreatePage(context.Context, string, string, string, string, bool) (Page, error) {
 	return Page{}, nil
 }
 
-func (f *fakeAttachmentClient) UpdatePage(context.Context, string, string, string) (Page, error) {
+func (f *fakeAttachmentClient) UpdatePage(context.Context, string, string, string, bool) (Page, error) {
 	return Page{}, nil
 }
 

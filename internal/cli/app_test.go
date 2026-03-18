@@ -25,15 +25,17 @@ func TestRunPageNew(t *testing.T) {
 		wantPath     string
 		wantBody     string
 		wantParentID string
+		wantDraft    bool
 		wantTitle    string
 		wantOutput   string
 	}{
 		{
-			name:         "explicit parent defaults private false",
+			name:         "explicit parent defaults draft false",
 			args:         []string{"page", "new", "--title", "Guide", "--space-key", "TEST", "--parent-id", "200"},
 			wantPath:     "Guide.md",
-			wantBody:     "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\nprivate: false\n---\n",
+			wantBody:     "---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\ndraft: false\n---\n",
 			wantParentID: "200",
+			wantDraft:    false,
 			wantTitle:    "Guide",
 			wantOutput:   "https://example.test/pages/401",
 		},
@@ -41,18 +43,20 @@ func TestRunPageNew(t *testing.T) {
 			name:         "sanitizes title for default filename",
 			args:         []string{"page", "new", "--title", "Architecture: Overview / Draft?", "--space-key", "TEST", "--parent-id", "200"},
 			wantPath:     "Architecture Overview Draft.md",
-			wantBody:     "---\ntitle: Architecture: Overview / Draft?\nspace-key: TEST\npage-id: 401\nparent-id: 200\nprivate: false\n---\n",
+			wantBody:     "---\ntitle: Architecture: Overview / Draft?\nspace-key: TEST\npage-id: 401\nparent-id: 200\ndraft: false\n---\n",
 			wantParentID: "200",
+			wantDraft:    false,
 			wantTitle:    "Architecture: Overview / Draft?",
 			wantOutput:   "https://example.test/pages/401",
 		},
 		{
-			name:         "writes private true when requested",
-			args:         []string{"page", "new", "--title", "Private Guide", "--space-key", "TEST", "--parent-id", "200", "--private"},
-			wantPath:     "Private Guide.md",
-			wantBody:     "---\ntitle: Private Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\nprivate: true\n---\n",
+			name:         "writes draft true when requested",
+			args:         []string{"page", "new", "--title", "Draft Guide", "--space-key", "TEST", "--parent-id", "200", "--draft"},
+			wantPath:     "Draft Guide.md",
+			wantBody:     "---\ntitle: Draft Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\ndraft: true\n---\n",
 			wantParentID: "200",
-			wantTitle:    "Private Guide",
+			wantDraft:    true,
+			wantTitle:    "Draft Guide",
 			wantOutput:   "https://example.test/pages/401",
 		},
 	}
@@ -63,7 +67,7 @@ func TestRunPageNew(t *testing.T) {
 
 			dir := t.TempDir()
 			client := newFakeClient()
-			assertRunPageNewSuccess(t, dir, client, tt.args, tt.wantPath, tt.wantBody, tt.wantParentID, tt.wantTitle, tt.wantOutput)
+			assertRunPageNewSuccess(t, dir, client, tt.args, tt.wantPath, tt.wantBody, tt.wantParentID, tt.wantDraft, tt.wantTitle, tt.wantOutput)
 		})
 	}
 }
@@ -116,8 +120,9 @@ func TestRunPageNew_ResolvedRootParent(t *testing.T) {
 		client,
 		[]string{"page", "new", "--title", "Guide", "--space-key", "TEST"},
 		"Guide.md",
-		"---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 300\nprivate: false\n---\n",
+		"---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 300\ndraft: false\n---\n",
 		"300",
+		false,
 		"Guide",
 		"https://example.test/pages/401",
 	)
@@ -138,8 +143,9 @@ func TestRunPageNew_ExplicitPath(t *testing.T) {
 		client,
 		[]string{"page", "new", "--title", "Guide", "--path", "docs/guide.md", "--space-key", "TEST", "--parent-id", "200"},
 		"docs/guide.md",
-		"---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\nprivate: false\n---\n",
+		"---\ntitle: Guide\nspace-key: TEST\npage-id: 401\nparent-id: 200\ndraft: false\n---\n",
 		"200",
+		false,
 		"Guide",
 		"https://example.test/pages/401",
 	)
@@ -179,7 +185,7 @@ func TestRunPageNew_PathMustNotBeDirectory(t *testing.T) {
 	)
 }
 
-func assertRunPageNewSuccess(t *testing.T, dir string, client *fakeClient, args []string, wantPath string, wantBody string, wantParentID string, wantTitle string, wantOutput string) {
+func assertRunPageNewSuccess(t *testing.T, dir string, client *fakeClient, args []string, wantPath string, wantBody string, wantParentID string, wantDraft bool, wantTitle string, wantOutput string) {
 	t.Helper()
 
 	var stdout bytes.Buffer
@@ -216,6 +222,9 @@ func assertRunPageNewSuccess(t *testing.T, dir string, client *fakeClient, args 
 		if gotPage.Title != wantTitle {
 			t.Fatalf("created page title = %q, want %q", gotPage.Title, wantTitle)
 		}
+	}
+	if gotDraft := client.createDraftByID("401"); gotDraft != wantDraft {
+		t.Fatalf("created page draft = %t, want %t", gotDraft, wantDraft)
 	}
 }
 
@@ -314,7 +323,7 @@ func TestRunPageSync_TitleComesFromFrontmatter(t *testing.T) {
 
 	dir := t.TempDir()
 	path := filepath.Join(dir, "renamed-guide.md")
-	if err := os.WriteFile(path, []byte("---\ntitle: Guide From Frontmatter\nspace-key: TEST\npage-id: 400\nparent-id: 200\n---\nBody\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("---\ntitle: Guide From Frontmatter\nspace-key: TEST\npage-id: 400\nparent-id: 200\ndraft: false\n---\nBody\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile() error = %v", err)
 	}
 
@@ -322,6 +331,25 @@ func TestRunPageSync_TitleComesFromFrontmatter(t *testing.T) {
 	client.pages["400"] = &page.Page{ID: "400", Title: "old-title", URL: "https://example.test/pages/400"}
 
 	assertRunPageSyncSuccess(t, dir, client, "renamed-guide.md", "Guide From Frontmatter", "https://example.test/pages/400", "<p>Body</p>")
+}
+
+func TestRunPageSync_DraftComesFromFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "draft-guide.md")
+	if err := os.WriteFile(path, []byte("---\ntitle: Draft Guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\ndraft: true\n---\nBody\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{ID: "400", Title: "old-title", URL: "https://example.test/pages/400"}
+
+	assertRunPageSyncSuccess(t, dir, client, "draft-guide.md", "Draft Guide", "https://example.test/pages/400", "<p>Body</p>")
+
+	if gotDraft := client.updateDraftByID("400"); !gotDraft {
+		t.Fatal("updated page draft = false, want true")
+	}
 }
 
 func assertRunPageSyncSuccess(t *testing.T, dir string, client *fakeClient, filename string, wantPageTitle string, wantOutput string, wantPageBody ...string) {
@@ -713,7 +741,9 @@ type fakeClient struct {
 	spaceRoots             map[string]string
 	spaceKeyToID           map[string]string
 	pages                  map[string]*page.Page
+	createDraftCalls       map[string]bool
 	updateCalls            map[string]int
+	updateDraftCalls       map[string]bool
 	putAttachmentCalls     []string
 	deleteAttachmentCalls  []string
 	failPutAttachmentNames map[string]bool
@@ -725,7 +755,9 @@ func newFakeClient() *fakeClient {
 		spaceRoots:             make(map[string]string),
 		spaceKeyToID:           map[string]string{"TEST": "100"},
 		pages:                  make(map[string]*page.Page),
+		createDraftCalls:       make(map[string]bool),
 		updateCalls:            make(map[string]int),
+		updateDraftCalls:       make(map[string]bool),
 		failPutAttachmentNames: make(map[string]bool),
 	}
 }
@@ -756,7 +788,7 @@ func (f *fakeClient) ResolveSpaceRootPage(ctx context.Context, spaceID string) (
 	return root, nil
 }
 
-func (f *fakeClient) CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string) (page.Page, error) {
+func (f *fakeClient) CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string, draft bool) (page.Page, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -771,10 +803,11 @@ func (f *fakeClient) CreatePage(ctx context.Context, spaceID string, parentID st
 		URL:      "https://example.test/pages/" + strconv.Itoa(id),
 	}
 	f.pages[p.ID] = p
+	f.createDraftCalls[p.ID] = draft
 	return *p, nil
 }
 
-func (f *fakeClient) UpdatePage(ctx context.Context, pageID string, title string, body string) (page.Page, error) {
+func (f *fakeClient) UpdatePage(ctx context.Context, pageID string, title string, body string, draft bool) (page.Page, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
@@ -788,6 +821,7 @@ func (f *fakeClient) UpdatePage(ctx context.Context, pageID string, title string
 		p.URL = "https://example.test/pages/" + pageID
 	}
 	f.updateCalls[pageID]++
+	f.updateDraftCalls[pageID] = draft
 	return *p, nil
 }
 
@@ -828,4 +862,18 @@ func (f *fakeClient) updateCount(id string) int {
 	defer f.mu.Unlock()
 
 	return f.updateCalls[id]
+}
+
+func (f *fakeClient) createDraftByID(id string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.createDraftCalls[id]
+}
+
+func (f *fakeClient) updateDraftByID(id string) bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.updateDraftCalls[id]
 }

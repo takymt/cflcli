@@ -107,8 +107,8 @@ cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456
 # Create a page and keep syncing on save
 cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456 --path docs/architecture-overview.md --watch
 
-# Create a page template with private frontmatter enabled
-cfl page new --title "Private Notes" --space-key TEST --parent-id 123456 --private
+# Create a page template as a draft
+cfl page new --title "Draft Notes" --space-key TEST --parent-id 123456 --draft
 
 # Sync one markdown file
 cfl page sync docs/architecture-overview.md

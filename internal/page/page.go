@@ -23,8 +23,8 @@ type Client interface {
 	SiteBaseURL() string
 	ResolveSpaceIDByKey(ctx context.Context, spaceKey string) (string, error)
 	ResolveSpaceRootPage(ctx context.Context, spaceID string) (string, error)
-	CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string) (Page, error)
-	UpdatePage(ctx context.Context, pageID string, title string, body string) (Page, error)
+	CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string, draft bool) (Page, error)
+	UpdatePage(ctx context.Context, pageID string, title string, body string, draft bool) (Page, error)
 	PutAttachment(ctx context.Context, pageID string, filePath string) error
 	DeleteAttachment(ctx context.Context, pageID string, filename string) error
 }

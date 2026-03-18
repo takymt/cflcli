@@ -21,7 +21,7 @@ func TestParseMarkdownFile(t *testing.T) {
 				"space-key: TEST\n" +
 				"page-id: 200\n" +
 				"parent-id: 300\n" +
-				"private: true\n" +
+				"draft: true\n" +
 				"---\n" +
 				"# hello\n",
 			wantFM: Frontmatter{
@@ -29,12 +29,12 @@ func TestParseMarkdownFile(t *testing.T) {
 				SpaceKey: "TEST",
 				PageID:   "200",
 				ParentID: "300",
-				Private:  true,
+				Draft:    true,
 			},
 			wantBody: "# hello\n",
 		},
 		{
-			name: "missing private defaults false",
+			name: "missing draft defaults false",
 			input: "---\n" +
 				"title: Hello\n" +
 				"space-key: TEST\n" +
@@ -47,7 +47,7 @@ func TestParseMarkdownFile(t *testing.T) {
 				SpaceKey: "TEST",
 				PageID:   "200",
 				ParentID: "300",
-				Private:  false,
+				Draft:    false,
 			},
 			wantBody: "# hello\n",
 		},
@@ -106,13 +106,13 @@ func TestParseMarkdownFile(t *testing.T) {
 			wantError: true,
 		},
 		{
-			name: "invalid private type",
+			name: "invalid draft type",
 			input: "---\n" +
 				"title: Hello\n" +
 				"space-key: TEST\n" +
 				"page-id: 200\n" +
 				"parent-id: 300\n" +
-				"private: nope\n" +
+				"draft: nope\n" +
 				"---\n",
 			wantError: true,
 		},
@@ -153,10 +153,10 @@ func TestFormatMarkdownFile(t *testing.T) {
 		SpaceKey: "TEST",
 		PageID:   "200",
 		ParentID: "300",
-		Private:  false,
+		Draft:    false,
 	}, ""))
 
-	want := "---\ntitle: Hello\nspace-key: TEST\npage-id: 200\nparent-id: 300\nprivate: false\n---\n"
+	want := "---\ntitle: Hello\nspace-key: TEST\npage-id: 200\nparent-id: 300\ndraft: false\n---\n"
 	if got != want {
 		t.Fatalf("FormatMarkdownFile() = %q, want %q", got, want)
 	}

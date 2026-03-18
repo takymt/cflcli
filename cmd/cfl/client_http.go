@@ -107,10 +107,10 @@ func (c *httpClient) ResolveSpaceRootPage(ctx context.Context, spaceID string) (
 	return response.HomepageID, nil
 }
 
-func (c *httpClient) CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string) (page.Page, error) {
+func (c *httpClient) CreatePage(ctx context.Context, spaceID string, parentID string, title string, body string, draft bool) (page.Page, error) {
 	payload := map[string]any{
 		"spaceId":  spaceID,
-		"status":   "current",
+		"status":   pageStatus(draft),
 		"title":    title,
 		"parentId": parentID,
 		"body": map[string]string{
@@ -126,7 +126,7 @@ func (c *httpClient) CreatePage(ctx context.Context, spaceID string, parentID st
 	return c.toPage(&response), nil
 }
 
-func (c *httpClient) UpdatePage(ctx context.Context, pageID string, title string, body string) (page.Page, error) {
+func (c *httpClient) UpdatePage(ctx context.Context, pageID string, title string, body string, draft bool) (page.Page, error) {
 	current, err := c.getPage(ctx, pageID)
 	if err != nil {
 		return page.Page{}, err
@@ -134,7 +134,7 @@ func (c *httpClient) UpdatePage(ctx context.Context, pageID string, title string
 
 	payload := map[string]any{
 		"id":       pageID,
-		"status":   "current",
+		"status":   pageStatus(draft),
 		"title":    title,
 		"parentId": current.ParentID,
 		"spaceId":  current.SpaceID,
@@ -152,6 +152,13 @@ func (c *httpClient) UpdatePage(ctx context.Context, pageID string, title string
 		return page.Page{}, err
 	}
 	return c.toPage(&response), nil
+}
+
+func pageStatus(draft bool) string {
+	if draft {
+		return "draft"
+	}
+	return "current"
 }
 
 func (c *httpClient) PutAttachment(ctx context.Context, pageID string, filePath string) error {
