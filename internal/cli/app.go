@@ -403,11 +403,8 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 		}
 	}()
 	if len(renderResult.Warnings) > 0 {
-		if progress != nil {
-			progress.Clear()
-		}
 		for _, warning := range renderResult.Warnings {
-			a.println("Warning: " + warning)
+			a.printlnWithProgress(progress, "Warning: "+warning)
 		}
 	}
 
@@ -446,6 +443,14 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 
 func (a *App) println(s string) {
 	_, _ = fmt.Fprintln(a.stdout, s)
+}
+
+func (a *App) printlnWithProgress(progress syncProgress, s string) {
+	if progress != nil {
+		progress.Println(s)
+		return
+	}
+	a.println(s)
 }
 
 func (a *App) printPageURL(prefix string, pageURL string) {

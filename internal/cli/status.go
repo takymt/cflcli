@@ -10,6 +10,7 @@ import (
 type syncProgress interface {
 	Set(msg string)
 	Clear()
+	Println(msg string)
 }
 
 type progressLine struct {
@@ -48,6 +49,26 @@ func (p *progressLine) Clear() {
 		return
 	}
 	_, _ = fmt.Fprint(p.writer, "\r"+strings.Repeat(" ", p.lastLen)+"\r")
+	p.active = false
+	p.lastLen = 0
+}
+
+func (p *progressLine) Println(msg string) {
+	if !p.enabled {
+		_, _ = fmt.Fprintln(p.writer, msg)
+		return
+	}
+
+	padding := ""
+	if p.active && len(msg) < p.lastLen {
+		padding = strings.Repeat(" ", p.lastLen-len(msg))
+	}
+
+	if p.active {
+		_, _ = fmt.Fprint(p.writer, "\r"+msg+padding+"\n")
+	} else {
+		_, _ = fmt.Fprintln(p.writer, msg)
+	}
 	p.active = false
 	p.lastLen = 0
 }
