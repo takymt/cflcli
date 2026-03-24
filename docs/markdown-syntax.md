@@ -228,9 +228,9 @@ Multi-line comment handling is currently out of scope.
 <p style="text-align: right;">right aligned text</p>
 ```
 
-<p style="text-align: left;">left aligned text</p>
-<p style="text-align: center;">centered text</p>
-<p style="text-align: right;">right aligned text</p>
+<p align="left">left aligned text</p>
+<p align="center">centered text</p>
+<p align="right">right aligned text</p>
 
 ## Alerts
 
