@@ -187,12 +187,14 @@ Use `<summary>` to define the block title.
 
 ```md
 <!-- TODO: add details about this section -->
+
+<!-- This is
+a multi-line comment -->
 ```
 
 <!-- TODO: add details about this section -->
 
 Comments written in this format are not rendered on the published page.
-Multi-line comment handling is currently out of scope.
 
 ## Emoji
 

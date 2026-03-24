@@ -40,8 +40,12 @@ func ConvertMarkdownToStorage(markdown string) (string, error) {
 	var parts []string
 	for i := 0; i < len(lines); {
 		trimmed := strings.TrimSpace(lines[i])
-		if trimmed == "" || isInlineCommentLine(trimmed) {
+		if trimmed == "" {
 			i++
+			continue
+		}
+		if next, ok := skipCommentBlock(lines, i); ok {
+			i = next
 			continue
 		}
 
@@ -584,7 +588,7 @@ func parseHeading(line string) (level int, text string, ok bool) {
 
 func isBlockStart(lines []string, index int) bool {
 	line := strings.TrimSpace(lines[index])
-	if line == "" || isInlineCommentLine(line) {
+	if line == "" || isCommentStartLine(line) {
 		return true
 	}
 	if _, _, ok := parseHeading(line); ok {
@@ -613,8 +617,31 @@ func isBlockStart(lines []string, index int) bool {
 	return false
 }
 
+func skipCommentBlock(lines []string, start int) (int, bool) {
+	line := strings.TrimSpace(lines[start])
+	if !isCommentStartLine(line) {
+		return start, false
+	}
+	if isInlineCommentLine(line) {
+		return start + 1, true
+	}
+
+	i := start + 1
+	for i < len(lines) {
+		if strings.HasSuffix(strings.TrimSpace(lines[i]), "-->") {
+			return i + 1, true
+		}
+		i++
+	}
+	return len(lines), true
+}
+
+func isCommentStartLine(line string) bool {
+	return strings.HasPrefix(line, "<!--")
+}
+
 func isInlineCommentLine(line string) bool {
-	return strings.HasPrefix(line, "<!--") && strings.HasSuffix(line, "-->")
+	return isCommentStartLine(line) && strings.HasSuffix(line, "-->")
 }
 
 func isUnorderedItem(line string) bool {

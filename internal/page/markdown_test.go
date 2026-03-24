@@ -273,6 +273,77 @@ func TestConvertMarkdownToStorage_MixedFenceEscapes(t *testing.T) {
 	}
 }
 
+func TestConvertMarkdownToStorage_MultiLineComments(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    string
+		contains []string
+		excludes []string
+	}{
+		{
+			name:  "comment between paragraphs",
+			input: "Before\n<!--\nThis is a\nmulti-line comment\n-->\nAfter\n",
+			contains: []string{
+				"<p>Before</p>",
+				"<p>After</p>",
+			},
+			excludes: []string{
+				"This is a",
+				"multi-line comment",
+				"&lt;!--",
+				"--&gt;",
+			},
+		},
+		{
+			name:  "adjacent comments at document boundaries",
+			input: "<!--\nleading comment\n-->\nVisible text\n<!--\ntrailing comment\n-->\n",
+			contains: []string{
+				"<p>Visible text</p>",
+			},
+			excludes: []string{
+				"leading comment",
+				"trailing comment",
+				"&lt;!--",
+				"--&gt;",
+			},
+		},
+		{
+			name:  "comments inside fenced code remain literal",
+			input: "```md\n<!--\ncomment in code\n-->\n```\n",
+			contains: []string{
+				`ac:name="code"`,
+				`<![CDATA[<!--`,
+				"comment in code",
+				"-->",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := ConvertMarkdownToStorage(tt.input)
+			if err != nil {
+				t.Fatalf("ConvertMarkdownToStorage() error = %v", err)
+			}
+			for _, want := range tt.contains {
+				if !strings.Contains(got, want) {
+					t.Fatalf("ConvertMarkdownToStorage() = %q, missing %q", got, want)
+				}
+			}
+			for _, notWant := range tt.excludes {
+				if strings.Contains(got, notWant) {
+					t.Fatalf("ConvertMarkdownToStorage() = %q, unexpected %q", got, notWant)
+				}
+			}
+		})
+	}
+}
+
 func TestParseHeading(t *testing.T) {
 	t.Parallel()
 
