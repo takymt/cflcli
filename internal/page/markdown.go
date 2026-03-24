@@ -402,14 +402,29 @@ func convertBlockquote(lines []string, start int) (string, int, bool) {
 
 func convertDetails(lines []string, start int) (string, int, bool) {
 	trimmed := strings.TrimSpace(lines[start])
-	if !strings.HasPrefix(trimmed, "<details><summary>") || !strings.Contains(trimmed, "</summary>") {
+	title := ""
+	bodyStart := start + 1
+	switch {
+	case strings.HasPrefix(trimmed, "<details><summary>") && strings.Contains(trimmed, "</summary>"):
+		title = strings.TrimPrefix(trimmed, "<details><summary>")
+		title = strings.SplitN(title, "</summary>", 2)[0]
+	case trimmed == "<details>":
+		if start+1 >= len(lines) {
+			return "", start, false
+		}
+		summaryLine := strings.TrimSpace(lines[start+1])
+		if !strings.HasPrefix(summaryLine, "<summary>") || !strings.Contains(summaryLine, "</summary>") {
+			return "", start, false
+		}
+		title = strings.TrimPrefix(summaryLine, "<summary>")
+		title = strings.SplitN(title, "</summary>", 2)[0]
+		bodyStart = start + 2
+	default:
 		return "", start, false
 	}
-	title := strings.TrimPrefix(trimmed, "<details><summary>")
-	title = strings.SplitN(title, "</summary>", 2)[0]
 
 	var bodyLines []string
-	i := start + 1
+	i := bodyStart
 	for i < len(lines) {
 		if strings.TrimSpace(lines[i]) == "</details>" {
 			i++
@@ -599,6 +614,7 @@ func isBlockStart(lines []string, index int) bool {
 	}
 	if _, ok := parseFenceStart(line); ok ||
 		strings.HasPrefix(line, "<details><summary>") ||
+		line == "<details>" ||
 		alertStartRE.MatchString(line) ||
 		textAlignParaRE.MatchString(line) ||
 		isTaskItem(line) ||

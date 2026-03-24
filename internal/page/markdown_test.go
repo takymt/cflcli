@@ -182,6 +182,15 @@ func TestConvertMarkdownToStorage_CatalogSupporting(t *testing.T) {
 			},
 		},
 		{
+			name:  "details expand with multiline summary",
+			input: "<details>\n<summary>title</summary>\n- Collapsed body line 1\n- Collapsed body line 2\n</details>\n",
+			contains: []string{
+				`<ac:structured-macro ac:name="expand">`,
+				`<ac:parameter ac:name="title">title</ac:parameter>`,
+				`Collapsed body line 1`,
+			},
+		},
+		{
 			name:  "inline comments ignored",
 			input: "<!-- TODO: add details about this section -->\nVisible text\n",
 			contains: []string{
