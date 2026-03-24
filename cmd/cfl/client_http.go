@@ -132,6 +132,12 @@ func (c *httpClient) UpdatePage(ctx context.Context, pageID string, title string
 		return page.Page{}, err
 	}
 
+	versionNumber := current.Version.Number + 1
+	if draft {
+		// Draft pages in Confluence v2 do not support multiple versions; the version must remain 1.
+		versionNumber = 1
+	}
+
 	payload := map[string]any{
 		"id":       pageID,
 		"status":   pageStatus(draft),
@@ -143,7 +149,7 @@ func (c *httpClient) UpdatePage(ctx context.Context, pageID string, title string
 			"value":          body,
 		},
 		"version": map[string]int{
-			"number": current.Version.Number + 1,
+			"number": versionNumber,
 		},
 	}
 
