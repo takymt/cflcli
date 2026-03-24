@@ -3,8 +3,6 @@ package page
 import (
 	"fmt"
 	"html"
-	"net/url"
-	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -532,6 +530,9 @@ func convertInline(text string) string {
 		if isHTTPURL(target) {
 			return stash(`<ac:image ac:alt="` + html.EscapeString(sub[1]) + `"><ri:url ri:value="` + html.EscapeString(target) + `" /></ac:image>`)
 		}
+		if !isRelativeFilesystemTarget(target) {
+			return m
+		}
 		filename := attachmentFilenameFromTarget(target)
 		if filename == "" {
 			return m
@@ -550,6 +551,9 @@ func convertInline(text string) string {
 				return stash(`<a href="` + html.EscapeString(target) + `" data-card-appearance="inline">` + html.EscapeString(label) + `</a>`)
 			}
 			return stash(`<a href="` + html.EscapeString(target) + `">` + html.EscapeString(label) + `</a>`)
+		}
+		if !isRelativeFilesystemTarget(target) {
+			return m
 		}
 		filename := attachmentFilenameFromTarget(target)
 		if filename == "" {
@@ -688,21 +692,6 @@ func parseTaskItem(line string) (status string, text string, ok bool) {
 
 func isHTTPURL(value string) bool {
 	return strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://")
-}
-
-func attachmentFilenameFromTarget(target string) string {
-	parsed, err := url.Parse(target)
-	if err != nil {
-		return ""
-	}
-	if parsed.Path == "" {
-		return ""
-	}
-	name := path.Base(parsed.Path)
-	if name == "." || name == "/" || name == "" {
-		return ""
-	}
-	return name
 }
 
 func orderedListItem(line string) (bool, string) {

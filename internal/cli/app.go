@@ -389,7 +389,7 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 	if progress != nil {
 		progress.Set("Rendering Mermaid...")
 	}
-	mermaidResult, err := page.ConvertMarkdownToStorageWithMermaid(ctx, path, body, a.client.SiteBaseURL())
+	renderResult, err := page.RenderMarkdownForSync(ctx, path, body, a.client.SiteBaseURL())
 	if err != nil {
 		if progress != nil {
 			progress.Clear()
@@ -397,22 +397,30 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 		return page.Page{}, err
 	}
 	defer func() {
-		for _, generatedPath := range mermaidResult.Generated {
+		for _, generatedPath := range renderResult.Generated {
 			_ = os.Remove(generatedPath)
 			_ = os.Remove(filepath.Dir(generatedPath))
 		}
 	}()
+	if len(renderResult.Warnings) > 0 {
+		if progress != nil {
+			progress.Clear()
+		}
+		for _, warning := range renderResult.Warnings {
+			a.println("Warning: " + warning)
+		}
+	}
 
 	if progress != nil {
 		progress.Set("Uploading attachments...")
 	}
-	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, mermaidResult.Storage, mermaidResult.Generated); err != nil {
+	if err := page.SyncAttachmentsFromStorage(ctx, a.client, frontmatter.PageID, path, renderResult.Storage, renderResult.AttachmentSources, renderResult.Generated); err != nil {
 		if progress != nil {
 			progress.Clear()
 		}
 		return page.Page{}, err
 	}
-	if err := mermaidResult.SaveCache(); err != nil {
+	if err := renderResult.SaveCache(); err != nil {
 		if progress != nil {
 			progress.Clear()
 		}
@@ -423,7 +431,7 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 		progress.Set("Updating page...")
 	}
 	title := frontmatter.Title
-	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, mermaidResult.Storage, frontmatter.Draft)
+	updated, err := a.client.UpdatePage(ctx, frontmatter.PageID, title, renderResult.Storage, frontmatter.Draft)
 	if err != nil {
 		if progress != nil {
 			progress.Clear()

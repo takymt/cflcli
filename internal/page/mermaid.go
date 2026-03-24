@@ -3,7 +3,6 @@ package page
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,7 +15,7 @@ const maxMermaidBlockChars = 2000
 
 var mermaidWarmupOnce sync.Once
 
-// MermaidResult contains converted storage output and generated attachment files.
+// MermaidResult contains mermaid rendering output and generated attachment files.
 type MermaidResult struct {
 	Storage   string
 	Generated map[string]string
@@ -25,12 +24,12 @@ type MermaidResult struct {
 
 // ConvertMarkdownToStorageWithMermaid converts markdown to storage format and
 // turns mermaid fenced blocks into attachment image macros.
-func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string, siteBaseURL string) (MermaidResult, error) {
+func ConvertMarkdownToStorageWithMermaid(ctx context.Context, markdownPath string, markdown string) (MermaidResult, error) {
 	result := MermaidResult{
 		Generated: make(map[string]string),
 		SaveCache: func() error { return nil },
 	}
-	markdown = resolveRelativeMarkdownLinks(markdownPath, markdown, strings.TrimSuffix(siteBaseURL, "/"))
+
 	cachePath, err := mermaidCachePath(markdownPath)
 	if err != nil {
 		return MermaidResult{}, err
@@ -225,83 +224,6 @@ func renderMermaidSVG(ctx context.Context, source string, filename string) (stri
 		return "", fmt.Errorf("mmdc failed: %w: %s", err, strings.TrimSpace(string(output)))
 	}
 	return svgPath, nil
-}
-
-func resolveRelativeMarkdownLinks(markdownPath string, markdown string, siteBaseURL string) string {
-	lines := strings.Split(markdown, "\n")
-	var currentFence string
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if currentFence != "" {
-			if isFenceClose(trimmed, currentFence) {
-				currentFence = ""
-			}
-			continue
-		}
-		fence, ok := parseFenceStart(trimmed)
-		if ok {
-			currentFence = fence.marker
-			continue
-		}
-		lines[i] = rewriteRelativeMarkdownLinksInLine(markdownPath, line, siteBaseURL)
-	}
-	return strings.Join(lines, "\n")
-}
-
-func rewriteRelativeMarkdownLinksInLine(markdownPath string, line string, siteBaseURL string) string {
-	matches := linkRE.FindAllStringSubmatchIndex(line, -1)
-	if len(matches) == 0 {
-		return line
-	}
-
-	var b strings.Builder
-	last := 0
-	for _, idx := range matches {
-		if len(idx) < 6 {
-			continue
-		}
-		start, end := idx[0], idx[1]
-		if start > 0 && line[start-1] == '!' {
-			continue
-		}
-
-		label := strings.TrimSpace(line[idx[2]:idx[3]])
-		target := strings.TrimSpace(line[idx[4]:idx[5]])
-
-		resolved := resolveRelativeMarkdownTarget(markdownPath, target, siteBaseURL)
-		b.WriteString(line[last:start])
-		if resolved != "" {
-			b.WriteString("[" + label + "](" + resolved + ")")
-		} else {
-			b.WriteString(line[start:end])
-		}
-		last = end
-	}
-	b.WriteString(line[last:])
-	return b.String()
-}
-
-func resolveRelativeMarkdownTarget(markdownPath string, target string, siteBaseURL string) string {
-	if target == "" || strings.HasPrefix(target, "/") || strings.Contains(target, "://") {
-		return ""
-	}
-	u, err := url.Parse(target)
-	if err != nil {
-		return ""
-	}
-	if u.Path == "" || !strings.HasSuffix(strings.ToLower(u.Path), ".md") {
-		return ""
-	}
-	absPath := filepath.Clean(filepath.Join(filepath.Dir(markdownPath), u.Path))
-	data, err := os.ReadFile(absPath)
-	if err != nil {
-		return ""
-	}
-	fm, _, err := ParseMarkdownFile(data)
-	if err != nil || fm.SpaceKey == "" || fm.PageID == "" {
-		return ""
-	}
-	return siteBaseURL + "/wiki/spaces/" + fm.SpaceKey + "/pages/" + fm.PageID
 }
 
 type mermaidOptions struct {

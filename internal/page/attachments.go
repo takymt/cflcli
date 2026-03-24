@@ -34,7 +34,7 @@ func AttachmentFilenamesFromStorage(storage string) []string {
 }
 
 // SyncAttachmentsFromStorage uploads all referenced attachments before page body update.
-func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID string, markdownPath string, storage string, generatedMermaid map[string]string) error {
+func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID string, markdownPath string, storage string, attachmentSources map[string]string, generatedMermaid map[string]string) error {
 	filenames := AttachmentFilenamesFromStorage(storage)
 	if len(filenames) == 0 {
 		return nil
@@ -65,7 +65,7 @@ func SyncAttachmentsFromStorage(ctx context.Context, client Client, pageID strin
 		}
 	}
 
-	entries, err := collectAttachmentEntries(markdownPath, filenames, generatedMermaid, mermaidCache)
+	entries, err := collectAttachmentEntries(markdownPath, filenames, attachmentSources, generatedMermaid, mermaidCache)
 	if err != nil {
 		return err
 	}
@@ -100,10 +100,10 @@ type attachmentEntry struct {
 	hash     string
 }
 
-func collectAttachmentEntries(markdownPath string, filenames []string, generatedMermaid map[string]string, mermaidCache mermaidCache) ([]attachmentEntry, error) {
+func collectAttachmentEntries(markdownPath string, filenames []string, attachmentSources map[string]string, generatedMermaid map[string]string, mermaidCache mermaidCache) ([]attachmentEntry, error) {
 	entries := make([]attachmentEntry, 0, len(filenames))
 	for _, filename := range filenames {
-		entry, err := buildAttachmentEntry(markdownPath, filename, generatedMermaid, mermaidCache)
+		entry, err := buildAttachmentEntry(markdownPath, filename, attachmentSources, generatedMermaid, mermaidCache)
 		if err != nil {
 			return nil, err
 		}
@@ -112,13 +112,21 @@ func collectAttachmentEntries(markdownPath string, filenames []string, generated
 	return entries, nil
 }
 
-func buildAttachmentEntry(markdownPath string, filename string, generatedMermaid map[string]string, mermaidCache mermaidCache) (attachmentEntry, error) {
+func buildAttachmentEntry(markdownPath string, filename string, attachmentSources map[string]string, generatedMermaid map[string]string, mermaidCache mermaidCache) (attachmentEntry, error) {
 	if generatedPath, ok := generatedMermaid[filename]; ok {
 		hash, err := fileSHA256(generatedPath)
 		if err != nil {
 			return attachmentEntry{}, fmt.Errorf("hash attachment %q: %w", filename, err)
 		}
 		return attachmentEntry{filename: filename, path: generatedPath, hash: hash}, nil
+	}
+
+	if attachmentPath, ok := attachmentSources[filename]; ok {
+		hash, err := fileSHA256(attachmentPath)
+		if err != nil {
+			return attachmentEntry{}, fmt.Errorf("hash attachment %q: %w", filename, err)
+		}
+		return attachmentEntry{filename: filename, path: attachmentPath, hash: hash}, nil
 	}
 
 	if attachmentPath, err := resolveAttachmentPath(markdownPath, filename); err == nil {
