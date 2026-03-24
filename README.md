@@ -59,9 +59,6 @@ cfl auth
 
 # Or pass values explicitly
 cfl auth login --domain example.atlassian.net --email user@example.com --api-token <token>
-
-# Or skip validation
-cfl auth login --no-validate
 ```
 
 Clear the saved config:
