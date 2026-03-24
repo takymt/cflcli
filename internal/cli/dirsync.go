@@ -104,7 +104,7 @@ func collectMarkdownFiles(dir string, maxFiles int) ([]collectResult, []skipResu
 	return files, skipped, nil
 }
 
-func (a *App) syncDir(ctx context.Context, files []collectResult, concurrency int) []syncResult {
+func (a *App) syncDir(ctx context.Context, files []collectResult, concurrency int, draft bool) []syncResult {
 	if concurrency < 1 {
 		concurrency = 1
 	}
@@ -132,7 +132,7 @@ func (a *App) syncDir(ctx context.Context, files []collectResult, concurrency in
 				<-sem
 			}()
 
-			updated, err := a.syncFile(ctx, file.Path)
+			updated, err := a.syncFile(ctx, file.Path, draft)
 			results[i] = syncResult{
 				Display: file.Display,
 				Err:     err,

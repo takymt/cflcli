@@ -51,16 +51,20 @@ func (a *App) newRootCommand(args []string, workdir string) *cobra.Command {
 	pageNewCmd.Flags().BoolVar(&newDraft, "draft", false, "Create the page as a Confluence draft")
 	pageNewCmd.Flags().BoolVar(&newWatch, "watch", false, "Watch the created file and sync on changes")
 
-	var syncWatch bool
+	var (
+		syncWatch bool
+		syncDraft bool
+	)
 	pageSyncCmd := &cobra.Command{
 		Use:   "sync <path>",
 		Args:  exactArgsWithUsage(1),
 		Short: "Sync a local markdown file or directory to Confluence",
 		RunE: func(cmd *cobra.Command, cmdArgs []string) error {
-			return a.runPageSync(cmd.Context(), workdir, cmdArgs[0], syncWatch)
+			return a.runPageSync(cmd.Context(), workdir, cmdArgs[0], syncWatch, syncDraft)
 		},
 	}
 	pageSyncCmd.Flags().BoolVar(&syncWatch, "watch", false, "Watch the file and sync on changes")
+	pageSyncCmd.Flags().BoolVar(&syncDraft, "draft", false, "Sync the page as a Confluence draft")
 	pageCmd.AddCommand(pageNewCmd, pageSyncCmd)
 
 	var (

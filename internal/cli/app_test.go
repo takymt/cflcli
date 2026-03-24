@@ -352,12 +352,46 @@ func TestRunPageSync_DraftComesFromFrontmatter(t *testing.T) {
 	}
 }
 
+func TestRunPageSync_DraftFlag(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "draft-guide.md")
+	if err := os.WriteFile(path, []byte("---\ntitle: Draft Guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\ndraft: false\n---\nBody\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{ID: "400", Title: "old-title", URL: "https://example.test/pages/400"}
+
+	assertRunPageSyncSuccessWithArgs(t, dir, client, []string{"page", "sync", "--draft", "draft-guide.md"}, "Draft Guide", "https://example.test/pages/400", "<p>Body</p>")
+
+	if gotDraft := client.updateDraftByID("400"); !gotDraft {
+		t.Fatal("updated page draft = false, want true")
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	want := "---\ntitle: Draft Guide\nspace-key: TEST\npage-id: 400\nparent-id: 200\ndraft: true\n---\nBody\n"
+	if string(got) != want {
+		t.Fatalf("rewritten file = %q, want %q", string(got), want)
+	}
+}
+
 func assertRunPageSyncSuccess(t *testing.T, dir string, client *fakeClient, filename string, wantPageTitle string, wantOutput string, wantPageBody ...string) {
+	t.Helper()
+
+	assertRunPageSyncSuccessWithArgs(t, dir, client, []string{"page", "sync", filename}, wantPageTitle, wantOutput, wantPageBody...)
+}
+
+func assertRunPageSyncSuccessWithArgs(t *testing.T, dir string, client *fakeClient, args []string, wantPageTitle string, wantOutput string, wantPageBody ...string) {
 	t.Helper()
 
 	var stdout bytes.Buffer
 	app := New(client, &stdout)
-	exit := app.Run(context.Background(), []string{"page", "sync", filename}, dir)
+	exit := app.Run(context.Background(), args, dir)
 	if exit != 0 {
 		t.Fatalf("Run() exit = %d, want 0", exit)
 	}

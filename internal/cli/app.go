@@ -137,10 +137,10 @@ func (a *App) runPageNew(ctx context.Context, workdir string, title string, path
 		return nil
 	}
 	go page.WarmUpMermaidRenderer(context.Background())
-	return a.watchFile(ctx, path, displayPath, created.URL, false)
+	return a.watchFile(ctx, path, displayPath, created.URL, false, false)
 }
 
-func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, watch bool) error {
+func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, watch bool, draft bool) error {
 	path := resolvePath(workdir, fileArg)
 	info, err := os.Stat(path)
 	if err != nil {
@@ -164,7 +164,7 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 			return err
 		}
 
-		results := a.syncDir(ctx, files, defaultDirSyncConcurrency)
+		results := a.syncDir(ctx, files, defaultDirSyncConcurrency, draft)
 		if failures := a.printSyncSummary(results, skipped); failures > 0 {
 			return newSilentError(fmt.Errorf("%d files failed during sync", failures))
 		}
@@ -172,7 +172,7 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 	}
 
 	if !watch {
-		updated, err := a.syncFile(ctx, path)
+		updated, err := a.syncFile(ctx, path, draft)
 		if err != nil {
 			return err
 		}
@@ -180,7 +180,7 @@ func (a *App) runPageSync(ctx context.Context, workdir string, fileArg string, w
 		return nil
 	}
 
-	return a.watchFile(ctx, path, fileArg, "", true)
+	return a.watchFile(ctx, path, fileArg, "", true, draft)
 }
 
 func (a *App) runAttachmentPut(ctx context.Context, pageID string, filePath string) error {
@@ -272,11 +272,11 @@ func (a *App) collectAuthCredentials(domain string, email string, apiToken strin
 	return auth.RequireCredentials(creds)
 }
 
-func (a *App) watchFile(ctx context.Context, path string, displayPath string, initialURL string, syncFirst bool) error {
+func (a *App) watchFile(ctx context.Context, path string, displayPath string, initialURL string, syncFirst bool, draft bool) error {
 	progress := newProgressLine(a.stdout)
 
 	if syncFirst {
-		first, err := a.syncFileWithProgress(ctx, path, progress)
+		first, err := a.syncFileWithProgress(ctx, path, progress, draft)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				return err
@@ -294,7 +294,7 @@ func (a *App) watchFile(ctx context.Context, path string, displayPath string, in
 	if err != nil {
 		return err
 	}
-	watchErr := a.watchLoop(ctx, watcher.Events(), path, progress)
+	watchErr := a.watchLoop(ctx, watcher.Events(), path, progress, draft)
 	closeErr := watcher.Close()
 	if watchErr != nil {
 		return watchErr
@@ -306,7 +306,7 @@ func (a *App) watchFile(ctx context.Context, path string, displayPath string, in
 	return nil
 }
 
-func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string, progress syncProgress) error {
+func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string, progress syncProgress, draft bool) error {
 	var (
 		timer  *time.Timer
 		timerC <-chan time.Time
@@ -347,7 +347,7 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 			}
 			timerC = timer.C
 		case <-timerC:
-			_, err := a.syncFileWithProgress(ctx, path, progress)
+			_, err := a.syncFileWithProgress(ctx, path, progress, draft)
 			if err != nil {
 				a.println(colorRed("!") + " " + err.Error())
 			} else {
@@ -358,11 +358,11 @@ func (a *App) watchLoop(ctx context.Context, events <-chan struct{}, path string
 	}
 }
 
-func (a *App) syncFile(ctx context.Context, path string) (page.Page, error) {
-	return a.syncFileWithProgress(ctx, path, nil)
+func (a *App) syncFile(ctx context.Context, path string, draft bool) (page.Page, error) {
+	return a.syncFileWithProgress(ctx, path, nil, draft)
 }
 
-func (a *App) syncFileWithProgress(ctx context.Context, path string, progress syncProgress) (page.Page, error) {
+func (a *App) syncFileWithProgress(ctx context.Context, path string, progress syncProgress, draft bool) (page.Page, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return page.Page{}, err
@@ -371,6 +371,16 @@ func (a *App) syncFileWithProgress(ctx context.Context, path string, progress sy
 	frontmatter, body, err := page.ParseMarkdownFile(data)
 	if err != nil {
 		return page.Page{}, err
+	}
+	if draft && !frontmatter.Draft {
+		frontmatter.Draft = true
+		info, err := os.Stat(path)
+		if err != nil {
+			return page.Page{}, err
+		}
+		if err := os.WriteFile(path, page.FormatMarkdownFile(frontmatter, body), info.Mode().Perm()); err != nil {
+			return page.Page{}, err
+		}
 	}
 	if err := a.ensureClient(); err != nil {
 		return page.Page{}, err

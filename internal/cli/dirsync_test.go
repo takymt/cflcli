@@ -150,6 +150,56 @@ func TestRunPageSync_Directory(t *testing.T) {
 	}
 }
 
+func TestRunPageSync_DirectoryDraftFlag(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	root := filepath.Join(dir, "docs")
+	mustMkdirAll(t, filepath.Join(root, "nested"))
+	writeTestFile(t, filepath.Join(root, "guide-a.md"), []byte("---\ntitle: guide-a\nspace-key: TEST\npage-id: 400\nparent-id: 200\ndraft: false\n---\n# A\n"))
+	writeTestFile(t, filepath.Join(root, "nested", "guide-b.md"), []byte("---\ntitle: guide-b\nspace-key: TEST\npage-id: 401\nparent-id: 200\ndraft: false\n---\n# B\n"))
+
+	client := newFakeClient()
+	client.pages["400"] = &page.Page{ID: "400", URL: "https://example.test/pages/400"}
+	client.pages["401"] = &page.Page{ID: "401", URL: "https://example.test/pages/401"}
+
+	var stdout bytes.Buffer
+	app := New(client, &stdout)
+	exit := app.Run(context.Background(), []string{"page", "sync", "--draft", "docs"}, dir)
+	if exit != 0 {
+		t.Fatalf("Run() exit = %d, want 0", exit)
+	}
+
+	if !client.updateDraftByID("400") {
+		t.Fatal("page 400 draft = false, want true")
+	}
+	if !client.updateDraftByID("401") {
+		t.Fatal("page 401 draft = false, want true")
+	}
+
+	for _, check := range []struct {
+		path string
+		want string
+	}{
+		{
+			path: filepath.Join(root, "guide-a.md"),
+			want: "---\ntitle: guide-a\nspace-key: TEST\npage-id: 400\nparent-id: 200\ndraft: true\n---\n# A\n",
+		},
+		{
+			path: filepath.Join(root, "nested", "guide-b.md"),
+			want: "---\ntitle: guide-b\nspace-key: TEST\npage-id: 401\nparent-id: 200\ndraft: true\n---\n# B\n",
+		},
+	} {
+		got, err := os.ReadFile(check.path)
+		if err != nil {
+			t.Fatalf("ReadFile(%q) error = %v", check.path, err)
+		}
+		if string(got) != check.want {
+			t.Fatalf("file %q = %q, want %q", check.path, string(got), check.want)
+		}
+	}
+}
+
 func TestRunPageSync_DirectoryPartialFailure(t *testing.T) {
 	t.Parallel()
 
