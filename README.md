@@ -102,7 +102,7 @@ cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456
 cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456 --path docs/architecture-overview.md
 
 # Create a page and keep syncing on save
-cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456 --path docs/architecture-overview.md --watch
+cfl page new --title "Architecture Overview" --space-key TEST --parent-id 123456 --watch
 
 # Create a page template as a draft
 cfl page new --title "Draft Notes" --space-key TEST --parent-id 123456 --draft
@@ -137,7 +137,7 @@ cfl auth
 cfl auth login --domain example.atlassian.net --email user@example.com --api-token <token>
 
 # Save credentials without online validation
-cfl auth login --domain example.atlassian.net --email user@example.com --api-token <token> --no-validate
+cfl auth login --no-validate
 
 # Clear saved credentials
 cfl auth logout

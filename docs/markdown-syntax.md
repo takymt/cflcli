@@ -88,6 +88,21 @@ This document provides a concise catalog of Markdown syntax for Confluence CLI.
 ![alt-text](https://developer.atlassian.com/favicon.ico)
 *Caption*
 
+## Relative Links
+
+Relative references are resolved from the current Markdown file path.
+
+```md
+[Child Page](./child.md)
+[Spec](./docs/spec.pdf)
+![Diagram](../assets/diagram.png)
+```
+
+- Relative links are embedded as page attachments.
+- Relative links to `cfl`-managed Markdown files are rendered as links to the corresponding Confluence pages.
+- Absolute local paths are skipped with a warning.
+- Different files cannot share the same attachment filename in one sync.
+
 ## Task Lists
 
 ```md
